@@ -21,54 +21,85 @@
 
 
 module adder_tree #(
-    parameter INPUT_SIZE   = 9,
-    parameter OUTPUT_BITS = 48
+    parameter INPUT_NUM   = 9,
+    parameter OUTPUT_BITS = 32
 ) (
-    input                                    i_clk,
-    input                                    i_rstn,
-    input                                    i_valid,
-    input  [OUTPUT_BITS * INPUT_SIZE - 1:0] i_data,
-    output [                 OUTPUT_BITS:0] o_data,
-    output                                   o_valid
+    input                                             i_clk,
+    input                                             i_rstn,
+    // ipt
+    input                                             o_ipt_rdy,
+    input                                             i_ipt_vld,
+    input             [OUTPUT_BITS * INPUT_NUM - 1:0] i_ipt_din,
+    // opt
+    input                                             i_opt_rdy,
+    output reg                                        o_opt_vld,
+    output reg signed [             OUTPUT_BITS -1:0] o_opt_dout
 );
-  localparam STAGES = $clog2(INPUT_SIZE);
+  // ------------------ hand shake -------------------
+  assign o_ipt_rdy = i_opt_rdy || !o_opt_vld;
+  assign w_act     = o_ipt_rdy && (i_ipt_vld);
+  // ------------------- parmeter ------------------- 
+  localparam STAGES = $clog2(INPUT_NUM);
 
-  reg [OUTPUT_BITS-1:0] w_stage_data[0:STAGES][0:INPUT_SIZE-1];
+  genvar s;
+  integer                      j;
+  integer                      k;
+  // ------------------------- reg ------------------------- 
+  // 연결되지 않은 레지스터는 합성되지 않음
+  reg signed [OUTPUT_BITS-1:0] w_stg_dat [0:STAGES][0:INPUT_NUM-1];
+  reg        [       STAGES:0] r_stg_vld;
 
-  // 1. 스테이지 valid 판별
-  reg [STAGES:0] r_valid_pipe;
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) r_valid_pipe <= 0;
-    else r_valid_pipe <= {r_valid_pipe[STAGES-1:0], i_valid};
-  end
+  // ------------------------ always ----------------------- 
 
-  // 2. 0번 스테이지 초기화
-  integer k;
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      for (k = 0; k < INPUT_SIZE; k = k + 1) w_stage_data[0][k] <= 0;
-    end else if (i_valid) begin
-      for (k = 0; k < INPUT_SIZE; k = k + 1)
-      w_stage_data[0][k] <= i_data[k*OUTPUT_BITS+:OUTPUT_BITS];
-    end
-  end
+
 
   // 3. adder tree
-  genvar s;
-  integer j;
   generate
+    if (0 < STAGES) begin
+      always @(posedge i_clk or negedge i_rstn) begin
+        if (~i_rstn) begin
+          r_stg_vld <= 0;
+          for (k = 0; k < INPUT_NUM; k = k + 1) w_stg_dat[0][k] <= 0;
+        end else if (o_ipt_rdy) begin
+          r_stg_vld <= {r_stg_vld[STAGES-1:0], i_ipt_vld};
+          if (i_ipt_vld)  // act
+            for (k = 0; k < INPUT_NUM; k = k + 1) begin
+              w_stg_dat[0][k] <= i_ipt_din[k*OUTPUT_BITS+:OUTPUT_BITS];
+            end
+        end
+      end
+    end else begin
+      always @(posedge i_clk or negedge i_rstn) begin
+        if (~i_rstn) begin
+          r_stg_vld <= 0;
+          for (k = 0; k < INPUT_NUM; k = k + 1) w_stg_dat[0][k] <= 0;
+        end else if (o_ipt_rdy) begin
+          r_stg_vld <= i_ipt_vld;
+          if (i_ipt_vld)  // act
+            for (k = 0; k < INPUT_NUM; k = k + 1) begin
+              w_stg_dat[0][k] <= i_ipt_din[k*OUTPUT_BITS+:OUTPUT_BITS];
+            end
+        end
+      end
+    end
+
+
     for (s = 0; s < STAGES; s = s + 1) begin : STAGE_LOGIC
-      localparam CUR_IN_SIZE = (s == 0) ? INPUT_SIZE : (((INPUT_SIZE - 1) >> (s - 1)) + 1);
-      localparam CUR_OUT_SIZE = ((CUR_IN_SIZE - 1) >> 1) + 1;
+      localparam CUR_IN_SIZE = (s == 0) ? INPUT_NUM : (((INPUT_NUM - 1) >> (s - 1)) + 1);
+      localparam CUR_OUT_SIZE = ((CUR_IN_SIZE - 1) >> 1) + 1;  // 
 
       always @(posedge i_clk or negedge i_rstn) begin
         if (~i_rstn) begin
-          for (k = 0; k < INPUT_SIZE; k = k + 1) w_stage_data[s+1][k] <= 0;
-        end else if (r_valid_pipe[s]) begin  // 이전 단계 데이터가 유효할 때 연산
-          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
-            if (2 * j + 1 < CUR_IN_SIZE)
-              w_stage_data[s+1][j] <= w_stage_data[s][2*j] + w_stage_data[s][2*j+1];
-            else w_stage_data[s+1][j] <= w_stage_data[s][2*j];
+          for (k = 0; k < INPUT_NUM; k = k + 1) w_stg_dat[s+1][k] <= 0;
+        end else begin
+          if (o_ipt_rdy) begin
+            if (r_stg_vld[s]) begin
+              for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin  // 스테이지의 출력단 연결
+                if (2 * j + 1 < CUR_IN_SIZE)
+                  w_stg_dat[s+1][j] <= w_stg_dat[s][2*j] + w_stg_dat[s][2*j+1];
+                else w_stg_dat[s+1][j] <= w_stg_dat[s][2*j];
+              end
+            end
           end
         end
       end
@@ -76,6 +107,17 @@ module adder_tree #(
   endgenerate
 
   // 4. Output
-  assign o_data  = w_stage_data[STAGES][0];
-  assign o_valid = r_valid_pipe[STAGES];
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      o_opt_vld  <= 'd0;
+      o_opt_dout <= 'd0;
+    end else begin
+      if (o_ipt_rdy) begin
+        o_opt_vld <= r_stg_vld[STAGES];
+        if (r_stg_vld[STAGES]) begin
+          o_opt_dout <= w_stg_dat[STAGES][0];
+        end
+      end
+    end
+  end
 endmodule

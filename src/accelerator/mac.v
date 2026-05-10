@@ -19,56 +19,80 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
+/* 
+mac이 많아진다
+-> 48비트 output register 가 많아진다
+-> output register 는 타이밍 안정도를 높이기 위함임
+-> 자원 제한적이면 output assign 으로 바로 출력  
+-> delay 레지스터는 필수
+
+*/
 
 module mac #(
-    parameter INPUT_BITS  = 16,
     parameter WEIGHT_BITS = 16,
-    parameter OUTPUT_BITS = 48
+    parameter INPUT_BITS  = 16,
+    parameter OUTPUT_BITS = 32
 ) (
-    input                                  i_clk,
-    input                                  i_rstn,
-    input                                  i_en,
-    input  signed     [ INPUT_BITS - 1:0] i_input,
-    input  signed     [WEIGHT_BITS - 1:0] i_weight,
-    output reg                             o_valid,
-    output reg signed [OUTPUT_BITS - 1:0] o_data
+    input                             i_clk,
+    input                             i_rstn,
+    // wgt
+    input  signed [WEIGHT_BITS - 1:0] i_wgt_din,
+    // ipt
+    output                            o_ipt_rdy,
+    input                             i_ipt_vld,
+    input  signed [ INPUT_BITS - 1:0] i_ipt_din,
+    // opt
+    input                             i_opt_rdy,
+    output                            o_opt_vld,
+    output signed [OUTPUT_BITS - 1:0] o_opt_dout
 );
+  // ----------------------- parmeter ---------------------- 
+  localparam DSP_DLY = 1;
+  // --------------------- wire ---------------------
+  // debug 
+  wire                            dbg_stv = o_ipt_rdy && (!i_ipt_vld);
+  wire                            dbg_bpss = !i_opt_rdy && o_opt_vld;
+  // ? 
+  wire signed [OUTPUT_BITS - 1:0] w_dsp_opt;
+  wire                            w_act = o_ipt_rdy && (i_ipt_vld);
 
-  // wrie
-  wire signed [OUTPUT_BITS - 1:0] r_dsp_output;
+// ------------------------- reg -------------------------   
+  // opt
+  reg                             r_opt_vld;
+  reg                             r_opt_vld_dly;
+  reg         [OUTPUT_BITS - 1:0] r_opt_dat;
 
-  // reg
-  reg delay0;
-
-  // delay for mac calculate (add : 1  clock)
+  // ------------------ hand shake ------------------- 
+// ------------------------ assign -----------------------  
+  // opt
+  assign o_opt_vld  = r_opt_vld_dly;
+  assign o_opt_dout = r_opt_dat;
+  // ipt
+  assign o_ipt_rdy  = (i_opt_rdy || !o_opt_vld);  // 받을 준비 조건
+  // ------------------------ always ----------------------- 
+  // output
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      delay0 <= 'd0;
+      r_opt_vld     <= 'd0;
+      r_opt_vld_dly <= 'd0;
+      r_opt_dat     <= 'd0;
     end else begin
-      delay0 <= i_en;
-    end
-  end
-
-  // output 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      o_valid <= 'd0;
-      o_data  <= 'd0;
-    end else begin
-      o_valid <= 'd0;
-      if (delay0) begin
-        o_valid <= 'd1;
-        o_data  <= r_dsp_output;
+      if (o_ipt_rdy) begin
+        r_opt_vld     <= i_ipt_vld;  // 다음 입력이 있으면 유지(1), 없으면 해제(0)
+        r_opt_vld_dly <= r_opt_vld;
+        if (r_opt_vld) begin
+          r_opt_dat <= w_dsp_opt;  // 새로운 데이터 캡처
+        end
       end
     end
   end
-
+  // ------------------------- module ----------------------  
   dsp_add_macro dsp (
       .CLK(i_clk),
-      .CE (1'b1),         // 저전력 설계시 off 고려
-      .A  (i_input),
-      .B  (i_weight),
-      .P  (r_dsp_output)
+      .CE (w_act),
+      .A  (i_ipt_din),
+      .B  (i_wgt_din),
+      .P  (w_dsp_opt)
   );
 
 endmodule

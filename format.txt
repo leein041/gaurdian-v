@@ -1,0 +1,70 @@
+
+// ----------------------- parmeter ---------------------- 
+// ------------------------- wire ------------------------
+// ------------------------- reg ------------------------- 
+// ---------------------- hand shake --------------------- 
+// ------------------------ assign ----------------------- 
+// ------------------------- FSM -------------------------   
+
+// ------------------------ always ----------------------- 
+  // ------------------- Unpack / Pack ------------------- 
+// ------------------------- module ---------------------- 
+
+------------------------ in/out 포트명 규칙 ------------------------
+[접두어][대상][속성]
+
+접두어: i (input), o (output)
+
+대상: pu, mem, ctl                              // 접두어 가능 w(write), i(input) ex. wmem, imem
+
+속성: vld, en, din, dout, addr, st, dn, dly     // 접두어 가능 l(line buffer), p(patch) ex. lvld, pdout
+
+구조 : pck                                      // 접두어 가능 c(channel), p(patch) ex. cpck, ppck
+
+wire/reg 변수명 규칙
+[접두어][대상][속성][구조]
+
+접두어: w (wire), r (reg), dbg(파형 관찰용)
+
+대상: i/o 포트규칙과동일
+
+속성 : i/o 포트규칙과 동일. 단, din/dout -> dat 규칙
+
+구조 : i/o 포트규칙과 동일            
+
+wire 와 I/O 차이
+1. wire는 방향성 없는 특징을 나타내기 위해 dat
+   I/O는 방향성 있는 특징을 나타내기 위해 din/dout
+
+------------------------hand shake 규칙------------------------
+// 규칙
+// 1. 출력 레지스터는 아래와 같은 형식을 따른다.
+// 2. FSM, 내부 제어 신호는 w_act 신호에 따른다.
+// 3. we, re 신호는 예외처리로 !w_act 일때 0으로 내린다.(중복 읽기/쓰기 방지)
+// 4. skid buffer 와 같은 출력 방향만 hand shake인 경우나 입력방향만 hand shake인 경우 주의
+
+assign o_ipt_rdy    = (i_opt_rdy || !o_opt_vld);  // 받을 준비 조건
+wire w_act        = o_ipt_rdy && (i_ipt_vld);   // 연산 활성화 조건
+wire dbg_stv      = o_ipt_rdy && (!i_ipt_vld);  // starvation    (디버깅용)
+wire dbg_bpss     = !i_opt_rdy && o_opt_vld;    // back pressure (디버깅용)
+
+reg r_opt_vld;
+reg r_opt_dat;
+// reg r_opt_dly  // 내부 딜레이 필요시
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin 
+        r_opt_vld  <= 'd0;
+        r_opt_dat  <= 'd0; 
+    end else begin   
+        if (i_opt_rdy) begin
+            r_opt_vld <= i_ipt_vld; // 다음 입력이 있으면 유지(1), 없으면 해제(0)
+            if (i_ipt_vld) begin
+                r_opt_dat <= i_ipt_din; // 새로운 데이터 캡처
+            end
+        end
+    end 
+  end
+------------------------ delay 규칙 ------------------------
+ localparam DLY = 3;
+ reg  [DLY-1:0] r_dly;
+ r_dly <= {r_dly[PROW_DLY-2:0], w_sigZ};

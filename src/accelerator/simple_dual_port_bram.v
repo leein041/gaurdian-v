@@ -38,43 +38,47 @@ module simple_dual_port_bram #(
     parameter DEPTH      = 1024,
     parameter ADDR_WIDTH = $clog2(DEPTH),
     parameter INIT_FILE  = ""
-)(
-    input  wire                  clk        ,
-    input  wire                  wr_en      ,
-    input  wire                  rd_en      ,
-    input  wire [ADDR_WIDTH-1:0] wr_addr    ,
-    input  wire [ADDR_WIDTH-1:0] rd_addr    ,
-    input  wire [WIDTH-1:0]      wr_din     ,
-    output reg                   rd_valid   ,
-    output reg  [WIDTH-1:0]      rd_dout
+) (
+    input                       i_clk,
+    input                       i_rstn,
+    input                       i_re,
+    input      [ADDR_WIDTH-1:0] i_raddr,
+    input                       i_we,
+    input      [ADDR_WIDTH-1:0] i_waddr,
+    input      [     WIDTH-1:0] i_wdin,
+    output reg                  o_vld,
+    output reg [     WIDTH-1:0] o_dout
 );
 
-    // BRAM
-    (* ram_style = "block" *) reg [WIDTH-1:0] mem [0:DEPTH-1];
+  // BRAM
+  (* ram_style = "block" *) reg [WIDTH-1:0] r_mem[0:DEPTH-1];
 
-    generate
-        if (INIT_FILE != "") begin : use_init_file
-            initial begin
-                $readmemh(INIT_FILE, mem);
-            end
-        end else begin : init_to_zero
-            integer i;
-            initial begin
-                for (i = 0; i < DEPTH; i = i + 1)
-                    mem[i] = {WIDTH{1'b0}};
-            end
-        end
-    endgenerate
+  generate
+    if (INIT_FILE != "") begin : use_init_file
+      initial begin
+        $readmemh(INIT_FILE, r_mem);
+      end
 
-    always @(posedge clk) begin
-        if (wr_en)
-            mem[wr_addr] <= wr_din;
-
-        if (rd_en) begin
-            rd_dout <= mem[rd_addr]; // READ_FIRST
-        end
-
-        rd_valid <= rd_en;
+    end else begin : init_to_zero
+      integer i;
+      initial begin
+        for (i = 0; i < DEPTH; i = i + 1) r_mem[i] = {WIDTH{1'b0}};
+      end
     end
+  endgenerate
+
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      o_dout <= 'd0;
+      o_vld  <= 'd0;
+    end else begin
+      o_vld <= 'd0;
+      if (i_we) r_mem[i_waddr] <= i_wdin;
+      if (i_re) begin
+        o_vld  <= 'd1;
+        o_dout <= r_mem[i_raddr];  // READ_FIRST
+      end
+    end
+  end
 
 endmodule
