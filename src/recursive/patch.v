@@ -56,7 +56,7 @@ module patch #(
   reg [INPUT_BITS-1:0] r_ptch_dat[0:PATCH_HEIGHT-1][0:PATCH_WIDTH-1];
   reg r_opt_vld;
 
-  reg [$clog2(LINE_HEIGHT)-1:0] r_prow[0:PATCH_HEIGHT-1]; // 0 1 2 -> 2 0 1
+  reg [$clog2(LINE_HEIGHT)-1:0] r_prow[0:PATCH_HEIGHT-1];
 
   // ------------------------ assign -----------------------   
   // opt

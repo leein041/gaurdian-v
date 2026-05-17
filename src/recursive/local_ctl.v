@@ -38,8 +38,13 @@ module local_ctl #(
 );
   // ----------------------- parmeter ----------------------  
   localparam LP_IDLE = 2'd0;
-  localparam LP_LOAD_WEIGHT = 2'd1;
-  localparam LP_WAIT = 2'd2;
+  localparam LP_LOAD_WEIGHT1 = 2'd1;
+  localparam LP_READ_INPUT1_WAIT = 2'd2;
+  localparam LP_LOAD_WEIGHT2 = 2'd1;
+  localparam LP_READ_INPUT2_WAIT = 2'd2;
+  localparam LP_LOAD_WEIGHT3 = 2'd1;
+  localparam LP_READ_INPUT3_WAIT = 2'd2;
+  localparam LP_WAIT = 2'd3;
   // ------------------------- wire ------------------------ 
   // ------------------------- reg -------------------------  
   // FSM
@@ -49,6 +54,10 @@ module local_ctl #(
   reg                   r_wgt_re;
   reg [WEIGHT_ADDR-1:0] r_wgt_raddr;
   reg                   r_wgt_rdn;
+  // bias
+  reg                   r_bias_re;
+  reg [WEIGHT_ADDR-1:0] r_bias_raddr;
+  reg                   r_bias_rdn;
   // ------------------------ assign -----------------------    
   assign o_wgt_rdn   = r_wgt_rdn;
   assign o_wgt_re    = r_wgt_re;
@@ -72,7 +81,9 @@ module local_ctl #(
         if (i_st) r_lp_nstat = LP_LOAD_WEIGHT;
       end
       // 읽기 마쳤으면 WAIT으로 천이
-      LP_LOAD_WEIGHT: if (r_wgt_re && (r_wgt_raddr == WEIGHT_DEPTH - 1)) r_lp_nstat = LP_WAIT;
+      LP_LOAD_WEIGHT: if (r_wgt_re && (r_wgt_raddr == WEIGHT_DEPTH - 1)) r_lp_nstat = LP_LOAD_BIAS;
+
+LP_LOAD_BIAS : if(r_bias_re && (r_bias_raddr == WEIGHT_DEPTH - 1)) r_lp_nstat = LP_LOAD_BIAS;
 
       LP_WAIT: r_lp_nstat = LP_IDLE;
       default: ;

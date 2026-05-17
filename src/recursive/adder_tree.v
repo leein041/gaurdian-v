@@ -34,8 +34,8 @@ module adder_tree #(
     end
   endfunction
   // ------------------------- reg -------------------------  
-  reg signed [BITS-1:0] r_stg_dat[0:STAGES][0:INPUT_NUM-1];  // 스테이지 파이프라인(data)
-  reg [STAGES:0] r_stg_vld;  // 스테이지 파이프라인(valid)
+  reg signed [BITS-1:0] r_stg_dat [0:STAGES][0:INPUT_NUM-1]; // 스테이지 파이프라인(data)
+  reg        [STAGES:0] r_stg_vld; // 스테이지 파이프라인(valid)
   // ------------------------ always ----------------------- 
   // stg0
   always @(posedge i_clk or negedge i_rstn) begin
@@ -61,11 +61,6 @@ module adder_tree #(
           r_stg_vld[s+1] <= 1'b0;
         end else if (o_ipt_rdy) begin
           r_stg_vld[s+1] <= r_stg_vld[s];
-        end
-      end
-
-      always @(posedge i_clk) begin
-        if (o_ipt_rdy) begin
           for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
             if (2 * j + 1 < CUR_IN_SIZE) begin
               r_stg_dat[s+1][j] <= r_stg_dat[s][2*j] + r_stg_dat[s][2*j+1];

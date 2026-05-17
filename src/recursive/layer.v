@@ -26,7 +26,6 @@ module layer #(
     parameter INPUT_HEIGHT     = 5,
     parameter FMAP_WIDTH       = 5,
     parameter FMAP_HEIGHT      = 5,
-    parameter FMAP_DEPTH       = 5,
     parameter WEIGHT_BITS      = 16,
     parameter WEIGHT_DEPTH     = 9,
     parameter OUTPUT_BITS      = 32,
@@ -218,7 +217,7 @@ module layer #(
       line_buffer #(
           .PADDING_EN  (PADDING_EN),
           .FMAP_WIDTH  (FMAP_WIDTH),
-          .FMAP_HEIGHT (FMAP_HEIGHT), 
+          .FMAP_HEIGHT (FMAP_HEIGHT),
           .INPUT_BITS  (INPUT_BITS),
           .INPUT_WIDTH (INPUT_WIDTH),
           .INPUT_HEIGHT(INPUT_HEIGHT),

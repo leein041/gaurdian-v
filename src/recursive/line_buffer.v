@@ -24,7 +24,6 @@ module line_buffer #(
     parameter PADDING_EN   = 0,
     parameter FMAP_WIDTH   = 5,
     parameter FMAP_HEIGHT  = 5,
-    parameter FMAP_DEPTH   = 7 * 7 * 3,
     parameter INPUT_BITS   = 16,
     parameter INPUT_WIDTH  = 5,
     parameter INPUT_HEIGHT = 5,
