@@ -35,77 +35,80 @@
 `include "defines.vh"
 module tbtb ();
 
-  // MODEL SIZE 
-  parameter LAYER_NUM = 2;
+  //
+  parameter IMAGE_NUM = 1;
+  // MODEL SIZE  
   parameter INPUT_BITS = 16;
   parameter WEIGHT_BITS = 16;
   parameter OUTPUT_BITS = 32;
   // layer 1
   parameter L1_RELU_EN = 1;
   parameter L1_PADDING_EN = 1;
-  parameter L1_INPUT_WIDTH = 5;
-  parameter L1_INPUT_HEIGHT = 5;
-  parameter L1_INPUT_DEPTH = 5 * 5 * 3;
-  parameter L1_FMAP_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN);  // 7
-  parameter L1_FMAP_HEIGHT = (L1_INPUT_HEIGHT * 3 + (2 * L1_PADDING_EN));  // 7
-  parameter L1_FMAP_DPETH = 7 * 7 * 3;  // 7
-  parameter L1_WEIGHT_DEPTH = 18;
-  parameter L1_OUTPUT_WIDTH = 5;  // (3 + 2 * 1)
-  parameter L1_OUTPUT_HEIGHT = 5;
-  parameter L1_LINE_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN);  // (5 + 2 * 1)
-  parameter L1_LINE_HEIGHT = 3;
-  parameter L1_PATCH_WIDTH = 3;
-  parameter L1_PATCH_HEIGHT = 3;
   parameter L1_CHANNEL_NUM = 1;
   parameter L1_FILTER_NUM = 2;
+  parameter L1_INPUT_WIDTH = 5;
+  parameter L1_INPUT_HEIGHT = 5;
+  parameter L1_INPUT_DEPTH = L1_INPUT_WIDTH * L1_INPUT_HEIGHT * IMAGE_NUM;
+  parameter L1_FMAP_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN);
+  parameter L1_FMAP_HEIGHT = (L1_INPUT_HEIGHT * IMAGE_NUM + (2 * L1_PADDING_EN));
+  parameter L1_FMAP_DPETH = L1_INPUT_WIDTH * L1_INPUT_HEIGHT * IMAGE_NUM;
+  parameter L1_PATCH_WIDTH = 3;
+  parameter L1_PATCH_HEIGHT = 3;
+  parameter L1_WEIGHT_DEPTH = L1_PATCH_WIDTH * L1_PATCH_HEIGHT * L1_CHANNEL_NUM * L1_FILTER_NUM;
+  parameter L1_OUTPUT_WIDTH = 5;
+  parameter L1_OUTPUT_HEIGHT = 5;
+  parameter L1_LINE_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN);
+  parameter L1_LINE_HEIGHT = 3;
   // layer 2
   parameter L2_RELU_EN = 1;
   parameter L2_PADDING_EN = 1;
+  parameter L2_CHANNEL_NUM = 2;
+  parameter L2_FILTER_NUM = 2;
+  parameter L2_PATCH_WIDTH = 3;
+  parameter L2_PATCH_HEIGHT = 3;
   parameter L2_INPUT_WIDTH = 5;
   parameter L2_INPUT_HEIGHT = 5;
-  parameter L2_FMAP_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN);  // 7
-  parameter L2_FMAP_HEIGHT = (L2_INPUT_HEIGHT * 3 + (2 * L2_PADDING_EN));  // 7
-  parameter L2_FMAP_DEPTH = 7 * 7 * 3;  // 7
-  parameter L2_WEIGHT_DEPTH = 18;
+  parameter L2_FMAP_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN);
+  parameter L2_FMAP_HEIGHT = L2_INPUT_HEIGHT * IMAGE_NUM + (2 * L2_PADDING_EN);
+  parameter L2_FMAP_DEPTH = L2_FMAP_WIDTH * L2_FMAP_HEIGHT * IMAGE_NUM;
+  parameter L2_WEIGHT_DEPTH = L2_PATCH_WIDTH * L2_PATCH_HEIGHT * L2_CHANNEL_NUM * L2_FILTER_NUM;
   parameter L2_OUTPUT_WIDTH = 5;  // (3 + 2 * 1)
   parameter L2_OUTPUT_HEIGHT = 5;
   parameter L2_LINE_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN);  // (5 + 2 * 1)
   parameter L2_LINE_HEIGHT = 3;
-  parameter L2_PATCH_WIDTH = 3;
-  parameter L2_PATCH_HEIGHT = 3;
-  parameter L2_CHANNEL_NUM = 2;
-  parameter L2_FILTER_NUM = 2;
   // layer 3 
   parameter L3_RELU_EN = 0;
   parameter L3_PADDING_EN = 1;
+  parameter L3_CHANNEL_NUM = 2;
+  parameter L3_FILTER_NUM = 1;
   parameter L3_INPUT_WIDTH = 5;
   parameter L3_INPUT_HEIGHT = 5;
   parameter L3_FMAP_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN);  // 7
-  parameter L3_FMAP_HEIGHT = (L3_INPUT_HEIGHT * 3 + (2 * L3_PADDING_EN));  // 7
-  parameter L3_FMAP_DEPTH = 7 * 7 * 3;  // 7
+  parameter L3_FMAP_HEIGHT = L3_INPUT_HEIGHT * IMAGE_NUM + (2 * L3_PADDING_EN);  // 7
+  parameter L3_FMAP_DEPTH = L3_FMAP_WIDTH * L3_FMAP_HEIGHT * IMAGE_NUM;
   parameter L3_WEIGHT_DEPTH = 18;
-  parameter L3_OUTPUT_WIDTH = 5;  // (3 + 2 * 1)
+  parameter L3_OUTPUT_WIDTH = 5;
   parameter L3_OUTPUT_HEIGHT = 5;
   parameter L3_OUTPUT_DEPTH = 75;
   parameter L3_LINE_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN);  // (5 + 2 * 1)
   parameter L3_LINE_HEIGHT = 3;
   parameter L3_PATCH_WIDTH = 3;
   parameter L3_PATCH_HEIGHT = 3;
-  parameter L3_CHANNEL_NUM = 2;
-  parameter L3_FILTER_NUM = 1;
 
   // BRAM INIT FILE
-  parameter INPUT_INIT_FILE = "c:/seop_workspace/seop_verilog/init/accelerator_init/pb6/act.txt";
-  parameter L1_WEIGHT_INIT_FILE = "c:/seop_workspace/seop_verilog/init/accelerator_init/pb6/w_L1.txt";
-  parameter L1_BIAS_INIT_FILE = "";
-  parameter L2_WEIGHT_INIT_FILE = "c:/seop_workspace/seop_verilog/init/accelerator_init/pb6/w_L2.txt";
-  parameter L2_BIAS_INIT_FILE = "";
-  parameter L3_WEIGHT_INIT_FILE = "c:/seop_workspace/seop_verilog/init/accelerator_init/pb6/w_L3.txt";
-  parameter L3_BIAS_INIT_FILE = "";
+  parameter INPUT_INIT_FILE = "c:/seop_tb/act.txt";
+  parameter L1_WEIGHT_INIT_FILE = "c:/seop_tb/w_L1.txt";
+  parameter L1_BIAS_INIT_FILE = "c:/seop_tb/bias_L1.txt";
+  parameter L2_WEIGHT_INIT_FILE = "c:/seop_tb/w_L2.txt";
+  parameter L2_BIAS_INIT_FILE = "c:/seop_tb/bias_L2.txt";
+  parameter L3_WEIGHT_INIT_FILE = "c:/seop_tb/w_L3.txt";
+  parameter L3_BIAS_INIT_FILE ="c:/seop_tb/bias_L3.txt";
 
   //-------------------------------------------------------------------------------
   // SYSTEM SIGNALS
   //-------------------------------------------------------------------------------
+  wire o_opt_vld;
+  wire signed [INPUT_BITS-1:0] o_opt_dat; // 본인의 데이터 비트 폭에 맞게 수정하세요.
 
   reg i_clk;
   reg i_rstn;
@@ -135,25 +138,25 @@ module tbtb ();
     i_rdy_test = 1'b0;
     #1000;
     i_rdy_test = 1'b1;
-    #20;
+    #50;
     i_rdy_test = 1'b0;
-    #20;
+    #50;
     i_rdy_test = 1'b1;
-    #20;
+    #50;
     i_rdy_test = 1'b0;
-    #20;
+    #50;
     i_rdy_test = 1'b1;
-    #20;
+    #50;
     i_rdy_test = 1'b0;
-    #20;
+    #50;
     i_rdy_test = 1'b0;
-    #20;
+    #50;
     i_rdy_test = 1'b1;
-    #20;
+    #50;
     i_rdy_test = 1'b0;
-    #20;
+    #50;
     i_rdy_test = 1'b1;
-    #20;
+    #50;
   end
 
 
@@ -164,60 +167,45 @@ module tbtb ();
   // TOP prac3
   my_top #(
 `ifdef DEBUG_MODE
-      .LAYER_NUM          (LAYER_NUM),
+      .IMAGE_NUM          (IMAGE_NUM),
       .INPUT_BITS         (INPUT_BITS),
       .WEIGHT_BITS        (WEIGHT_BITS),
       .OUTPUT_BITS        (OUTPUT_BITS),
       // layer 1
       .L1_PADDING_EN      (L1_PADDING_EN),
       .L1_RELU_EN         (L1_RELU_EN),
-      .L1_INPUT_WIDTH     (L1_INPUT_WIDTH),
-      .L1_INPUT_HEIGHT    (L1_INPUT_HEIGHT),
-      .L1_INPUT_DEPTH     (L1_INPUT_DEPTH),
-      .L1_FMAP_WIDTH      (L1_FMAP_WIDTH),
-      .L1_FMAP_HEIGHT     (L1_FMAP_HEIGHT),
-      .L1_WEIGHT_DEPTH    (L1_WEIGHT_DEPTH),
-      .L1_OUTPUT_WIDTH    (L1_OUTPUT_WIDTH),
-      .L1_OUTPUT_HEIGHT   (L1_OUTPUT_HEIGHT),
-      .L1_LINE_WIDTH      (L1_LINE_WIDTH),
-      .L1_LINE_HEIGHT     (L1_LINE_HEIGHT),
-      .L1_PATCH_WIDTH     (L1_PATCH_WIDTH),
-      .L1_PATCH_HEIGHT    (L1_PATCH_HEIGHT),
       .L1_CHANNEL_NUM     (L1_CHANNEL_NUM),
       .L1_FILTER_NUM      (L1_FILTER_NUM),
+      .L1_INPUT_WIDTH     (L1_INPUT_WIDTH),
+      .L1_INPUT_HEIGHT    (L1_INPUT_HEIGHT),
+      .L1_OUTPUT_WIDTH    (L1_OUTPUT_WIDTH),
+      .L1_OUTPUT_HEIGHT   (L1_OUTPUT_HEIGHT),
+      .L1_PATCH_WIDTH     (L1_PATCH_WIDTH),
+      .L1_PATCH_HEIGHT    (L1_PATCH_HEIGHT),
       // layer 2
       .L2_PADDING_EN      (L2_PADDING_EN),
       .L2_RELU_EN         (L2_RELU_EN),
+      .L2_CHANNEL_NUM     (L2_CHANNEL_NUM),
+      .L2_FILTER_NUM      (L2_FILTER_NUM),
       .L2_INPUT_WIDTH     (L2_INPUT_WIDTH),
       .L2_INPUT_HEIGHT    (L2_INPUT_HEIGHT),
-      .L2_FMAP_WIDTH      (L2_FMAP_WIDTH),
-      .L2_FMAP_HEIGHT     (L2_FMAP_HEIGHT),
-      .L2_WEIGHT_DEPTH    (L2_WEIGHT_DEPTH),
       .L2_OUTPUT_WIDTH    (L2_OUTPUT_WIDTH),
       .L2_OUTPUT_HEIGHT   (L2_OUTPUT_HEIGHT),
-      .L2_LINE_WIDTH      (L2_LINE_WIDTH),
       .L2_LINE_HEIGHT     (L2_LINE_HEIGHT),
       .L2_PATCH_WIDTH     (L2_PATCH_WIDTH),
       .L2_PATCH_HEIGHT    (L2_PATCH_HEIGHT),
-      .L2_CHANNEL_NUM     (L2_CHANNEL_NUM),
-      .L2_FILTER_NUM      (L2_FILTER_NUM),
       // layer 3
       .L3_RELU_EN         (L3_RELU_EN),
       .L3_PADDING_EN      (L3_PADDING_EN),
+      .L3_CHANNEL_NUM     (L3_CHANNEL_NUM),
+      .L3_FILTER_NUM      (L3_FILTER_NUM),
       .L3_INPUT_WIDTH     (L3_INPUT_WIDTH),
       .L3_INPUT_HEIGHT    (L3_INPUT_HEIGHT),
-      .L3_FMAP_WIDTH      (L3_FMAP_WIDTH),
-      .L3_FMAP_HEIGHT     (L3_FMAP_HEIGHT),
-      .L3_WEIGHT_DEPTH    (L3_WEIGHT_DEPTH),
       .L3_OUTPUT_WIDTH    (L3_OUTPUT_WIDTH),
       .L3_OUTPUT_HEIGHT   (L3_OUTPUT_HEIGHT),
-      .L3_OUTPUT_DEPTH    (L3_OUTPUT_DEPTH),
-      .L3_LINE_WIDTH      (L3_LINE_WIDTH),
       .L3_LINE_HEIGHT     (L3_LINE_HEIGHT),
       .L3_PATCH_WIDTH     (L3_PATCH_WIDTH),
       .L3_PATCH_HEIGHT    (L3_PATCH_HEIGHT),
-      .L3_CHANNEL_NUM     (L3_CHANNEL_NUM),
-      .L3_FILTER_NUM      (L3_FILTER_NUM),
       // init mem
       .INPUT_INIT_FILE    (INPUT_INIT_FILE),
       .L1_WEIGHT_INIT_FILE(L1_WEIGHT_INIT_FILE),
@@ -234,9 +222,9 @@ module tbtb ();
 `ifdef DEBUG_MODE
       .i_rdy_test       (i_rdy_test),
 `endif
-      .output_bram_wen  (),
+      .output_bram_wen  (o_opt_vld),
       .output_bram_waddr(),
-      .L3_p_out         (),
+      .L3_p_out         (o_opt_dat),
       .o_done           ()
   );
 
@@ -244,8 +232,40 @@ module tbtb ();
   // SYSTEM
   //-------------------------------------------------------------------------------
 
+  integer file_handle;
+
+  // 4. 시뮬레이션 시작 시 파일 열기
   initial begin
-    #40000 $finish();
+    file_handle = $fopen("c:/DSD26_Termproject_Materials/01_Reference_SW/save_8_4/output.txt", "w");
+
+    if (file_handle == 0) begin
+      $display("file open ERROR!");
+      $finish;
+    end
   end
 
+  // 5. [핵심] 매 클럭마다 Valid를 체크하여 실시간 저장
+  always @(posedge i_clk) begin
+    if (o_opt_vld) begin
+      // %d를 사용해 signed 음수까지 10진수로 정확히 기록
+      $fdisplay(file_handle, "%d", o_opt_dat);
+      $fflush(file_handle);
+    end
+  end
+
+  // 6. 시뮬레이션이 끝날 때 파일 닫기
+  // 데이터 입력이 다 끝나고 시뮬레이션을 종료하는 플래그 쪽에 넣으시면 됩니다.
+  initial begin
+    // 예시: 1000ns 동안 시뮬레이션 후 종료
+`ifdef DEBUG_MODE
+    #5000;
+`else
+    #1000000;
+`endif
+    if (file_handle != 0) begin
+      $fclose(file_handle);
+      $display("ALL SAVED !");
+    end
+    $finish;
+  end
 endmodule

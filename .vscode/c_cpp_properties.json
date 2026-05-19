@@ -3,7 +3,7 @@
         {
             "name": "AVR",
             "intelliSenseMode": "${default}",
-            "compilerPath": "",
+            "compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
             "cStandard": "${default}",
             "cppStandard": "${default}",
             "includePath": [],

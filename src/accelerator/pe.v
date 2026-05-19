@@ -32,26 +32,22 @@ module pe #(
     localparam PATCH_SIZE = INPUT_BITS * PATCH_AREA
 
 ) (
-    input                      i_clk,
-    input                      i_rstn,
-    input                      i_pe_en,
+    input                             i_clk,
+    input                             i_rstn,
+    input                             i_pe_en,
     // wgt
-    input                      i_wgt_vld,
-    input  [WEIGHT_BITS - 1:0] i_wgt_din,
-    // ipt 
-    input                      i_ipt_vld,
-    input  [INPUT_BITS  - 1:0] i_ipt_din,
-    // opt 
-    output                     o_opt_vld,
-    output [OUTPUT_BITS - 1:0] o_opt_dout
+    input                             i_wgt_vld,
+    input  signed [WEIGHT_BITS - 1:0] i_wgt_din,
+    // ipt  
+    input  signed [INPUT_BITS  - 1:0] i_ipt_din,
+    // opt  
+    output signed [OUTPUT_BITS - 1:0] o_opt_dout
 );
-  // ------------------- parmeter -------------------    
-  integer                   i;
-  // --------------------- wire ---------------------  
+  // ----------------------- parmeter ----------------------  
+  integer                      i;
   // ------------------------- reg -------------------------  
-  reg     [WEIGHT_BITS-1:0] r_wgt_dat;
+  reg signed [WEIGHT_BITS-1:0] r_wgt_dat;
 
-  // ------------------------ assign -----------------------   
   // ------------------------ always -----------------------  
   // init weight data
   always @(posedge i_clk or negedge i_rstn) begin
@@ -62,7 +58,6 @@ module pe #(
     end
   end
 
-  // ------------------- Unpack / Pack -------------------   
   // ------------------------- module ---------------------- 
 
   mac #(
@@ -76,11 +71,9 @@ module pe #(
       .i_mac_en  (i_pe_en),
       // wgt
       .i_wgt_din (r_wgt_dat),
-      // ipt 
-      .i_ipt_vld (i_ipt_vld),
+      // ipt  
       .i_ipt_din (i_ipt_din),
-      // opt 
-      .o_opt_vld (o_opt_vld),
+      // opt  
       .o_opt_dout(o_opt_dout)
   );
 

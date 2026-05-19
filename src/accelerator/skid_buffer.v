@@ -6,17 +6,20 @@ module skid_buffer #(
     parameter LATENCY  = 2,
     parameter MEM_SKID = 0
 ) (
-    input              i_clk,
-    input              i_rstn,
-    output             o_ipt_rdy,
-    input              i_ipt_vld,
-    input  [BITS -1:0] i_ipt_din,
-    input              i_opt_rdy,
-    output             o_opt_vld,
-    output [BITS -1:0] o_opt_dout
+    input                     i_clk,
+    input                     i_rstn,
+    // ipt
+    output                    o_ipt_rdy,
+    input                     i_ipt_vld,
+    input  signed [BITS -1:0] i_ipt_din,
+    // opt
+    input                     i_opt_rdy,
+    output                    o_opt_vld,
+    output signed [BITS -1:0] o_opt_dout
 );
-  // ----------------------- parmeter ---------------------- 
-  localparam DEPTH = LATENCY + 2;
+  // ----------------------- parmeter ----------------------
+  localparam RESERVE = 2;
+  localparam DEPTH = LATENCY + RESERVE;
   integer i;
   // ------------------------- wire ------------------------
   wire wr_en;
@@ -36,7 +39,8 @@ module skid_buffer #(
     // 전단이 메모리(BRAM,URAM) 읽기 지연을 읽기 위한 조건
     if (MEM_SKID) assign wr_en = i_ipt_vld;
     // 전단과 후단의 핸드셰이크 분리 조건
-    else assign wr_en = i_ipt_vld && o_ipt_rdy;
+    else
+      assign wr_en = i_ipt_vld && o_ipt_rdy;
   endgenerate
   // ------------------------ always -----------------------  
   always @(posedge i_clk or negedge i_rstn) begin

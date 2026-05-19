@@ -24,61 +24,61 @@
 module pu #(
     parameter CHANNEL_NUM  = 1,
     parameter RELU_EN      = 0,
-    parameter INPUT_BITS   = 16,
     parameter WEIGHT_BITS  = 16,
-    parameter OUTPUT_BITS  = 32,
+    parameter INPUT_BITS   = 16,
+    parameter OUTPUT_BITS  = 36,
     parameter PATCH_WIDTH  = 3,
     parameter PATCH_HEIGHT = 3,
+    // PU output bits: 36-bit-> 32(output) + 4(adder tree extension)  
     parameter LINE_WIDTH   = 5,
     parameter LINE_HEIGHT  = 3,
 
     localparam PATCH_AREA = PATCH_WIDTH * PATCH_HEIGHT,
-    localparam PATCH_SIZE = INPUT_BITS * PATCH_AREA
+    localparam PATCH_SIZE = INPUT_BITS * PATCH_AREA,
+
+    localparam PE_OUTPUT_BIT  = INPUT_BITS + WEIGHT_BITS,
+    localparam MAT_OUTPUT_BIT = PE_OUTPUT_BIT + $clog2(PATCH_AREA)
 ) (
-    input                                    i_clk,
-    input                                    i_rstn,
+    input                                           i_clk,
+    input                                           i_rstn,
     // wgt 
-    input                                    i_wgt_vld,
-    input  [               WEIGHT_BITS -1:0] i_wgt_din,
+    input                                           i_wgt_vld,
+    input  signed [               WEIGHT_BITS -1:0] i_wgt_din,
     // ipt
-    output                                   o_ipt_rdy,
-    input                                    i_ipt_vld,
-    input  [INPUT_BITS * PATCH_HEIGHT - 1:0] i_ipt_din,
+    output                                          o_ipt_rdy,
+    input                                           i_ipt_vld,
+    input  signed [INPUT_BITS * PATCH_HEIGHT - 1:0] i_ipt_din,
     // opt
-    input                                    i_opt_rdy,
-    output                                   o_opt_vld,
-    output [              OUTPUT_BITS - 1:0] o_opt_dout
+    input                                           i_opt_rdy,
+    output                                          o_opt_vld,
+    output signed [           MAT_OUTPUT_BIT - 1:0] o_opt_dout
 );
-
-  // ------------------- parmeter -------------------    
-  localparam IDLE = 3'd0;
-  localparam SLIDE_WAIT = 3'd1;
-  localparam SLIDE_BUSY = 3'd2;
-  localparam SLIDE_DONE = 3'd3;
-  localparam PROCESS_DONE = 3'd4;
-
+  // ------------------- parmeter -------------------      
   genvar c;
   genvar p;
   // --------------------- wire --------------------- 
   // debug
-  wire                              dbg_stv = o_ipt_rdy && (!i_ipt_vld);
-  wire                              dbg_bpss = !i_opt_rdy && o_opt_vld;
+  wire                                     dbg_stv = o_ipt_rdy && (!i_ipt_vld);
+  wire                                     dbg_bpss = !i_opt_rdy && o_opt_vld;
   // wgt
   // patch  
-  wire                              w_ptch_vld;
-  wire [            INPUT_BITS-1:0] w_ptch_dat                          [0:PATCH_AREA-1];
-  wire [INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
+  wire                                     w_ptch_vld;
+  wire signed [            INPUT_BITS-1:0] w_ptch_dat                          [0:PATCH_AREA-1];
+  wire        [INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
   // pe
-  wire                              w_pe_vld                            [0:PATCH_AREA-1];
-  wire [            PATCH_AREA-1:0] w_pe_vld_pck;
-  wire [           OUTPUT_BITS-1:0] w_pe_dat                            [0:PATCH_AREA-1];
-  wire [OUTPUT_BITS*PATCH_AREA-1:0] w_pe_dat_pck;
+  wire                                     w_pe_act;
+  wire                                     w_pe_rdy;
+  wire signed [           OUTPUT_BITS-1:0] w_pe_dat                            [0:PATCH_AREA-1];
+  wire        [OUTPUT_BITS*PATCH_AREA-1:0] w_pe_dat_pck;
   // mac at
-  wire                              w_mat_rdy;
+  wire                                     w_mat_rdy;
   // ------------------------- reg ------------------------- 
-  reg  [            PATCH_AREA-1:0] w_wgt_vld;
-  reg  [      $clog2(PATCH_AREA):0] r_pe_cnt;
+  reg         [            PATCH_AREA-1:0] r_wgt_vld;
+  reg         [      $clog2(PATCH_AREA):0] r_pe_cnt;
+  reg                                      r_pe_vld;
   // ------------------------ assign -----------------------   
+  assign w_pe_rdy = w_mat_rdy || !r_pe_vld;
+  assign w_pe_act = w_ptch_vld && w_pe_rdy;
   // ------------------------ always ----------------------- 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -93,19 +93,26 @@ module pu #(
   end
 
   always @(*) begin
-    w_wgt_vld = 'd0;
+    r_wgt_vld = 'd0;
     if (i_wgt_vld && (r_pe_cnt < PATCH_AREA)) begin
-      w_wgt_vld[r_pe_cnt] = 'b1;
+      r_wgt_vld[r_pe_cnt] = 'b1;
+    end
+  end
+
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_pe_vld <= 'd0;
+    end else if (w_pe_rdy) begin
+      r_pe_vld <= w_ptch_vld;
     end
   end
   // ------------------- Unpack / Pack -------------------  
   generate
     for (p = 0; p < PATCH_AREA; p = p + 1) begin
       // patch
-      assign w_ptch_dat[p]                            = w_ptch_dat_pck[p*INPUT_BITS+:INPUT_BITS];
-      // pe
-      assign w_pe_vld_pck[p]                          = w_pe_vld[p];
-      assign w_pe_dat_pck[p*OUTPUT_BITS+:OUTPUT_BITS] = w_pe_dat[p];
+      assign w_ptch_dat[p] = w_ptch_dat_pck[p*INPUT_BITS+:INPUT_BITS];
+      // pe 
+      assign w_pe_dat_pck[p*PE_OUTPUT_BIT+:PE_OUTPUT_BIT] = w_pe_dat[p];
     end
   endgenerate
   // ------------------------- module ----------------------  
@@ -123,7 +130,7 @@ module pu #(
       .i_ipt_vld (i_ipt_vld),
       .o_ipt_rdy (o_ipt_rdy),
       // opt
-      .i_opt_rdy (w_mat_rdy),
+      .i_opt_rdy (w_pe_rdy),
       .o_opt_vld (w_ptch_vld),
       .o_opt_dout(w_ptch_dat_pck)
   );
@@ -132,34 +139,32 @@ module pu #(
       pe #(
           .INPUT_BITS  (INPUT_BITS),
           .WEIGHT_BITS (WEIGHT_BITS),
-          .OUTPUT_BITS (OUTPUT_BITS),
+          .OUTPUT_BITS (PE_OUTPUT_BIT),
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_pe (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_pe_en   (w_mat_rdy && w_ptch_vld),
-          // wgt
-          .i_wgt_vld (w_wgt_vld[p]),
+          .i_pe_en   (w_pe_act),
+          // wgt 
           .i_wgt_din (i_wgt_din),
-          // ipt 
-          .i_ipt_vld (w_ptch_vld),
+          .i_wgt_vld (r_wgt_vld[p]),
+          // ipt  
           .i_ipt_din (w_ptch_dat[p]),
-          // opt 
-          .o_opt_vld (w_pe_vld[p]),
+          // opt  
           .o_opt_dout(w_pe_dat[p])
       );
     end
   endgenerate
   adder_tree #(
-      .BITS     (OUTPUT_BITS),
+      .INPUT_BIT(PE_OUTPUT_BIT),
       .INPUT_NUM(PATCH_AREA)
   ) inst_mac_at (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
       // ipt
       .o_ipt_rdy (w_mat_rdy),
-      .i_ipt_vld (&w_pe_vld_pck),
+      .i_ipt_vld (r_pe_vld),
       .i_ipt_din (w_pe_dat_pck),
       // opt
       .i_opt_rdy (i_opt_rdy),

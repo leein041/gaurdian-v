@@ -23,57 +23,35 @@
 
 // 글로벌 컨트롤러는 입력 버퍼(이미지) 주소값을 쏴줌. 입력버퍼 데이터값은 바로 첫번째 레이어로 들어감 
 module global_ctl #(
-    parameter INPUT_BITS       = 16,
-    parameter WEIGHT_BITS      = 16,
-    parameter OUTPUT_BITS      = 32,
-    // lyr 1
-    parameter L1_INPUT_WIDTH   = 5,
-    parameter L1_INPUT_HEIGHT  = 5,
-    parameter L1_INPUT_DEPTH   = 150 * 150 * 3,
-    parameter L1_OUTPUT_WIDTH  = 5,              // (3 + 2 * 1)
-    parameter L1_OUTPUT_HEIGHT = 5,
-    // lyr2 
-    parameter L2_INPUT_WIDTH   = 5,
-    parameter L2_INPUT_HEIGHT  = 5,
-    parameter L2_OUTPUT_WIDTH  = 5,              // (3 + 2 * 1)
-    parameter L2_OUTPUT_HEIGHT = 5,
-    // lyr3 
-    parameter L3_INPUT_WIDTH   = 5,
-    parameter L3_INPUT_HEIGHT  = 5,
-    parameter L3_OUTPUT_WIDTH  = 150,            // (3 + 2 * 1)
-    parameter L3_OUTPUT_HEIGHT = 150,
-    parameter L3_OUTPUT_DEPTH  = 150 * 150 * 3,
+    parameter BITS            = 16,
+    // fist layer
+    parameter L1_INPUT_DEPTH  = 150 * 150 * 3,
+    // last layer
+    parameter L3_OUTPUT_DEPTH = 150 * 150 * 3,
 
-    // layer 1 
-    localparam L1_INPUT_AREA  = L1_INPUT_WIDTH * L1_INPUT_HEIGHT,
     localparam L1_INPUT_ADDR  = $clog2(L1_INPUT_DEPTH),
-    localparam L1_OUTPUT_AREA = L1_OUTPUT_WIDTH * L1_OUTPUT_HEIGHT,
-    localparam L1_OUTPUT_ADDR = $clog2(L1_OUTPUT_AREA),
-    // layer 3
-    localparam L3_INPUT_AREA  = L3_INPUT_WIDTH * L3_INPUT_HEIGHT,
-    localparam L3_OUTPUT_AREA = L3_OUTPUT_WIDTH * L3_OUTPUT_HEIGHT,
     localparam L3_OUTPUT_ADDR = $clog2(L3_OUTPUT_DEPTH)
 ) (
-    input                      i_clk,
-    input                      i_rstn,
-    input                      i_st,
+    input                       i_clk,
+    input                       i_rstn,
+    input                       i_st,
     // layer 1 
-    input                      i_lyr1_rdy,
-    input                      i_lyr1_wrdn,
+    input                       i_lyr1_rdy,
+    input                       i_lyr1_wrdn,
     // layer 2  
-    input                      i_lyr2_wrdn,
+    input                       i_lyr2_wrdn,
     // layer 3
-    input                      i_lyr3_wrdn,
-    input                      i_lyr3_vld,
-    input  [   INPUT_BITS-1:0] i_lyr3_din,
+    input                       i_lyr3_wrdn,
+    input                       i_lyr3_vld,
+    input  [          BITS-1:0] i_lyr3_din,
     // input mem  
-    output                     o_ibuf_re,
-    output [L1_INPUT_ADDR-1:0] o_ibuf_raddr,
+    output                      o_ibuf_re,
+    output [ L1_INPUT_ADDR-1:0] o_ibuf_raddr,
     // opt mem  
-    output                     o_obuf_we,
-    output [             16:0] o_obuf_addr,
-    output [             15:0] o_obuf_dout,
-    output                     o_done         // what is this
+    output                      o_obuf_we,
+    output [L3_OUTPUT_ADDR-1:0] o_obuf_addr,
+    output [            BITS:0] o_obuf_dout,
+    output                      o_done         // what is this
 );
   // ------------------- parmeter -------------------  
   localparam IDLE = 2'd0;
@@ -81,23 +59,23 @@ module global_ctl #(
   localparam ACT = 2'd2;
   localparam DONE = 2'd3;
   // --------------------- wire --------------------- 
-  wire                     w_all_wgtdn;
+  wire                      w_all_wgtdn;
   // ------------------------- reg -------------------------        
-  reg  [              1:0] r_lp_cstat;  // current state
-  reg  [              1:0] r_lp_nstat;  // next state  
+  reg  [               1:0] r_lp_cstat;  // current state
+  reg  [               1:0] r_lp_nstat;  // next state  
   // wgt
-  reg                      r_lyr1_wgtdn;
-  reg                      r_lyr2_wgtdn;
-  reg                      r_lyr3_wgtdn;
+  reg                       r_lyr1_wgtdn;
+  reg                       r_lyr2_wgtdn;
+  reg                       r_lyr3_wgtdn;
   // ipt 
-  reg                      r_ibuf_re;
-  reg  [L1_INPUT_ADDR-1:0] r_ibuf_addr;
+  reg                       r_ibuf_re;
+  reg  [ L1_INPUT_ADDR-1:0] r_ibuf_addr;
   // opt  
-  reg                      r_obuf_we;
-  reg  [             16:0] r_obuf_addr;
-  reg  [             16:0] r_obuf_addr_dly;
-  reg  [             15:0] r_obuf_dat;
-  reg                      r_o_done;
+  reg                       r_obuf_we;
+  reg  [L3_OUTPUT_ADDR-1:0] r_obuf_addr;
+  reg  [L3_OUTPUT_ADDR-1:0] r_obuf_addr_dly;
+  reg  [            BITS:0] r_obuf_dat;
+  reg                       r_o_done;
 
   // ------------------------ assign ----------------------- 
   // wgt
@@ -161,6 +139,7 @@ module global_ctl #(
     end else begin
       r_ibuf_re <= 'b0;
       r_obuf_we <= 'd0;
+      r_o_done  <= 1'b0;
       case (r_lp_cstat)
         IDLE: begin
           r_obuf_addr <= 'd0;
@@ -190,21 +169,13 @@ module global_ctl #(
             end
           end
 `ifdef DEBUG_MODE
-          if (((r_obuf_addr_dly == 'd24) || 
-                 (r_obuf_addr_dly == 'd49) || 
-                 (r_obuf_addr_dly == 'd74)) && r_obuf_we) begin
-            r_o_done <= 1'b1;
-          end else begin
-            r_o_done <= 1'b0;  // 조건이 맞지 않으면 확실하게 0으로 clear
-          end
+          if ((r_obuf_addr_dly == 'd24) && r_obuf_we) r_o_done <= 1'b1;
+          if ((r_obuf_addr_dly == 'd49) && r_obuf_we) r_o_done <= 1'b1;
+          if ((r_obuf_addr_dly == 'd74) && r_obuf_we) r_o_done <= 1'b1;
 `else
-          if (((r_obuf_addr_dly == 'd22499) || 
-                   (r_obuf_addr_dly == 'd44999) || 
-                   (r_obuf_addr_dly == 'd67499))&& r_obuf_we) begin
-            r_o_done <= 1'b1;
-          end else begin
-            r_o_done <= 1'b0;  // 조건이 맞지 않으면 확실하게 0으로 clear
-          end
+          if ((r_obuf_addr_dly == 'd22499) && r_obuf_we) r_o_done <= 1'b1;
+          if ((r_obuf_addr_dly == 'd44999) && r_obuf_we) r_o_done <= 1'b1;
+          if ((r_obuf_addr_dly == 'd67499) && r_obuf_we) r_o_done <= 1'b1;
 `endif
         end
         DONE: begin

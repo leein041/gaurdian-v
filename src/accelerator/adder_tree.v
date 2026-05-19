@@ -1,27 +1,38 @@
 `timescale 1ns / 1ps
 
 module adder_tree #(
-    parameter INPUT_NUM = 9,
-    parameter BITS      = 32
+    parameter  INPUT_NUM  = 9,
+    parameter  INPUT_BIT  = 16,
+    localparam STAGES     = $clog2(INPUT_NUM),
+    localparam OUTPUT_BIT = INPUT_BIT + STAGES
 ) (
-    input                                      i_clk,
-    input                                      i_rstn,
+    input                                       i_clk,
+    input                                       i_rstn,
     // ipt
-    output                                     o_ipt_rdy,
-    input                                      i_ipt_vld,
-    input             [BITS * INPUT_NUM - 1:0] i_ipt_din,
+    output                                      o_ipt_rdy,
+    input                                       i_ipt_vld,
+    input         [INPUT_BIT * INPUT_NUM - 1:0] i_ipt_din,
     // opt
-    input                                      i_opt_rdy,
-    output reg                                 o_opt_vld,
-    output reg signed [             BITS -1:0] o_opt_dout
+    input                                       i_opt_rdy,
+    output                                      o_opt_vld,
+    output signed [           OUTPUT_BIT - 1:0] o_opt_dout
 );
 
   // ---------------------- hand shake ---------------------  
   assign o_ipt_rdy = i_opt_rdy || !o_opt_vld;
-  // ----------------------- parmeter ---------------------- 
-  localparam STAGES = $clog2(INPUT_NUM);
+
+  // ----------------------- parameter ---------------------- 
+
   genvar s;
-  integer j, k;
+  integer                     j;
+
+  // ------------------------- reg -------------------------  
+  // 모든 스테이지 비트 폭 MAX_BITS
+  reg signed [OUTPUT_BIT-1:0] r_stg_dat [0:STAGES][0:INPUT_NUM-1];
+  reg        [      STAGES:0] r_stg_vld;
+  reg                         r_opt_vld;
+  reg signed [OUTPUT_BIT-1:0] r_opt_dat;
+
   // ----------------------- function ---------------------- 
   function integer get_stg_size(input integer stage);
     integer i, size;
@@ -33,24 +44,30 @@ module adder_tree #(
       get_stg_size = size;
     end
   endfunction
-  // ------------------------- reg -------------------------  
-  reg signed [BITS-1:0] r_stg_dat[0:STAGES][0:INPUT_NUM-1];  // 스테이지 파이프라인(data)
-  reg [STAGES:0] r_stg_vld;  // 스테이지 파이프라인(valid)
-  // ------------------------ always ----------------------- 
-  // stg0
+
+  // ------------------------ assign ----------------------- 
+  assign o_opt_vld = r_opt_vld;
+  assign o_opt_dout = r_opt_dat; // 정해진 출력 폭만큼 하위 비트가 할당됨 (자동 크롭)
+
+  // ------------------------ Stage 0 ----------------------- 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_stg_vld[0] <= 1'b0;
+      for (j = 0; j < INPUT_NUM; j = j + 1) begin
+        r_stg_dat[0][j] <= 'd0;
+      end
     end else if (o_ipt_rdy) begin
       r_stg_vld[0] <= i_ipt_vld;
       if (i_ipt_vld) begin
-        for (k = 0; k < INPUT_NUM; k = k + 1) begin
-          r_stg_dat[0][k] <= i_ipt_din[k*BITS+:BITS];
+        for (j = 0; j < INPUT_NUM; j = j + 1) begin
+          // 입력 데이터(INPUT_BIT)를 부호 비트가 포함된 OUTPUT_BIT 레지스터에 sign extension 하여 대입
+          r_stg_dat[0][j] <= $signed(i_ipt_din[j*INPUT_BIT+:INPUT_BIT]);
         end
       end
     end
   end
-  // stg 1~
+
+  // --------------------- Stage 1 ~ STAGES --------------------- 
   generate
     for (s = 0; s < STAGES; s = s + 1) begin : STAGE_LOGIC
       localparam CUR_IN_SIZE = get_stg_size(s);
@@ -59,33 +76,39 @@ module adder_tree #(
       always @(posedge i_clk or negedge i_rstn) begin
         if (~i_rstn) begin
           r_stg_vld[s+1] <= 1'b0;
+          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
+            r_stg_dat[s+1][j] <= 'd0;
+          end
         end else if (o_ipt_rdy) begin
           r_stg_vld[s+1] <= r_stg_vld[s];
-        end
-      end
-
-      always @(posedge i_clk) begin
-        if (o_ipt_rdy) begin
-          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
-            if (2 * j + 1 < CUR_IN_SIZE) begin
-              r_stg_dat[s+1][j] <= r_stg_dat[s][2*j] + r_stg_dat[s][2*j+1];
-            end else begin
-              r_stg_dat[s+1][j] <= r_stg_dat[s][2*j];
+          if (r_stg_vld[s]) begin
+            for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
+              if (2 * j + 1 < CUR_IN_SIZE) begin 
+                r_stg_dat[s+1][j] <= r_stg_dat[s][2*j] + r_stg_dat[s][2*j+1];
+              end else begin
+                r_stg_dat[s+1][j] <= r_stg_dat[s][2*j];
+              end
             end
           end
         end
       end
+
     end
   endgenerate
-  // opt
+
+  // ------------------------ Output ----------------------- 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      o_opt_vld <= 1'b0;
+      r_opt_vld <= 1'b0;
+      r_opt_dat <= 0;
     end else begin
-      if (o_ipt_rdy) begin  // w_act 를 ipt_rdy 통일 -> LUT 자원 최소화(MUX 생성 제거)
-        o_opt_vld  <= r_stg_vld[STAGES];
-        o_opt_dout <= r_stg_dat[STAGES][0];
+      if (o_ipt_rdy) begin
+        r_opt_vld <= r_stg_vld[STAGES];
+        if (r_stg_vld[STAGES]) begin
+          r_opt_dat <= r_stg_dat[STAGES][0];
+        end
       end
     end
   end
+
 endmodule

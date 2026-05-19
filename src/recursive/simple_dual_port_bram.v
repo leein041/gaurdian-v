@@ -39,19 +39,19 @@ module simple_dual_port_bram #(
     parameter ADDR_WIDTH = $clog2(DEPTH),
     parameter INIT_FILE  = ""
 ) (
-    input                       i_clk,
-    input                       i_rstn,
-    input                       i_re,
-    input      [ADDR_WIDTH-1:0] i_raddr,
-    input                       i_we,
-    input      [ADDR_WIDTH-1:0] i_waddr,
-    input      [     WIDTH-1:0] i_wdin,
-    output reg                  o_vld,
-    output reg [     WIDTH-1:0] o_dout
+    input                              i_clk,
+    input                              i_rstn,
+    input                              i_re,
+    input             [ADDR_WIDTH-1:0] i_raddr,
+    input                              i_we,
+    input             [ADDR_WIDTH-1:0] i_waddr,
+    input  signed     [     WIDTH-1:0] i_wdin,
+    output reg                         o_vld,
+    output reg signed [     WIDTH-1:0] o_dout
 );
 
   // BRAM
-  (* ram_style = "block" *) reg [WIDTH-1:0] r_mem[0:DEPTH-1];
+  (* ram_style = "block" *) reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];
 
   generate
     if (INIT_FILE != "") begin : use_init_file

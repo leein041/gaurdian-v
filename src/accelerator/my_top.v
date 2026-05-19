@@ -1,70 +1,70 @@
 `include "defines.vh"
 module my_top #(
+    parameter IMAGE_NUM = 1,
+    //
     parameter INPUT_BITS = 16,
     parameter WEIGHT_BITS = 16,
     parameter OUTPUT_BITS = 32,
-    parameter INPUT_INIT_FILE = "c:/DSD26_Termproject_Materials/03_Demo_Environment/input_image/input_text51_89_64.txt",
+    parameter INPUT_INIT_FILE = "c:/DSD26_Termproject_Materials/02_Provided_Data/input_Y_channel_only_hex/test_0_hex.txt",
     // layer 1
     parameter L1_RELU_EN = 1,
     parameter L1_PADDING_EN = 1,
-    parameter L1_INPUT_WIDTH = 150,
-    parameter L1_INPUT_HEIGHT = 150,
-    parameter L1_INPUT_DEPTH = 150 * 150 * 3,  // image x 3
-    parameter L1_FMAP_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),  // 7
-    parameter L1_FMAP_HEIGHT = L1_INPUT_HEIGHT * 3 + (2 * L1_PADDING_EN),  // 7
-    parameter L1_WEIGHT_DEPTH = 9 * 8 * 1,
-    parameter L1_OUTPUT_WIDTH = 150,  // (3 + 2 * 1)
-    parameter L1_OUTPUT_HEIGHT = 150,
-    parameter L1_LINE_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),  // (5 + 2 * 1)
-    parameter L1_LINE_HEIGHT = 3,
-    parameter L1_PATCH_WIDTH = 3,
-    parameter L1_PATCH_HEIGHT = 3,
     parameter L1_CHANNEL_NUM = 1,
     parameter L1_FILTER_NUM = 8,
+    parameter L1_INPUT_WIDTH = 150,
+    parameter L1_INPUT_HEIGHT = 150,
+    parameter L1_OUTPUT_WIDTH = 150,
+    parameter L1_OUTPUT_HEIGHT = 150,
+    parameter L1_PATCH_WIDTH = 3,
+    parameter L1_PATCH_HEIGHT = 3,
     parameter L1_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W1_hex.txt",
     parameter L1_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B1_hex.txt",
 
+    localparam L1_INPUT_DEPTH = L1_INPUT_WIDTH * L1_INPUT_HEIGHT * IMAGE_NUM,
+    localparam L1_FMAP_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),
+    localparam L1_FMAP_HEIGHT = L1_INPUT_HEIGHT * IMAGE_NUM + (2 * L1_PADDING_EN),
+    localparam L1_WEIGHT_DEPTH = L1_PATCH_WIDTH * L1_PATCH_HEIGHT * L1_CHANNEL_NUM * L1_FILTER_NUM,
+    localparam L1_LINE_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),
+    localparam L1_LINE_HEIGHT = 3,
     // layer 2
     parameter L2_RELU_EN = 1,
     parameter L2_PADDING_EN = 1,
+    parameter L2_CHANNEL_NUM = 8,
+    parameter L2_FILTER_NUM = 4,
     parameter L2_INPUT_WIDTH = 150,
     parameter L2_INPUT_HEIGHT = 150,
-    parameter L2_FMAP_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),  // 7
-    parameter L2_FMAP_HEIGHT = L2_INPUT_HEIGHT * 3 + (2 * L2_PADDING_EN),  // 7
-    parameter L2_WEIGHT_DEPTH = 9 * 4 * 8,
-    parameter L2_OUTPUT_WIDTH = 150,  // (3 + 2 * 1)
+    parameter L2_OUTPUT_WIDTH = 150,
     parameter L2_OUTPUT_HEIGHT = 150,
-    parameter L2_LINE_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),  // (5 + 2 * 1)
     parameter L2_LINE_HEIGHT = 3,
     parameter L2_PATCH_WIDTH = 3,
     parameter L2_PATCH_HEIGHT = 3,
-    parameter L2_CHANNEL_NUM = 8,
-    parameter L2_FILTER_NUM = 4,
     parameter L2_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W2_hex.txt",
     parameter L2_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B2_hex.txt",
-    // layer 1
+
+    localparam L2_FMAP_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),
+    localparam L2_FMAP_HEIGHT = L2_INPUT_HEIGHT * IMAGE_NUM + (2 * L2_PADDING_EN),
+    localparam L2_WEIGHT_DEPTH = L2_PATCH_WIDTH * L2_PATCH_HEIGHT * L2_CHANNEL_NUM * L2_FILTER_NUM,
+    localparam L2_LINE_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),
+    // layer 3
     parameter L3_RELU_EN = 0,
     parameter L3_PADDING_EN = 1,
+    parameter L3_CHANNEL_NUM = 4,
+    parameter L3_FILTER_NUM = 1,
     parameter L3_INPUT_WIDTH = 150,
     parameter L3_INPUT_HEIGHT = 150,
-    parameter L3_FMAP_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),  // 7
-    parameter L3_FMAP_HEIGHT = L3_INPUT_HEIGHT * 3 + (2 * L3_PADDING_EN),  // 7
-    parameter L3_WEIGHT_DEPTH = 9 * 4 * 1,
-    parameter L3_OUTPUT_WIDTH = 150,  // (3 + 2 * 1)
+    parameter L3_OUTPUT_WIDTH = 150,
     parameter L3_OUTPUT_HEIGHT = 150,
-    parameter L3_OUTPUT_DEPTH = 150 * 150 * 3,
-    parameter L3_LINE_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),  // (5 + 2 * 1)
     parameter L3_LINE_HEIGHT = 3,
     parameter L3_PATCH_WIDTH = 3,
     parameter L3_PATCH_HEIGHT = 3,
-    parameter L3_CHANNEL_NUM = 4,
-    parameter L3_FILTER_NUM = 1,
     parameter L3_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W3_hex.txt",
     parameter L3_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B3_hex.txt",
-    //
-    parameter L1_FMAP_DEPTH = 152 * 152 * 3,
-    parameter L2_FMAP_DEPTH = 152 * 152 * 3,
-    parameter L3_FMAP_DEPTH = 152 * 152 * 3,
+    // 
+    localparam L3_OUTPUT_DEPTH = L3_OUTPUT_WIDTH * L3_OUTPUT_HEIGHT * IMAGE_NUM,
+    localparam L3_LINE_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),
+    localparam L3_FMAP_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),
+    localparam L3_FMAP_HEIGHT = L3_INPUT_HEIGHT * IMAGE_NUM + (2 * L3_PADDING_EN),
+    localparam L3_WEIGHT_DEPTH = L3_PATCH_WIDTH * L3_PATCH_HEIGHT * L3_CHANNEL_NUM * L3_FILTER_NUM,
 
     localparam L1_WEIGHT_ADDR = $clog2(L1_WEIGHT_DEPTH),
     localparam L1_INPUT_AREA  = L1_INPUT_WIDTH * L1_INPUT_HEIGHT,
@@ -75,18 +75,23 @@ module my_top #(
     localparam L2_WEIGHT_ADDR = $clog2(L2_WEIGHT_DEPTH),
     localparam L2_INPUT_AREA  = L2_INPUT_WIDTH * L2_INPUT_HEIGHT,
     localparam L2_OUTPUT_AREA = L2_OUTPUT_WIDTH * L2_OUTPUT_HEIGHT,
-    localparam L2_OUTPUT_ADDR = $clog2(L2_OUTPUT_AREA)
+    localparam L2_OUTPUT_ADDR = $clog2(L2_OUTPUT_AREA),
+
+    localparam L3_WEIGHT_ADDR = $clog2(L3_WEIGHT_DEPTH),
+    localparam L3_INPUT_AREA  = L3_INPUT_WIDTH * L3_INPUT_HEIGHT,
+    localparam L3_OUTPUT_AREA = L3_OUTPUT_WIDTH * L3_OUTPUT_HEIGHT,
+    localparam L3_OUTPUT_ADDR = $clog2(L3_OUTPUT_DEPTH)
 ) (
-    input         i_clk,
-    input         i_rstn,
-    input         i_start,
+    input                              i_clk,
+    input                              i_rstn,
+    input                              i_start,
 `ifdef DEBUG_MODE
-    input         i_rdy_test,
+    input                              i_rdy_test,
 `endif
-    output        output_bram_wen,
-    output [16:0] output_bram_waddr,
-    output [15:0] L3_p_out,
-    output        o_done
+    output                             output_bram_wen,
+    output        [L3_OUTPUT_ADDR-1:0] output_bram_waddr,
+    output signed [    INPUT_BITS-1:0] L3_p_out,
+    output                             o_done
 );
   // ------------------- parmeter ------------------- 
   genvar g;
@@ -122,10 +127,6 @@ module my_top #(
   wire [INPUT_BITS*L1_CHANNEL_NUM-1:0] w_ibuf_dat_cpck;
   wire                                 w_ibuf_re;
   wire [            L1_INPUT_ADDR-1:0] w_ibuf_raddr;
-  // output mem
-  wire [               INPUT_BITS-1:0] w_omem_wdat;
-  wire                                 w_omem_we;
-  wire [           L1_OUTPUT_ADDR-1:0] w_omem_addr;
   // ------------------------- reg ------------------------- 
   // ------------------------ assign ----------------------- 
   // ------------------------ always ----------------------- 
@@ -134,20 +135,9 @@ module my_top #(
 
 
   global_ctl #(
-      .L1_INPUT_WIDTH  (L1_INPUT_WIDTH),
-      .L1_INPUT_HEIGHT (L1_INPUT_HEIGHT),
-      .L1_INPUT_DEPTH  (L1_INPUT_DEPTH),
-      .L1_OUTPUT_WIDTH (L1_OUTPUT_WIDTH),
-      .L1_OUTPUT_HEIGHT(L1_OUTPUT_HEIGHT),
-      .L2_INPUT_WIDTH  (L2_INPUT_WIDTH),
-      .L2_INPUT_HEIGHT (L2_INPUT_HEIGHT),
-      .L2_OUTPUT_WIDTH (L2_OUTPUT_WIDTH),
-      .L2_OUTPUT_HEIGHT(L2_OUTPUT_HEIGHT),
-      .L3_INPUT_WIDTH  (L3_INPUT_WIDTH),
-      .L3_INPUT_HEIGHT (L3_INPUT_HEIGHT),
-      .L3_OUTPUT_WIDTH (L3_OUTPUT_WIDTH),
-      .L3_OUTPUT_HEIGHT(L3_OUTPUT_HEIGHT),
-      .L3_OUTPUT_DEPTH (L3_OUTPUT_DEPTH)
+      .BITS           (INPUT_BITS),
+      .L1_INPUT_DEPTH (L1_INPUT_DEPTH),
+      .L3_OUTPUT_DEPTH(L3_OUTPUT_DEPTH)
   ) inst_global_ctl (
       .i_clk       (i_clk),
       .i_rstn      (i_rstn),
@@ -262,7 +252,7 @@ module my_top #(
       .CHANNEL_NUM     (L2_CHANNEL_NUM),
       .FILTER_NUM      (L2_FILTER_NUM),
       .WEIGHT_INIT_FILE(L2_WEIGHT_INIT_FILE),
-      .BIAS_INIT_FILE  ("")
+      .BIAS_INIT_FILE  (L2_BIAS_INIT_FILE)
   ) layer2 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
@@ -279,7 +269,7 @@ module my_top #(
       .o_opt_dout   (w_lyr2_dat)
   );
   skid_buffer #(
-      .BITS(INPUT_BITS * L1_FILTER_NUM),
+      .BITS(INPUT_BITS * L2_FILTER_NUM),
       .LATENCY(6)
   ) inst_L2_skid_buffer (
       .i_clk     (i_clk),
@@ -309,7 +299,7 @@ module my_top #(
       .CHANNEL_NUM     (L3_CHANNEL_NUM),
       .FILTER_NUM      (L3_FILTER_NUM),
       .WEIGHT_INIT_FILE(L3_WEIGHT_INIT_FILE),
-      .BIAS_INIT_FILE  ("")
+      .BIAS_INIT_FILE  (L3_BIAS_INIT_FILE)
   ) layer3 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
