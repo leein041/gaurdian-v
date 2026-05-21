@@ -22,8 +22,6 @@
 
 // PU에는 3x3 개의 PE가 병렬로 배치되있으며, PATCH에서 9개 데이터를 가져와 각 PE에 뿌림
 module pu #(
-    parameter CHANNEL_NUM  = 1,
-    parameter RELU_EN      = 0,
     parameter WEIGHT_BITS  = 16,
     parameter INPUT_BITS   = 16,
     parameter OUTPUT_BITS  = 36,
@@ -41,6 +39,7 @@ module pu #(
 ) (
     input                                           i_clk,
     input                                           i_rstn,
+    input                                           i_clr,
     // wgt 
     input                                           i_wgt_vld,
     input  signed [               WEIGHT_BITS -1:0] i_wgt_din,
@@ -56,30 +55,36 @@ module pu #(
   // ------------------- parmeter -------------------      
   genvar c;
   genvar p;
-  // --------------------- wire --------------------- 
-  // debug
-  wire                                     dbg_stv = o_ipt_rdy && (!i_ipt_vld);
-  wire                                     dbg_bpss = !i_opt_rdy && o_opt_vld;
-  // wgt
+  // --------------------- wire ---------------------   
+
+  wire                                       dbg_stv;
+  wire                                       dbg_bpss;
   // patch  
-  wire                                     w_ptch_vld;
-  wire signed [            INPUT_BITS-1:0] w_ptch_dat                          [0:PATCH_AREA-1];
-  wire        [INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
+  wire                                       w_ptch_vld;
+  wire signed [              INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_AREA-1];
+  wire        [  INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
   // pe
-  wire                                     w_pe_act;
-  wire                                     w_pe_rdy;
-  wire signed [           OUTPUT_BITS-1:0] w_pe_dat                            [0:PATCH_AREA-1];
-  wire        [OUTPUT_BITS*PATCH_AREA-1:0] w_pe_dat_pck;
+  wire                                       w_pe_act;
+  wire                                       w_pe_rdy;
+  wire signed [           PE_OUTPUT_BIT-1:0] w_pe_dat       [0:PATCH_AREA-1];
+  wire        [PE_OUTPUT_BIT*PATCH_AREA-1:0] w_pe_dat_pck;
   // mac at
-  wire                                     w_mat_rdy;
+  wire        [              PATCH_AREA-1:0] w_mat_ipt_vld;
+  wire                                       w_mat_rdy;
   // ------------------------- reg ------------------------- 
-  reg         [            PATCH_AREA-1:0] r_wgt_vld;
-  reg         [      $clog2(PATCH_AREA):0] r_pe_cnt;
-  reg                                      r_pe_vld;
+  reg         [              PATCH_AREA-1:0] r_wgt_vld;
+  reg         [        $clog2(PATCH_AREA):0] r_pe_cnt;
+  reg                                        r_pe_vld;
+  // ---------------------- hand shake ---------------------  
+  assign dbg_stv       = o_ipt_rdy && (!i_ipt_vld);
+  assign dbg_bpss      = !i_opt_rdy && o_opt_vld;
+  assign w_pe_rdy      = w_mat_rdy || !r_pe_vld;
+  assign w_pe_act      = w_ptch_vld && w_pe_rdy;
   // ------------------------ assign -----------------------   
-  assign w_pe_rdy = w_mat_rdy || !r_pe_vld;
-  assign w_pe_act = w_ptch_vld && w_pe_rdy;
+  // mat
+  assign w_mat_ipt_vld = (r_pe_vld) ? {PATCH_AREA{1'b1}} : 'd0;
   // ------------------------ always ----------------------- 
+  // internal PE counter
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_pe_cnt <= 'd0;
@@ -92,6 +97,7 @@ module pu #(
     end
   end
 
+  // select PE for initializing weight 
   always @(*) begin
     r_wgt_vld = 'd0;
     if (i_wgt_vld && (r_pe_cnt < PATCH_AREA)) begin
@@ -125,6 +131,7 @@ module pu #(
   ) inst_patch (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
+      .i_clr     (i_clr),
       // ipt
       .i_ipt_din (i_ipt_din),
       .i_ipt_vld (i_ipt_vld),
@@ -164,12 +171,11 @@ module pu #(
       .i_rstn    (i_rstn),
       // ipt
       .o_ipt_rdy (w_mat_rdy),
-      .i_ipt_vld (r_pe_vld),
+      .i_ipt_vld (w_mat_ipt_vld),
       .i_ipt_din (w_pe_dat_pck),
       // opt
       .i_opt_rdy (i_opt_rdy),
       .o_opt_vld (o_opt_vld),
       .o_opt_dout(o_opt_dout)
-  );
-
+  ); 
 endmodule

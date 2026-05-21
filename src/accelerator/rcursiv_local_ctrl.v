@@ -22,7 +22,7 @@
 
 `include "defines.vh"
 // 로컬 컨트롤러는 가중치 주소만 쏴주는 역할, 가중치 버퍼에서 값은 PU로 바로 들어감
-module local_ctl #(
+module rcursiv_local_ctrl #(
     parameter WEIGHT_BITS     = 16,
     parameter L1_CHANNEL_NUM  = 1,
     parameter L1_FILTER_NUM   = 8,
@@ -50,11 +50,10 @@ module local_ctl #(
     // wgt
     input                          i_wgt_st,
     output [                  2:0] o_wgt_re,
-    output [  MAX_WEIGHT_ADDR-1:0] o_wgt_raddr,    // weight adress   
+    output [  MAX_WEIGHT_ADDR-1:0] o_wgt_raddr,  // weight adress   
     output                         o_wgt_rdn,
     //  ipt
-    input                          i_ipt_vld,
-    output [      MAX_CHANNEL-1:0] o_ipt_vld_sel,
+    output [      MAX_CHANNEL-1:0] o_ipt_mask,
     // bias
     output [                  2:0] o_bias_sel
 
@@ -62,17 +61,19 @@ module local_ctl #(
   // ----------------------- parmeter ----------------------    
   localparam IDLE = 3'd0;
   localparam LOAD_WEIGHT1 = 3'd1;
-  localparam PROCESS_LAYER1 = 3'd2;
+  localparam COMPUTE_LAYER1 = 3'd2;
   localparam LOAD_WEIGHT2 = 3'd3;
-  localparam PROCESS_LAYER2 = 3'd4;
+  localparam COMPUTE_LAYER2 = 3'd4;
   localparam LOAD_WEIGHT3 = 3'd5;
-  localparam PROCESS_LAYER3 = 3'd6;
+  localparam COMPUTE_LAYER3 = 3'd6;
   localparam DONE = 3'd7;
   // ------------------------- wire ------------------------ 
   // ------------------------- reg -------------------------  
   // FSM
   reg [                  2:0] r_cstat;
   reg [                  2:0] r_nstat;
+  // ipt
+  reg [      MAX_CHANNEL-1:0] r_ipt_mask;
   //
   reg [$clog2(MAX_CHANNEL):0] r_ch_num;
   reg [ $clog2(MAX_FILTER):0] r_filt_num;
@@ -93,17 +94,28 @@ module local_ctl #(
   assign o_wgt_rdn = r_wgt_rdn;
   assign o_wgt_re = r_wgt_re;
   assign o_wgt_raddr = r_wgt_raddr;
+  // ipt
+  assign o_ipt_mask = r_ipt_mask;
   // bias
   assign o_bias_sel = r_bias_sel;
   // ipt         
-  assign o_ipt_vld_sel = (i_ipt_vld) ? 
-    (r_cstat == PROCESS_LAYER1) ? {{(MAX_CHANNEL-L1_CHANNEL_NUM){1'b0}}, {L1_CHANNEL_NUM{1'b1}}} :
-    (r_cstat == PROCESS_LAYER2) ? {{(MAX_CHANNEL-L2_CHANNEL_NUM){1'b0}}, {L2_CHANNEL_NUM{1'b1}}} :
-    (r_cstat == PROCESS_LAYER3) ? {{(MAX_CHANNEL-L3_CHANNEL_NUM){1'b0}}, {L3_CHANNEL_NUM{1'b1}}} :
-     {MAX_CHANNEL{1'b0}} : {MAX_CHANNEL{1'b0}};
+
   // ---------------------- hand shake --------------------- 
   // ------------------------ always ----------------------- 
   // ------------------------- FSM -------------------------    
+  // ipt channel select siganl
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_ipt_mask <= 'd0;
+    end else begin
+      if (r_cstat == COMPUTE_LAYER1)
+        r_ipt_mask <= {{(MAX_CHANNEL - L1_CHANNEL_NUM) {1'b0}}, {L1_CHANNEL_NUM{1'b1}}};
+      else if (r_cstat == COMPUTE_LAYER2)
+        r_ipt_mask <= {{(MAX_CHANNEL - L2_CHANNEL_NUM) {1'b0}}, {L2_CHANNEL_NUM{1'b1}}};
+      else if (r_cstat == COMPUTE_LAYER3)
+        r_ipt_mask <= {{(MAX_CHANNEL - L3_CHANNEL_NUM) {1'b0}}, {L3_CHANNEL_NUM{1'b1}}};
+    end
+  end
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -117,13 +129,12 @@ module local_ctl #(
     r_nstat = r_cstat;
     case (r_cstat)
       IDLE:           if (i_wgt_st) r_nstat = LOAD_WEIGHT1;
-      LOAD_WEIGHT1:   if (r_wgt_raddr == L1_WEIGHT_DEPTH - 1) r_nstat = PROCESS_LAYER1;
-      PROCESS_LAYER1: if (i_wgt_st) r_nstat = LOAD_WEIGHT2;
-      LOAD_WEIGHT2:   if (r_wgt_raddr == L2_WEIGHT_DEPTH - 1) r_nstat = PROCESS_LAYER2;
-      PROCESS_LAYER2: if (i_wgt_st) r_nstat = LOAD_WEIGHT3;
-      LOAD_WEIGHT3:   if (r_wgt_raddr == L3_WEIGHT_DEPTH - 1) r_nstat = PROCESS_LAYER3;
-      PROCESS_LAYER3: ;  // TODO : 어떤 종료 조건? 
-      DONE:           r_nstat = IDLE;
+      LOAD_WEIGHT1:   if (r_wgt_raddr == L1_WEIGHT_DEPTH - 1) r_nstat = COMPUTE_LAYER1;
+      COMPUTE_LAYER1: if (i_wgt_st) r_nstat = LOAD_WEIGHT2;
+      LOAD_WEIGHT2:   if (r_wgt_raddr == L2_WEIGHT_DEPTH - 1) r_nstat = COMPUTE_LAYER2;
+      COMPUTE_LAYER2: if (i_wgt_st) r_nstat = LOAD_WEIGHT3;
+      LOAD_WEIGHT3:   if (r_wgt_raddr == L3_WEIGHT_DEPTH - 1) r_nstat = COMPUTE_LAYER3;
+      COMPUTE_LAYER3: r_nstat = IDLE;
       default:        ;
     endcase
   end
@@ -159,7 +170,7 @@ module local_ctl #(
             r_lbuf_st <= {{(MAX_CHANNEL - L1_CHANNEL_NUM) {1'b0}}, {L1_CHANNEL_NUM{1'b1}}};
           end
         end
-        PROCESS_LAYER1: begin
+        COMPUTE_LAYER1: begin
           r_wgt_raddr <= 'd0;
           r_bias_sel  <= 'b001;
           if (i_wgt_st) begin
@@ -179,7 +190,7 @@ module local_ctl #(
           end
 
         end
-        PROCESS_LAYER2: begin
+        COMPUTE_LAYER2: begin
           r_wgt_raddr <= 'd0;
           r_bias_sel  <= 'b010;
           if (i_wgt_st) begin
@@ -198,7 +209,7 @@ module local_ctl #(
             r_wgt_rdn <= 'b1;
           end
         end
-        PROCESS_LAYER3: begin
+        COMPUTE_LAYER3: begin
           r_wgt_raddr <= 'd0;
           r_bias_sel  <= 'b100;
         end

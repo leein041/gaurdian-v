@@ -18,7 +18,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////  
 `include "defines.vh"
-module layer #(
+module rcursiv_layer #(
     parameter IMAGE_NUM           = 1,
     parameter PADDING_EN          = 1,
     parameter WEIGHT_BITS         = 16,
@@ -98,7 +98,7 @@ module layer #(
   wire        [        MAX_WEIGHT_ADDR-1:0] w_wgt_raddr;
   // IO port 
   wire signed [             INPUT_BITS-1:0] w_ipt_dat      [  0:MAX_CHANNEL-1];
-  wire        [            MAX_CHANNEL-1:0] w_ipt_vld_sel;
+  wire        [            MAX_CHANNEL-1:0] w_ipt_mask;
   // line bufferS 
   wire        [            MAX_CHANNEL-1:0] w_lbuf_st;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_rdy;
@@ -191,7 +191,7 @@ module layer #(
       assign w_lbuf_pu_vld[p] = (p < w_filt_num) ? w_lbuf_vld : 'd0;
     end
   endgenerate
-  // ------------------------ always -----------------------
+  // ------------------------ always ----------------------- 
   // select PU for initializing weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -351,7 +351,7 @@ module layer #(
       .o_dout (w_wgt_dat[2])
   );
   // local ctrl
-  local_ctl #(
+  rcursiv_local_ctrl #(
       .WEIGHT_BITS    (WEIGHT_BITS),
       .L1_CHANNEL_NUM (L1_CHANNEL_NUM),
       .L1_FILTER_NUM  (L1_FILTER_NUM),
@@ -363,23 +363,22 @@ module layer #(
       .L3_FILTER_NUM  (L3_FILTER_NUM),
       .L3_WEIGHT_DEPTH(L3_WEIGHT_DEPTH)
   ) inst_local_ctl (
-      .i_clk        (i_clk),
-      .i_rstn       (i_rstn),
+      .i_clk      (i_clk),
+      .i_rstn     (i_rstn),
       // ch fil
-      .o_ch_num     (w_ch_num),
-      .o_filt_num   (w_filt_num),
+      .o_ch_num   (w_ch_num),
+      .o_filt_num (w_filt_num),
       // line buffer
-      .o_lbuf_st    (w_lbuf_st),
+      .o_lbuf_st  (w_lbuf_st),
       // wgt
-      .i_wgt_st     (i_wgt_st),
-      .o_wgt_re     (w_wgt_re),
-      .o_wgt_raddr  (w_wgt_raddr),
-      .o_wgt_rdn    (o_wgt_rdn),
-      // ipt
-      .i_ipt_vld    (i_ipt_vld),
-      .o_ipt_vld_sel(w_ipt_vld_sel),
+      .i_wgt_st   (i_wgt_st),
+      .o_wgt_re   (w_wgt_re),
+      .o_wgt_raddr(w_wgt_raddr),
+      .o_wgt_rdn  (o_wgt_rdn),
+      // ipt 
+      .o_ipt_mask (w_ipt_mask),
       // bias
-      .o_bias_sel   (w_bias_sel)
+      .o_bias_sel (w_bias_sel)
   );
   // line buffer
   generate
@@ -399,9 +398,9 @@ module layer #(
           // ipt
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
-          .i_ipt_vld (w_ipt_vld_sel[c]),
+          .i_ipt_vld (w_ipt_mask[c] && i_ipt_vld),
           // opt
-          .i_opt_rdy (&w_pu_rdy_pck[c]),  // TODO 
+          .i_opt_rdy (&w_pu_rdy_pck[c]),            // TODO 
           .o_opt_vld (w_lbuf_vld[c]),
           .o_opt_dout(w_lbuf_dat[c])
       );

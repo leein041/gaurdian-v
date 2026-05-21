@@ -10,7 +10,7 @@ module adder_tree #(
     input                                       i_rstn,
     // ipt
     output                                      o_ipt_rdy,
-    input                                       i_ipt_vld,
+    input         [            INPUT_NUM - 1:0] i_ipt_vld,
     input         [INPUT_BIT * INPUT_NUM - 1:0] i_ipt_din,
     // opt
     input                                       i_opt_rdy,
@@ -28,8 +28,8 @@ module adder_tree #(
 
   // ------------------------- reg -------------------------  
   // 모든 스테이지 비트 폭 MAX_BITS
-  reg signed [OUTPUT_BIT-1:0] r_stg_dat [0:STAGES][0:INPUT_NUM-1];
-  reg        [      STAGES:0] r_stg_vld;
+  reg signed [OUTPUT_BIT-1:0] r_stg_dat [0:STAGES] [0:INPUT_NUM-1];
+  reg        [ INPUT_NUM-1:0] r_stg_vld [0:STAGES];
   reg                         r_opt_vld;
   reg signed [OUTPUT_BIT-1:0] r_opt_dat;
 
@@ -52,16 +52,17 @@ module adder_tree #(
   // ------------------------ Stage 0 ----------------------- 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_stg_vld[0] <= 1'b0;
+      r_stg_vld[0] <= 'd0;
       for (j = 0; j < INPUT_NUM; j = j + 1) begin
         r_stg_dat[0][j] <= 'd0;
       end
     end else if (o_ipt_rdy) begin
       r_stg_vld[0] <= i_ipt_vld;
-      if (i_ipt_vld) begin
-        for (j = 0; j < INPUT_NUM; j = j + 1) begin
-          // 입력 데이터(INPUT_BIT)를 부호 비트가 포함된 OUTPUT_BIT 레지스터에 sign extension 하여 대입
+      for (j = 0; j < INPUT_NUM; j = j + 1) begin
+        if (i_ipt_vld[j]) begin
           r_stg_dat[0][j] <= $signed(i_ipt_din[j*INPUT_BIT+:INPUT_BIT]);
+        end else begin
+          r_stg_dat[0][j] <= 'd0;
         end
       end
     end
@@ -75,19 +76,19 @@ module adder_tree #(
 
       always @(posedge i_clk or negedge i_rstn) begin
         if (~i_rstn) begin
-          r_stg_vld[s+1] <= 1'b0;
+          r_stg_vld[s+1] <= 'd0;
           for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
             r_stg_dat[s+1][j] <= 'd0;
           end
         end else if (o_ipt_rdy) begin
-          r_stg_vld[s+1] <= r_stg_vld[s];
-          if (r_stg_vld[s]) begin
-            for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
-              if (2 * j + 1 < CUR_IN_SIZE) begin 
-                r_stg_dat[s+1][j] <= r_stg_dat[s][2*j] + r_stg_dat[s][2*j+1];
-              end else begin
-                r_stg_dat[s+1][j] <= r_stg_dat[s][2*j];
-              end
+          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
+            if (2 * j + 1 < CUR_IN_SIZE) begin
+              r_stg_vld[s+1][j] <= r_stg_vld[s][2*j] || r_stg_vld[s][2*j+1];
+              r_stg_dat[s+1][j] <= (r_stg_vld[s][2*j]   ? r_stg_dat[s][2*j]   : 'd0) + 
+                                   (r_stg_vld[s][2*j+1] ? r_stg_dat[s][2*j+1] : 'd0);
+            end else begin
+              r_stg_vld[s+1][j] <= r_stg_vld[s][2*j];
+              r_stg_dat[s+1][j] <= r_stg_vld[s][2*j] ? r_stg_dat[s][2*j] : 'd0;
             end
           end
         end
@@ -103,8 +104,8 @@ module adder_tree #(
       r_opt_dat <= 0;
     end else begin
       if (o_ipt_rdy) begin
-        r_opt_vld <= r_stg_vld[STAGES];
-        if (r_stg_vld[STAGES]) begin
+        r_opt_vld <= r_stg_vld[STAGES][0];
+        if (r_stg_vld[STAGES][0]) begin
           r_opt_dat <= r_stg_dat[STAGES][0];
         end
       end

@@ -1,101 +1,136 @@
 `include "defines.vh"
 module my_top #(
-    parameter IMAGE_NUM = 1,
-    //
-    parameter INPUT_BITS = 16,
+    parameter PADDING_EN = 1,
+
     parameter WEIGHT_BITS = 16,
-    parameter OUTPUT_BITS = 32,
-    parameter INPUT_INIT_FILE = "c:/DSD26_Termproject_Materials/02_Provided_Data/input_Y_channel_only_hex/test_0_hex.txt",
-    // layer 1
+    parameter INPUT_BITS = 16,
+    parameter OUTPUT_BITS = 16,
+    parameter INPUT_WIDTH = 150,
+    parameter INPUT_HEIGHT = 150,
+    parameter IMAGE_WIDTH = 150,
+    parameter IMAGE_HEIGHT = 150,
+    parameter OUTPUT_WIDTH = 150,
+    parameter OUTPUT_HEIGHT = 150,
+    parameter PATCH_WIDTH = 3,
+    parameter PATCH_HEIGHT = 3,
+
     parameter L1_RELU_EN = 1,
-    parameter L1_PADDING_EN = 1,
-    parameter L1_CHANNEL_NUM = 1,
-    parameter L1_FILTER_NUM = 8,
-    parameter L1_INPUT_WIDTH = 150,
-    parameter L1_INPUT_HEIGHT = 150,
-    parameter L1_OUTPUT_WIDTH = 150,
-    parameter L1_OUTPUT_HEIGHT = 150,
-    parameter L1_PATCH_WIDTH = 3,
-    parameter L1_PATCH_HEIGHT = 3,
+    parameter L2_RELU_EN = 1,
+    parameter L3_RELU_EN = 0,
+
+`ifdef IMAGE_1
+    parameter IMAGE_NUM = 1,
+    parameter INPUT_INIT_FILE = "C:/DSD26_Termproject_Materials/02_Provided_Data/input_Y_channel_only_hex/test_0_hex.txt",
+`elsif IMAGE_3
+    parameter IMAGE_NUM = 3,
+    parameter INPUT_INIT_FILE = "C:/DSD26_Termproject_Materials/03_Demo_Environment/input_image/input_text51_89_64.txt",
+`endif
+
+`ifdef RELEASE_4_2
+    parameter  L1_CHANNEL_NUM  = 1,
+    parameter  L1_FILTER_NUM   = 4,
+    parameter  L2_CHANNEL_NUM  = 4,
+    parameter  L2_FILTER_NUM   = 2,
+    parameter  L3_CHANNEL_NUM  = 2,
+    parameter  L3_FILTER_NUM   = 1,
+`elsif RELEASE_8_4
+    parameter  L1_CHANNEL_NUM  = 1,
+    parameter  L1_FILTER_NUM   = 8,
+    parameter  L2_CHANNEL_NUM  = 8,
+    parameter  L2_FILTER_NUM   = 4,
+    parameter  L3_CHANNEL_NUM  = 4,
+    parameter  L3_FILTER_NUM   = 1,
+`elsif RELEASE_8_8
+    parameter  L1_CHANNEL_NUM  = 1,
+    parameter  L1_FILTER_NUM   = 8,
+    parameter  L2_CHANNEL_NUM  = 8,
+    parameter  L2_FILTER_NUM   = 8,
+    parameter  L3_CHANNEL_NUM  = 8,
+    parameter  L3_FILTER_NUM   = 1,
+`elsif DEBUG
+    parameter  L1_CHANNEL_NUM  = 1,
+    parameter  L1_FILTER_NUM   = 2,
+    parameter  L2_CHANNEL_NUM  = 2,
+    parameter  L2_FILTER_NUM   = 2,
+    parameter  L3_CHANNEL_NUM  = 2,
+    parameter  L3_FILTER_NUM   = 1,
+`endif
+    // layer 1
+    localparam L1_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L1_CHANNEL_NUM * L1_FILTER_NUM,
+    // layer 2
+    localparam L2_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L2_CHANNEL_NUM * L2_FILTER_NUM,
+    // layer 3
+    localparam L3_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L3_CHANNEL_NUM * L3_FILTER_NUM,
+
+
+    localparam INPUT_DEPTH  = INPUT_WIDTH * INPUT_HEIGHT * IMAGE_NUM,
+    localparam INPUT_ADDR   = $clog2(INPUT_DEPTH),
+    localparam IMAGE_DEPTH  = IMAGE_WIDTH * IMAGE_HEIGHT,
+    localparam IMAGE_ADDR   = $clog2(IMAGE_DEPTH),
+    localparam OUTPUT_DEPTH = OUTPUT_WIDTH * OUTPUT_HEIGHT * IMAGE_NUM,
+    localparam OUTPUT_ADDR  = $clog2(OUTPUT_DEPTH),
+
+    localparam MAX_FILTER  = `MAX2(L1_FILTER_NUM, `MAX2(L2_FILTER_NUM, L3_FILTER_NUM)),
+    localparam MAX_CHANNEL = `MAX2(L1_CHANNEL_NUM, `MAX2(L2_CHANNEL_NUM, L3_CHANNEL_NUM)),
+
+
+`ifdef RELEASE_4_2
+    parameter L1_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2weight/fixed_point_W1_hex.txt",
+    parameter L1_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2bias/fixed_point_B1_hex.txt",
+    parameter L2_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2weight/fixed_point_W2_hex.txt",
+    parameter L2_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2bias/fixed_point_B2_hex.txt",
+    parameter L3_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2weight/fixed_point_W3_hex.txt",
+    parameter L3_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_4_2bias/fixed_point_B3_hex.txt",
+`elsif RELEASE_8_4
     parameter L1_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W1_hex.txt",
     parameter L1_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B1_hex.txt",
-
-    localparam L1_INPUT_DEPTH = L1_INPUT_WIDTH * L1_INPUT_HEIGHT * IMAGE_NUM,
-    localparam L1_FMAP_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),
-    localparam L1_FMAP_HEIGHT = L1_INPUT_HEIGHT * IMAGE_NUM + (2 * L1_PADDING_EN),
-    localparam L1_WEIGHT_DEPTH = L1_PATCH_WIDTH * L1_PATCH_HEIGHT * L1_CHANNEL_NUM * L1_FILTER_NUM,
-    localparam L1_LINE_WIDTH = L1_INPUT_WIDTH + (2 * L1_PADDING_EN),
-    localparam L1_LINE_HEIGHT = 3,
-    // layer 2
-    parameter L2_RELU_EN = 1,
-    parameter L2_PADDING_EN = 1,
-    parameter L2_CHANNEL_NUM = 8,
-    parameter L2_FILTER_NUM = 4,
-    parameter L2_INPUT_WIDTH = 150,
-    parameter L2_INPUT_HEIGHT = 150,
-    parameter L2_OUTPUT_WIDTH = 150,
-    parameter L2_OUTPUT_HEIGHT = 150,
-    parameter L2_LINE_HEIGHT = 3,
-    parameter L2_PATCH_WIDTH = 3,
-    parameter L2_PATCH_HEIGHT = 3,
     parameter L2_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W2_hex.txt",
     parameter L2_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B2_hex.txt",
-
-    localparam L2_FMAP_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),
-    localparam L2_FMAP_HEIGHT = L2_INPUT_HEIGHT * IMAGE_NUM + (2 * L2_PADDING_EN),
-    localparam L2_WEIGHT_DEPTH = L2_PATCH_WIDTH * L2_PATCH_HEIGHT * L2_CHANNEL_NUM * L2_FILTER_NUM,
-    localparam L2_LINE_WIDTH = L2_INPUT_WIDTH + (2 * L2_PADDING_EN),
-    // layer 3
-    parameter L3_RELU_EN = 0,
-    parameter L3_PADDING_EN = 1,
-    parameter L3_CHANNEL_NUM = 4,
-    parameter L3_FILTER_NUM = 1,
-    parameter L3_INPUT_WIDTH = 150,
-    parameter L3_INPUT_HEIGHT = 150,
-    parameter L3_OUTPUT_WIDTH = 150,
-    parameter L3_OUTPUT_HEIGHT = 150,
-    parameter L3_LINE_HEIGHT = 3,
-    parameter L3_PATCH_WIDTH = 3,
-    parameter L3_PATCH_HEIGHT = 3,
     parameter L3_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4weight/fixed_point_W3_hex.txt",
     parameter L3_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_4bias/fixed_point_B3_hex.txt",
-    // 
-    localparam L3_OUTPUT_DEPTH = L3_OUTPUT_WIDTH * L3_OUTPUT_HEIGHT * IMAGE_NUM,
-    localparam L3_LINE_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),
-    localparam L3_FMAP_WIDTH = L3_INPUT_WIDTH + (2 * L3_PADDING_EN),
-    localparam L3_FMAP_HEIGHT = L3_INPUT_HEIGHT * IMAGE_NUM + (2 * L3_PADDING_EN),
-    localparam L3_WEIGHT_DEPTH = L3_PATCH_WIDTH * L3_PATCH_HEIGHT * L3_CHANNEL_NUM * L3_FILTER_NUM,
-
-    localparam L1_WEIGHT_ADDR = $clog2(L1_WEIGHT_DEPTH),
-    localparam L1_INPUT_AREA  = L1_INPUT_WIDTH * L1_INPUT_HEIGHT,
-    localparam L1_INPUT_ADDR  = $clog2(L1_INPUT_DEPTH),
-    localparam L1_OUTPUT_AREA = L1_OUTPUT_WIDTH * L1_OUTPUT_HEIGHT,
-    localparam L1_OUTPUT_ADDR = $clog2(L1_OUTPUT_AREA),
-
-    localparam L2_WEIGHT_ADDR = $clog2(L2_WEIGHT_DEPTH),
-    localparam L2_INPUT_AREA  = L2_INPUT_WIDTH * L2_INPUT_HEIGHT,
-    localparam L2_OUTPUT_AREA = L2_OUTPUT_WIDTH * L2_OUTPUT_HEIGHT,
-    localparam L2_OUTPUT_ADDR = $clog2(L2_OUTPUT_AREA),
-
-    localparam L3_WEIGHT_ADDR = $clog2(L3_WEIGHT_DEPTH),
-    localparam L3_INPUT_AREA  = L3_INPUT_WIDTH * L3_INPUT_HEIGHT,
-    localparam L3_OUTPUT_AREA = L3_OUTPUT_WIDTH * L3_OUTPUT_HEIGHT,
-    localparam L3_OUTPUT_ADDR = $clog2(L3_OUTPUT_DEPTH)
-) (
-    input                              i_clk,
-    input                              i_rstn,
-    input                              i_start,
-`ifdef DEBUG_MODE
-    input                              i_rdy_test,
+`elsif RELEASE_8_8
+    parameter L1_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8weight/fixed_point_W1_hex.txt",
+    parameter L1_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8bias/fixed_point_B1_hex.txt",
+    parameter L2_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8weight/fixed_point_W2_hex.txt",
+    parameter L2_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8bias/fixed_point_B2_hex.txt",
+    parameter L3_WEIGHT_INIT_FILE = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8weight/fixed_point_W3_hex.txt",
+    parameter L3_BIAS_INIT_FILE   = "c:/DSD26_Termproject_Materials/01_Reference_SW/q88_8_8bias/fixed_point_B3_hex.txt",
+`elsif DEBUG  // 디버그는 테스트벤치에서 받음
+    parameter L1_WEIGHT_INIT_FILE = "",
+    parameter L1_BIAS_INIT_FILE = "",
+    parameter L2_WEIGHT_INIT_FILE = "",
+    parameter L2_BIAS_INIT_FILE = "",
+    parameter L3_WEIGHT_INIT_FILE = "",
+    parameter L3_BIAS_INIT_FILE = "",
 `endif
-    output                             output_bram_wen,
-    output        [L3_OUTPUT_ADDR-1:0] output_bram_waddr,
-    output signed [    INPUT_BITS-1:0] L3_p_out,
-    output                             o_done
+    parameter PARAM_END_DUMMY = 0
+) (
+`ifdef DEBUG
+    input                           i_rdy_test,
+`endif
+    input                           i_clk,
+    input                           i_rstn,
+    input                           i_start,
+    output                          output_bram_wen,
+    output        [OUTPUT_ADDR-1:0] output_bram_waddr,
+    output signed [ INPUT_BITS-1:0] L3_p_out,
+    output                          o_done
 );
   // ------------------- parmeter ------------------- 
   genvar g;
-  // --------------------- wire --------------------- 
+
+  //      ____ _____ ____  _____    _    __  __   _     ___ _   _ _____ 
+  //     / ___|_   _|  _ \| ____|  / \  |  \/  | | |   |_ _| \ | | ____|
+  //     \___ \ | | | |_) |  _|   / _ \ | |\/| | | |    | ||  \| |  _|  
+  //      ___) || | |  _ <| |___ / ___ \| |  | | | |___ | || |\  | |___ 
+  //     |____/ |_| |_| \_\_____/_/   \_\_|  |_| |_____|___|_| \_|_____|
+  //                                                                    
+`ifdef STREAMLINE
+
+  // controller
+  wire                                 w_ctrl_rdy;
+  wire                                 w_img_st;
+  // skide buffer
   wire                                 w_sbuf_rdy;
   wire [INPUT_BITS*L1_CHANNEL_NUM-1:0] w_sbuf_dat;
   wire                                 w_sbuf_vld;
@@ -126,22 +161,21 @@ module my_top #(
   wire                                 w_ibuf_vld;
   wire [INPUT_BITS*L1_CHANNEL_NUM-1:0] w_ibuf_dat_cpck;
   wire                                 w_ibuf_re;
-  wire [            L1_INPUT_ADDR-1:0] w_ibuf_raddr;
-  // ------------------------- reg ------------------------- 
-  // ------------------------ assign ----------------------- 
-  // ------------------------ always ----------------------- 
-  // ------------------- Unpack / Pack -------------------  
-  // ------------------------- module ---------------------- 
+  wire [               INPUT_ADDR-1:0] w_ibuf_raddr;
 
-
-  global_ctl #(
-      .BITS           (INPUT_BITS),
-      .L1_INPUT_DEPTH (L1_INPUT_DEPTH),
-      .L3_OUTPUT_DEPTH(L3_OUTPUT_DEPTH)
-  ) inst_global_ctl (
+  stline_global_ctrl #(
+      .BITS        (INPUT_BITS),
+      .IMAGE_NUM   (IMAGE_NUM),
+      .INPUT_DEPTH (INPUT_DEPTH),
+      .IMAGE_DEPTH (IMAGE_DEPTH),
+      .OUTPUT_DEPTH(OUTPUT_DEPTH)
+  ) streamline_global_ctl (
       .i_clk       (i_clk),
       .i_rstn      (i_rstn),
       .i_st        (i_start),
+      .o_ctrl_rdy  (w_ctrl_rdy),
+      .o_img_st    (w_img_st),
+      // layer
       .i_lyr1_rdy  (w_sbuf_rdy),
       .i_lyr1_wrdn (w_lyr1_wrdn),
       .i_lyr2_wrdn (w_lyr2_wrdn),
@@ -159,7 +193,7 @@ module my_top #(
   // INPUT mem
   simple_dual_port_bram #(
       .WIDTH    (INPUT_BITS * L1_CHANNEL_NUM),
-      .DEPTH    (L1_INPUT_DEPTH),
+      .DEPTH    (INPUT_DEPTH),
       .INIT_FILE(INPUT_INIT_FILE)
   ) input_mem (
       .i_clk  ( i_clk),
@@ -187,21 +221,18 @@ module my_top #(
       .o_opt_dout(w_sbuf_dat),
       .o_opt_vld (w_sbuf_vld)
   );
-  layer #(
-      .PADDING_EN      (L1_PADDING_EN),
+  stline_layer #(
+      .IMAGE_NUM       (IMAGE_NUM),
+      .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L1_RELU_EN),
-      .FMAP_WIDTH      (L1_FMAP_WIDTH),
-      .FMAP_HEIGHT     (L1_FMAP_HEIGHT),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (L1_INPUT_WIDTH),
-      .INPUT_HEIGHT    (L1_INPUT_HEIGHT),
+      .INPUT_WIDTH     (INPUT_WIDTH),
+      .INPUT_HEIGHT    (INPUT_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L1_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
-      .LINE_WIDTH      (L1_LINE_WIDTH),
-      .LINE_HEIGHT     (L1_LINE_HEIGHT),
-      .PATCH_WIDTH     (L1_PATCH_WIDTH),
-      .PATCH_HEIGHT    (L1_PATCH_HEIGHT),
+      .PATCH_WIDTH     (PATCH_WIDTH),
+      .PATCH_HEIGHT    (PATCH_HEIGHT),
       .CHANNEL_NUM     (L1_CHANNEL_NUM),
       .FILTER_NUM      (L1_FILTER_NUM),
       .WEIGHT_INIT_FILE(L1_WEIGHT_INIT_FILE),
@@ -210,6 +241,7 @@ module my_top #(
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
       .i_st         (i_start),
+      .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr1_wrdn),  // wgt read done
       // ipt 
@@ -234,21 +266,18 @@ module my_top #(
       .o_opt_dout(w_lyr1_sdat),
       .o_opt_vld (w_lyr1_svld)
   );
-  layer #(
-      .PADDING_EN      (L2_PADDING_EN),
+  stline_layer #(
+      .IMAGE_NUM       (IMAGE_NUM),
+      .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L2_RELU_EN),
-      .FMAP_WIDTH      (L2_FMAP_WIDTH),
-      .FMAP_HEIGHT     (L2_FMAP_HEIGHT),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (L2_INPUT_WIDTH),
-      .INPUT_HEIGHT    (L2_INPUT_HEIGHT),
+      .INPUT_WIDTH     (INPUT_WIDTH),
+      .INPUT_HEIGHT    (INPUT_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L2_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
-      .LINE_WIDTH      (L2_LINE_WIDTH),
-      .LINE_HEIGHT     (L2_LINE_HEIGHT),
-      .PATCH_WIDTH     (L2_PATCH_WIDTH),
-      .PATCH_HEIGHT    (L2_PATCH_HEIGHT),
+      .PATCH_WIDTH     (PATCH_WIDTH),
+      .PATCH_HEIGHT    (PATCH_HEIGHT),
       .CHANNEL_NUM     (L2_CHANNEL_NUM),
       .FILTER_NUM      (L2_FILTER_NUM),
       .WEIGHT_INIT_FILE(L2_WEIGHT_INIT_FILE),
@@ -257,6 +286,7 @@ module my_top #(
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
       .i_st         (i_start),
+      .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr2_wrdn),
       // ipt 
@@ -281,21 +311,18 @@ module my_top #(
       .o_opt_dout(w_lyr2_sdat),
       .o_opt_vld (w_lyr2_svld)
   );
-  layer #(
-      .PADDING_EN      (L3_PADDING_EN),
+  stline_layer #(
+      .IMAGE_NUM       (IMAGE_NUM),
+      .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L3_RELU_EN),
-      .FMAP_WIDTH      (L3_FMAP_WIDTH),
-      .FMAP_HEIGHT     (L3_FMAP_HEIGHT),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (L3_INPUT_WIDTH),
-      .INPUT_HEIGHT    (L3_INPUT_HEIGHT),
+      .INPUT_WIDTH     (INPUT_WIDTH),
+      .INPUT_HEIGHT    (INPUT_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L3_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
-      .LINE_WIDTH      (L3_LINE_WIDTH),
-      .LINE_HEIGHT     (L3_LINE_HEIGHT),
-      .PATCH_WIDTH     (L3_PATCH_WIDTH),
-      .PATCH_HEIGHT    (L3_PATCH_HEIGHT),
+      .PATCH_WIDTH     (PATCH_WIDTH),
+      .PATCH_HEIGHT    (PATCH_HEIGHT),
       .CHANNEL_NUM     (L3_CHANNEL_NUM),
       .FILTER_NUM      (L3_FILTER_NUM),
       .WEIGHT_INIT_FILE(L3_WEIGHT_INIT_FILE),
@@ -304,20 +331,193 @@ module my_top #(
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
       .i_st         (i_start),
+      .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr3_wrdn),
       // ipt 
       .o_ipt_rdy    (w_lyr3_rdy),
       .i_ipt_vld    (w_lyr2_svld),
       .i_ipt_din_pck(w_lyr2_sdat),
-      // opt
-`ifdef DEBUG_MODE
-      .i_opt_rdy    (i_rdy_test),   // for test
+      // opt 
+`ifdef DEBUG
+      .i_opt_rdy    (w_ctrl_rdy),   // for hand shake test, change i_rdy_test
 `else
-      .i_opt_rdy    ('b1),
+      .i_opt_rdy    (w_ctrl_rdy),
 `endif
       .o_opt_vld    (w_lyr3_vld),
       .o_opt_dout   (w_lyr3_dat)
   );
+`endif  // STREAMLINE
+  //      ____  _____ ____ _   _ ____  ____ _____     _______ 
+  //     |  _ \| ____/ ___| | | |  _ \/ ___|_ _\ \   / / ____|
+  //     | |_) |  _|| |   | | | | |_) \___ \| | \ \ / /|  _|  
+  //     |  _ <| |__| |___| |_| |  _ < ___) | |  \ V / | |___ 
+  //     |_| \_\_____\____|\___/|_| \_\____/___|  \_/  |_____|
+  //                                                          
+`ifdef RECURSIVE
+  wire                              w_ctrl_rdy; 
+  // intput mem
+  wire                              w_ibuf_vld;
+  wire [            INPUT_BITS-1:0] w_ibuf_dat;
+  wire                              w_ibuf_re;
+  wire [            INPUT_ADDR-1:0] w_ibuf_raddr;
+  // act buffer
+  wire                              w_abuf_we;
+  wire [            IMAGE_ADDR-1:0] w_abuf_waddr;
+  wire [INPUT_BITS*MAX_CHANNEL-1:0] w_abuf_wdat;
+  wire                              w_abuf_re;
+  wire [            IMAGE_ADDR-1:0] w_abuf_raddr;
+  wire                              w_abuf_rvld;
+  wire [INPUT_BITS*MAX_CHANNEL-1:0] w_abuf_rdat;
+  // act/image buffer select
+  wire                              w_sel_vld;
+  wire [INPUT_BITS*MAX_CHANNEL-1:0] w_sel_dat;
+  // skid
+  wire                              w_skid_rdy;
+  wire [INPUT_BITS*MAX_CHANNEL-1:0] w_skid_dat;
+  wire                              w_skid_vld;
+  // layer 
+  wire                              w_lyr_wst;
+  wire                              w_lyr_relu_en;
+  wire                              w_lyr_wrdn;
+  wire                              w_lyr_rdy;
+  wire                              w_lyr_vld;
+  wire [ INPUT_BITS*MAX_FILTER-1:0] w_lyr_dat;
+  // ------------------------- reg ------------------------- 
+  // ------------------------ assign ----------------------- 
+  // act/image buffer select
+  assign w_sel_dat  = (w_ibuf_vld) ? {{(INPUT_BITS*(MAX_CHANNEL-1)){1'b0}} ,w_ibuf_dat} : w_abuf_rdat;
+  assign w_sel_vld = w_ibuf_vld || w_abuf_rvld;
+  // ------------------------ always ----------------------- 
+  // ------------------- Unpack / Pack -------------------  
+  // ------------------------- module ----------------------  
+  rcursiv_global_ctrl #(
+      .IMAGE_NUM  (IMAGE_NUM),
+      .MAX_CHANNEL(MAX_CHANNEL),
+      .BITS       (INPUT_BITS),
+      .INPUT_DEPTH(INPUT_DEPTH),
+      .IMAGE_DEPTH(IMAGE_DEPTH)
+  ) inst_global_ctl (
+      .i_clk        (i_clk),
+      .i_rstn       (i_rstn),
+      .i_st         (i_start),
+      .o_ctrl_rdy   (w_ctrl_rdy), 
+      // ipt mem
+      .o_ibuf_re    (w_ibuf_re),
+      .o_ibuf_raddr (w_ibuf_raddr),
+      // act buffer
+      .o_abuf_re    (w_abuf_re),
+      .o_abuf_raddr (w_abuf_raddr),
+      .o_abuf_we    (w_abuf_we),
+      .o_abuf_waddr (w_abuf_waddr),
+      .o_abuf_wdout (w_abuf_wdat),
+      // skid
+      .i_skid_rdy   (w_skid_rdy),
+      // lyr 
+      .i_lyr_wrdn   (w_lyr_wrdn),
+      .i_lyr_vld    (w_lyr_vld),
+      .i_lyr_din    (w_lyr_dat),
+      .o_lyr_wst    (w_lyr_wst),
+      .o_lyr_relu_en(w_lyr_relu_en),
+      // opt mem
+      .o_obuf_we    (output_bram_wen),
+      .o_obuf_addr  (output_bram_waddr),
+      .o_obuf_dout  (L3_p_out),
+      .o_done       (o_done)
+
+  );
+  // input buffer
+  simple_dual_port_bram #(
+      .WIDTH    (INPUT_BITS),
+      .DEPTH    (INPUT_DEPTH),
+      .INIT_FILE(INPUT_INIT_FILE)
+  ) input_buf (
+      .i_clk  ( i_clk),
+      .i_rstn ( i_rstn),
+      .i_re   (w_ibuf_re),
+      .i_raddr(w_ibuf_raddr),
+      .i_we   (),
+      .i_waddr(),
+      .i_wdin (),
+      .o_vld  (w_ibuf_vld),
+      .o_dout (w_ibuf_dat)
+  );
+  // image Buffer
+  simple_dual_port_bram #(
+      .WIDTH(INPUT_BITS * MAX_FILTER),
+      .DEPTH(IMAGE_DEPTH)
+  ) image_buf (
+      .i_clk  (i_clk),
+      .i_rstn (i_rstn),
+      .i_re   (w_abuf_re),
+      .i_raddr(w_abuf_raddr),
+      .i_we   (w_abuf_we),
+      .i_waddr(w_abuf_waddr),
+      .i_wdin (w_abuf_wdat),
+      .o_vld  (w_abuf_rvld),
+      .o_dout (w_abuf_rdat)
+  );
+  // image/act - layer skid buffer
+  skid_buffer #(
+      .BITS    (INPUT_BITS * MAX_FILTER),
+      .LATENCY (4),
+      .MEM_SKID(1)
+  ) inst_skid_buffer (
+      .i_clk     (i_clk),
+      .i_rstn    (i_rstn),
+      .i_ipt_vld (w_sel_vld),
+      .i_ipt_din (w_sel_dat),
+      .o_ipt_rdy (w_skid_rdy),
+      .i_opt_rdy (w_lyr_rdy),
+      .o_opt_dout(w_skid_dat),
+      .o_opt_vld (w_skid_vld)
+  );
+  rcursiv_layer #(
+      .IMAGE_NUM          (IMAGE_NUM),
+      .PADDING_EN         (PADDING_EN),
+      .WEIGHT_BITS        (WEIGHT_BITS),
+      .INPUT_BITS         (INPUT_BITS),
+      .INPUT_WIDTH        (INPUT_WIDTH),
+      .INPUT_HEIGHT       (INPUT_HEIGHT),
+      .OUTPUT_BITS        (OUTPUT_BITS),
+      .PATCH_WIDTH        (PATCH_WIDTH),
+      .PATCH_HEIGHT       (PATCH_HEIGHT),
+      .L1_CHANNEL_NUM     (L1_CHANNEL_NUM),
+      .L1_FILTER_NUM      (L1_FILTER_NUM),
+      .L1_WEIGHT_DEPTH    (L1_WEIGHT_DEPTH),
+      .L1_WEIGHT_INIT_FILE(L1_WEIGHT_INIT_FILE),
+      .L1_BIAS_INIT_FILE  (L1_BIAS_INIT_FILE),
+      .L2_CHANNEL_NUM     (L2_CHANNEL_NUM),
+      .L2_FILTER_NUM      (L2_FILTER_NUM),
+      .L2_WEIGHT_DEPTH    (L2_WEIGHT_DEPTH),
+      .L2_WEIGHT_INIT_FILE(L2_WEIGHT_INIT_FILE),
+      .L2_BIAS_INIT_FILE  (L2_BIAS_INIT_FILE),
+      .L3_CHANNEL_NUM     (L3_CHANNEL_NUM),
+      .L3_FILTER_NUM      (L3_FILTER_NUM),
+      .L3_WEIGHT_DEPTH    (L3_WEIGHT_DEPTH),
+      .L3_WEIGHT_INIT_FILE(L3_WEIGHT_INIT_FILE),
+      .L3_BIAS_INIT_FILE  (L3_BIAS_INIT_FILE)
+  ) inst_rcursiv_layer (
+      .i_clk        (i_clk),
+      .i_rstn       (i_rstn),
+      .i_st         (i_start),
+      .i_relu_en    (w_lyr_relu_en), 
+      // wgt  
+      .i_wgt_st     (w_lyr_wst),
+      .o_wgt_rdn    (w_lyr_wrdn),
+      // ipt 
+      .o_ipt_rdy    (w_lyr_rdy),
+      .i_ipt_vld    (w_skid_vld),
+      .i_ipt_din_pck(w_skid_dat),
+      // opt
+`ifdef DEBUG
+      .i_opt_rdy    (w_ctrl_rdy),     // for test
+`else
+      .i_opt_rdy    (w_ctrl_rdy),
+`endif
+      .o_opt_vld    (w_lyr_vld),
+      .o_opt_dout   (w_lyr_dat)
+  );
+`endif  // RECURSIVE
 
 endmodule

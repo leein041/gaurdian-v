@@ -21,23 +21,25 @@
 
 // 3줄짜리 버퍼. 첫번째 2줄 채워지고 3줄부터는 3개씩 PATCH로 데이터 전달
 module line_buffer #(
-    parameter PADDING_EN   = 0,
-    parameter FMAP_WIDTH   = 5,
-    parameter FMAP_HEIGHT  = 5,
-    parameter FMAP_DEPTH   = 7 * 7 * 3,
+    parameter IMAGE_NUM    = 1,
+    parameter PADDING_EN   = 1,
     parameter INPUT_BITS   = 16,
-    parameter INPUT_WIDTH  = 5,
-    parameter INPUT_HEIGHT = 5,
-    parameter LINE_WIDTH   = 5,
-    parameter LINE_HEIGHT  = 3,
+    parameter IMAGE_WIDTH  = 5,
+    parameter IMAGE_HEIGHT = 5,
     parameter PATCH_WIDTH  = 3,
     parameter PATCH_HEIGHT = 3,
 
-    localparam FMAP_AREA  = FMAP_HEIGHT * FMAP_WIDTH,
-    localparam PATCH_SIZE = INPUT_BITS * PATCH_WIDTH * PATCH_HEIGHT
+    localparam LINE_WIDTH  = IMAGE_WIDTH + 2,
+    localparam LINE_HEIGHT = 3,
+    localparam FMAP_WIDTH  = IMAGE_WIDTH + 2,
+    localparam FMAP_HEIGHT = IMAGE_HEIGHT + 2,
+    localparam FMAP_DEPTH  = FMAP_WIDTH * FMAP_HEIGHT,
+    localparam FMAP_AREA   = FMAP_HEIGHT * FMAP_WIDTH,
+    localparam PATCH_SIZE  = INPUT_BITS * PATCH_WIDTH * PATCH_HEIGHT
 ) (
     input                                            i_clk,
     input                                            i_rstn,
+    input                                            i_st,
     // ipt
     input  signed [                  INPUT_BITS-1:0] i_ipt_din,
     input                                            i_ipt_vld,
@@ -52,7 +54,7 @@ module line_buffer #(
   localparam LB_IDLE = 3'd0;
   localparam LB_ENTER_LINEx2 = 3'd1;
   localparam LB_ENTER_LINE = 3'd2;
-  localparam LB_WAIT = 3'd3;
+  localparam LB_DONE = 3'd3;
   // delay
   localparam PATCH_EN_DLY = 3;
   localparam PROW_DLY = 3;
@@ -82,8 +84,7 @@ module line_buffer #(
   wire                                      w_prow_en;  //   
   // opt 
   // ------------------------- reg -------------------------   
-  // feature map
-  reg                                       r_fmap_dn;
+  // feature map 
   reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
   reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_fcol;
   // patch      
@@ -102,9 +103,8 @@ module line_buffer #(
   assign w_dat_vld = i_ipt_vld || w_pad_en;
   // ipt
   assign w_ipt_dat = (w_pad_en) ? 'd0 : i_ipt_din;
-  // feature map  
-  assign w_pad_en = !r_fmap_dn
-                 && (PADDING_EN) 
+  // feature map    
+  assign w_pad_en = (PADDING_EN) 
                  && (r_frow == 0 || r_frow == FMAP_HEIGHT - 1  
                  || r_fcol == 0 || r_fcol == FMAP_WIDTH - 1);
   // patch
@@ -123,20 +123,16 @@ module line_buffer #(
   always @(*) begin
     r_lbuf_nstat = r_lbuf_cstat;
     case (r_lbuf_cstat)
-      LB_IDLE: begin
-        if (i_ipt_vld) r_lbuf_nstat = LB_ENTER_LINEx2;
-      end
-      LB_ENTER_LINEx2: begin
-        if (r_lrow == 'd1 && (r_lcol == LINE_WIDTH - 1) && w_act) begin
-          r_lbuf_nstat = LB_ENTER_LINE;
-        end
-      end
-      LB_ENTER_LINE: begin
-        if (r_fmap_dn) r_lbuf_nstat = LB_WAIT;
-      end
-      LB_WAIT: begin
-        r_lbuf_nstat = LB_IDLE;
-      end
+      LB_IDLE: if (i_st) r_lbuf_nstat = LB_ENTER_LINEx2;
+
+      LB_ENTER_LINEx2:
+      if (r_lrow == 'd1 && (r_lcol == LINE_WIDTH - 1) && w_act) r_lbuf_nstat = LB_ENTER_LINE;
+
+      LB_ENTER_LINE:
+      if (r_frow == FMAP_HEIGHT - 1 && r_fcol == FMAP_WIDTH - 1) r_lbuf_nstat = LB_DONE;
+
+      LB_DONE: r_lbuf_nstat = LB_IDLE;
+
       default: ;
     endcase
   end
@@ -145,7 +141,6 @@ module line_buffer #(
     if (~i_rstn) begin
       r_frow    <= 'd0;
       r_fcol    <= 'd0;
-      r_fmap_dn <= 'd0;
       r_lbuf_re <= 'd0;
       r_lrow    <= 'd0;
       r_lcol    <= 'd0;
@@ -153,7 +148,14 @@ module line_buffer #(
     end else begin
       if (w_act) begin
         case (r_lbuf_cstat)
-          LB_IDLE: ;
+          LB_IDLE: begin
+            r_frow    <= 'd0;
+            r_fcol    <= 'd0;
+            r_lbuf_re <= 'd0;
+            r_lrow    <= 'd0;
+            r_lcol    <= 'd0;
+            r_pcol    <= 'd0;
+          end
           LB_ENTER_LINEx2, LB_ENTER_LINE: begin
             if (r_lbuf_cstat == LB_ENTER_LINE) begin
               r_lbuf_re <= 1'b1;
@@ -167,8 +169,7 @@ module line_buffer #(
               if (r_frow < FMAP_HEIGHT - 1) begin
                 r_frow <= r_frow + 'd1;
               end else begin
-                r_frow    <= 'd0;
-                r_fmap_dn <= 'd1;
+                r_frow <= 'd0;
               end
             end
             // 라인버퍼 업데이트
@@ -179,9 +180,8 @@ module line_buffer #(
               if (r_lrow < LINE_HEIGHT - 1) r_lrow <= r_lrow + 'd1;
               else r_lrow <= 'd0;
             end
-
           end
-          LB_WAIT: begin
+          LB_DONE: begin
             r_lbuf_re <= 'b0;
             r_pcol    <= 'd0;
           end

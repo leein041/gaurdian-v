@@ -18,20 +18,16 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////  
 `include "defines.vh"
-module layer #(
+module stline_layer #(
+    parameter IMAGE_NUM        = 1,
     parameter RELU_EN          = 0,
     parameter PADDING_EN       = 0,
     parameter INPUT_BITS       = 16,
-    parameter INPUT_WIDTH      = 5,
-    parameter INPUT_HEIGHT     = 5,
-    parameter FMAP_WIDTH       = 5,
-    parameter FMAP_HEIGHT      = 5,
-    parameter FMAP_DEPTH       = 5,
+    parameter IMAGE_WIDTH      = 5,
+    parameter IMAGE_HEIGHT     = 5,
     parameter WEIGHT_BITS      = 16,
     parameter WEIGHT_DEPTH     = 9,
-    parameter OUTPUT_BITS      = 32,
-    parameter LINE_WIDTH       = 5,
-    parameter LINE_HEIGHT      = 3,
+    parameter OUTPUT_BITS      = 16,
     parameter PATCH_WIDTH      = 3,
     parameter PATCH_HEIGHT     = 3,
     parameter CHANNEL_NUM      = 1,
@@ -39,12 +35,15 @@ module layer #(
     parameter WEIGHT_INIT_FILE = "",
     parameter BIAS_INIT_FILE   = "",
 
+    localparam LINE_WIDTH  = IMAGE_WIDTH + 2,
+    localparam LINE_HEIGHT = 3,
     localparam WEIGHT_ADDR = $clog2(WEIGHT_DEPTH),
     localparam PATCH_AREA  = PATCH_WIDTH * PATCH_HEIGHT
 ) (
     input                                      i_clk,
     input                                      i_rstn,
     input                                      i_st,
+    input                                      i_img_st,
     // wgt
     output                                     o_wgt_rdn,
     // ipt 
@@ -60,7 +59,8 @@ module layer #(
   localparam FILTER_CNT_BITS = (FILTER_NUM <= 1) ? 1 : $clog2(FILTER_NUM);
   localparam CHANNEL_CNT_BITS = (CHANNEL_NUM <= 1) ? 1 : $clog2(CHANNEL_NUM);
   localparam PATCH_CNT_BITS = (PATCH_AREA <= 1) ? 1 : $clog2(PATCH_AREA);
-  localparam PU_OUT_BITS = OUTPUT_BITS + $clog2(PATCH_AREA);
+  localparam PE_OUT_BITS = OUTPUT_BITS * 2;
+  localparam PU_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_AREA);
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(CHANNEL_NUM);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
 
@@ -75,6 +75,7 @@ module layer #(
   // IO port 
   wire signed [             INPUT_BITS - 1:0] w_ipt_dat      [0:CHANNEL_NUM-1];
   // line bufferS 
+  wire                                        w_lbuf_st;
   wire                                        w_lbuf_rdy     [0:CHANNEL_NUM-1];
   wire        [              CHANNEL_NUM-1:0] w_lbuf_rdy_pck;
   wire                                        w_lbuf_vld     [0:CHANNEL_NUM-1];
@@ -103,9 +104,11 @@ module layer #(
 
 
   // ------------------------- reg -------------------------  
+  // interenal counter
   reg         [          FILTER_CNT_BITS-1:0] r_pu_cnt;
   reg         [         CHANNEL_CNT_BITS-1:0] r_ch_cnt;
   reg         [           PATCH_CNT_BITS-1:0] r_ptch_cnt;
+  // adder
   reg         [               FILTER_NUM-1:0] r_add_vld;
 
   reg signed  [               INPUT_BITS-1:0] r_bias_dat     [ 0:FILTER_NUM-1];
@@ -225,36 +228,34 @@ module layer #(
       .o_vld  (w_wgt_vld),
       .o_dout (w_wgt_dat)
   );
-  // local ctrl
-  local_ctl #(
+  stline_local_ctrl #(
       .WEIGHT_BITS (WEIGHT_BITS),
       .WEIGHT_DEPTH(WEIGHT_DEPTH)
   ) inst_local_ctl (
       .i_clk      (i_clk),
       .i_rstn     (i_rstn),
       .i_st       (i_st),
+      // line buffer 
+      .o_lbuf_st  (w_lbuf_st),
       // wgt
       .o_wgt_re   (w_wgt_re),
       .o_wgt_raddr(w_wgt_raddr),
       .o_wgt_rdn  (o_wgt_rdn)
   );
-  // line buffer
   generate
     for (c = 0; c < CHANNEL_NUM; c = c + 1) begin : LINE_BUFFER_ARRAY
       line_buffer #(
+          .IMAGE_NUM   (IMAGE_NUM),
           .PADDING_EN  (PADDING_EN),
-          .FMAP_WIDTH  (FMAP_WIDTH),
-          .FMAP_HEIGHT (FMAP_HEIGHT),
           .INPUT_BITS  (INPUT_BITS),
-          .INPUT_WIDTH (INPUT_WIDTH),
-          .INPUT_HEIGHT(INPUT_HEIGHT),
-          .LINE_WIDTH  (LINE_WIDTH),
-          .LINE_HEIGHT (LINE_HEIGHT),
+          .IMAGE_WIDTH (IMAGE_WIDTH),
+          .IMAGE_HEIGHT(IMAGE_HEIGHT),
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_line_buffer (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
+          .i_st      (i_img_st),
           // ipt
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
@@ -271,8 +272,6 @@ module layer #(
     for (p = 0; p < FILTER_NUM; p = p + 1) begin : pu_array
       for (c = 0; c < CHANNEL_NUM; c = c + 1) begin : ch_array
         pu #(
-            .CHANNEL_NUM (CHANNEL_NUM),
-            .RELU_EN     (RELU_EN),
             .INPUT_BITS  (INPUT_BITS),
             .WEIGHT_BITS (WEIGHT_BITS),
             .OUTPUT_BITS (PU_OUT_BITS),
@@ -283,6 +282,7 @@ module layer #(
         ) inst_pu (
             .i_clk     (i_clk),
             .i_rstn    (i_rstn),
+            .i_clr     (i_img_st),
             // wgt 
             .i_wgt_vld (w_pu_wvld[p][c]),
             .i_wgt_din (w_wgt_dat),
@@ -304,7 +304,7 @@ module layer #(
           .i_rstn    (i_rstn),
           // ipt
           .o_ipt_rdy (w_cat_rdy[p]),
-          .i_ipt_vld (&w_pu_vld_cpck[p]),
+          .i_ipt_vld (w_pu_vld_cpck[p]),
           .i_ipt_din (w_pu_dat_cpck[p]),
           // opt
           .i_opt_rdy (w_add_rdy),
