@@ -305,7 +305,7 @@ module layer #(
 
   // ------------------------- module ---------------------- 
   // weight buffer
-  simple_dual_port_bram #(
+  simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
       .DEPTH    (L1_WEIGHT_DEPTH),
       .INIT_FILE(L1_WEIGHT_INIT_FILE)
@@ -320,7 +320,7 @@ module layer #(
       .o_vld  (w_wgt_vld[0]),
       .o_dout (w_wgt_dat[0])
   );
-  simple_dual_port_bram #(
+  simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
       .DEPTH    (L2_WEIGHT_DEPTH),
       .INIT_FILE(L2_WEIGHT_INIT_FILE)
@@ -335,7 +335,7 @@ module layer #(
       .o_vld  (w_wgt_vld[1]),
       .o_dout (w_wgt_dat[1])
   );
-  simple_dual_port_bram #(
+  simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
       .DEPTH    (L3_WEIGHT_DEPTH),
       .INIT_FILE(L3_WEIGHT_INIT_FILE)

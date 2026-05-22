@@ -36,7 +36,8 @@ module patch #(
   reg [$clog2(LINE_HEIGHT)-1:0] r_prow_0, r_prow_1, r_prow_2;
 
   // ------------------------ Handshake Assign -----------------------   
-  assign o_ipt_rdy = i_opt_rdy;
+  // 출력 데이터가 없거나, 후속단에서 받아줄 준비가 되었을 때 상단 데이터 수락
+  assign o_ipt_rdy = i_opt_rdy || !r_opt_vld;
   assign o_opt_vld = r_opt_vld;
 
   // ------------------------ 열 카운터 및 행 맵핑 로직 ----------------------- 

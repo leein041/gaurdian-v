@@ -3,16 +3,16 @@
 // ==================================================
 //  **** select **** 
 // ==================================================
- `define RELEASE_4_2 
+// `define RELEASE_4_2 
 // `define RELEASE_8_4 
 // `define RELEASE_8_8  
 // `define DEBUG_4_2 
 // `define DEBUG_8_4 
-// `define DEBUG_8_8    
+ `define DEBUG_8_8    
 
 // select
-// `define IMAGE_1
- `define IMAGE_3
+//`define IMAGE_1
+`define IMAGE_3
 
 // ==================================================
 // debug mode
@@ -49,8 +49,5 @@
 
 //
 `define MAX2(A, B) (((A) > (B)) ? (A) : (B))
-
-`define BRAM_TYPE 0
-`define URAM_TYPE 1
 
 `endif // DEFINES_VH

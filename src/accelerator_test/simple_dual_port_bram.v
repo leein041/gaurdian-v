@@ -33,7 +33,7 @@
 //============================================================================
 `timescale 1ns / 1ps
 
-module simple_dual_port_bram #(
+module simple_dual_port_ram #(
     parameter WIDTH      = 16,
     parameter DEPTH      = 1024,
     parameter ADDR_WIDTH = $clog2(DEPTH),

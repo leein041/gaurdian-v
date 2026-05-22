@@ -468,9 +468,8 @@ module my_top #(
   );
   // image Buffer
   simple_dual_port_ram #(
-      .WIDTH   (INPUT_BITS * MAX_FILTER),
-      .DEPTH   (IMAGE_DEPTH),
-      .MEM_TYPE(`URAM_TYPE)
+      .WIDTH(INPUT_BITS * MAX_FILTER),
+      .DEPTH(IMAGE_DEPTH)
   ) image_buf (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),

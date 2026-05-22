@@ -146,7 +146,7 @@ module my_top #(
 
   );
   // image buffer
-  simple_dual_port_bram #(
+  simple_dual_port_ram #(
       .WIDTH    (INPUT_BITS),
       .DEPTH    (IMAGE_DEPTH),
       .INIT_FILE(IMAGE_FILE)
@@ -162,7 +162,7 @@ module my_top #(
       .o_dout (w_ibuf_dat)
   );
   // act Buffer
-  simple_dual_port_bram #(
+  simple_dual_port_ram #(
       .WIDTH(INPUT_BITS * MAX_FILTER),
       .DEPTH(ACT_DEPTH)
   ) act_buf (

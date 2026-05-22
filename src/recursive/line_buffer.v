@@ -207,7 +207,7 @@ module line_buffer #(
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
       assign w_lbuf_we[g] = (w_act && (g == r_lrow));
-      simple_dual_port_bram #(
+      simple_dual_port_ram #(
           .WIDTH(INPUT_BITS),
           .DEPTH(LINE_WIDTH)
       ) inst_line_buf (
