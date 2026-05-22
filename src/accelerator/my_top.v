@@ -57,10 +57,13 @@ module my_top #(
 `endif
     // layer 1
     localparam L1_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L1_CHANNEL_NUM * L1_FILTER_NUM,
+    localparam L1_WEIGHT_ADDR  = $clog2(L1_WEIGHT_DEPTH),
     // layer 2
     localparam L2_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L2_CHANNEL_NUM * L2_FILTER_NUM,
+    localparam L2_WEIGHT_ADDR  = $clog2(L2_WEIGHT_DEPTH),
     // layer 3
     localparam L3_WEIGHT_DEPTH = PATCH_WIDTH * PATCH_HEIGHT * L3_CHANNEL_NUM * L3_FILTER_NUM,
+    localparam L3_WEIGHT_ADDR  = $clog2(L3_WEIGHT_DEPTH),
 
 
     localparam INPUT_DEPTH  = INPUT_WIDTH * INPUT_HEIGHT * IMAGE_NUM,
@@ -70,8 +73,9 @@ module my_top #(
     localparam OUTPUT_DEPTH = OUTPUT_WIDTH * OUTPUT_HEIGHT * IMAGE_NUM,
     localparam OUTPUT_ADDR  = $clog2(OUTPUT_DEPTH),
 
-    localparam MAX_FILTER  = `MAX2(L1_FILTER_NUM, `MAX2(L2_FILTER_NUM, L3_FILTER_NUM)),
+    localparam MAX_FILTER = `MAX2(L1_FILTER_NUM, `MAX2(L2_FILTER_NUM, L3_FILTER_NUM)),
     localparam MAX_CHANNEL = `MAX2(L1_CHANNEL_NUM, `MAX2(L2_CHANNEL_NUM, L3_CHANNEL_NUM)),
+    localparam MAX_WEIGHT_ADDR = `MAX2(L1_WEIGHT_ADDR, `MAX2(L2_WEIGHT_ADDR, L3_WEIGHT_ADDR)),
 
 
 `ifdef RELEASE_4_2
@@ -355,7 +359,7 @@ module my_top #(
   //     |_| \_\_____\____|\___/|_| \_\____/___|  \_/  |_____|
   //                                                          
 `ifdef RECURSIVE
-  wire                              w_ctrl_rdy; 
+  wire                              w_ctrl_rdy;
   // intput mem
   wire                              w_ibuf_vld;
   wire [            INPUT_BITS-1:0] w_ibuf_dat;
@@ -376,13 +380,19 @@ module my_top #(
   wire                              w_skid_rdy;
   wire [INPUT_BITS*MAX_CHANNEL-1:0] w_skid_dat;
   wire                              w_skid_vld;
-  // layer 
-  wire                              w_lyr_wst;
+  // layer  
   wire                              w_lyr_relu_en;
-  wire                              w_lyr_wrdn;
   wire                              w_lyr_rdy;
   wire                              w_lyr_vld;
   wire [ INPUT_BITS*MAX_FILTER-1:0] w_lyr_dat;
+  // temp
+  wire [     $clog2(MAX_CHANNEL):0] w_ch_num;
+  wire [      $clog2(MAX_FILTER):0] w_filt_num;
+  wire [           MAX_CHANNEL-1:0] w_lbuf_st;
+  wire [                       2:0] w_wgt_re;
+  wire [       MAX_WEIGHT_ADDR-1:0] w_wgt_raddr;
+  wire [           MAX_CHANNEL-1:0] w_ipt_mask;
+  wire [                       2:0] w_bias_sel;
   // ------------------------- reg ------------------------- 
   // ------------------------ assign ----------------------- 
   // act/image buffer select
@@ -392,16 +402,25 @@ module my_top #(
   // ------------------- Unpack / Pack -------------------  
   // ------------------------- module ----------------------  
   rcursiv_global_ctrl #(
-      .IMAGE_NUM  (IMAGE_NUM),
-      .MAX_CHANNEL(MAX_CHANNEL),
-      .BITS       (INPUT_BITS),
-      .INPUT_DEPTH(INPUT_DEPTH),
-      .IMAGE_DEPTH(IMAGE_DEPTH)
+      .IMAGE_NUM      (IMAGE_NUM),
+      .BITS           (INPUT_BITS),
+      .INPUT_DEPTH    (INPUT_DEPTH),
+      .IMAGE_DEPTH    (IMAGE_DEPTH),
+      .WEIGHT_BITS    (WEIGHT_BITS),
+      .L1_CHANNEL_NUM (L1_CHANNEL_NUM),
+      .L1_FILTER_NUM  (L1_FILTER_NUM),
+      .L1_WEIGHT_DEPTH(L1_WEIGHT_DEPTH),
+      .L2_CHANNEL_NUM (L2_CHANNEL_NUM),
+      .L2_FILTER_NUM  (L2_FILTER_NUM),
+      .L2_WEIGHT_DEPTH(L2_WEIGHT_DEPTH),
+      .L3_CHANNEL_NUM (L3_CHANNEL_NUM),
+      .L3_FILTER_NUM  (L3_FILTER_NUM),
+      .L3_WEIGHT_DEPTH(L3_WEIGHT_DEPTH)
   ) inst_global_ctl (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
       .i_st         (i_start),
-      .o_ctrl_rdy   (w_ctrl_rdy), 
+      .o_ctrl_rdy   (w_ctrl_rdy),
       // ipt mem
       .o_ibuf_re    (w_ibuf_re),
       .o_ibuf_raddr (w_ibuf_raddr),
@@ -413,18 +432,23 @@ module my_top #(
       .o_abuf_wdout (w_abuf_wdat),
       // skid
       .i_skid_rdy   (w_skid_rdy),
-      // lyr 
-      .i_lyr_wrdn   (w_lyr_wrdn),
+      // lyr  
       .i_lyr_vld    (w_lyr_vld),
       .i_lyr_din    (w_lyr_dat),
-      .o_lyr_wst    (w_lyr_wst),
       .o_lyr_relu_en(w_lyr_relu_en),
       // opt mem
       .o_obuf_we    (output_bram_wen),
       .o_obuf_addr  (output_bram_waddr),
       .o_obuf_dout  (L3_p_out),
-      .o_done       (o_done)
-
+      .o_done       (o_done),
+      // temp
+      .o_ch_num     (w_ch_num),
+      .o_filt_num   (w_filt_num),
+      .o_lbuf_st    (w_lbuf_st),
+      .o_wgt_re     (w_wgt_re),
+      .o_wgt_raddr  (w_wgt_raddr),
+      .o_ipt_mask   (w_ipt_mask),
+      .o_bias_sel   (w_bias_sel)
   );
   // input buffer
   simple_dual_port_bram #(
@@ -460,7 +484,7 @@ module my_top #(
   // image/act - layer skid buffer
   skid_buffer #(
       .BITS    (INPUT_BITS * MAX_FILTER),
-      .LATENCY (4),
+      .LATENCY (2),
       .MEM_SKID(1)
   ) inst_skid_buffer (
       .i_clk     (i_clk),
@@ -477,8 +501,8 @@ module my_top #(
       .PADDING_EN         (PADDING_EN),
       .WEIGHT_BITS        (WEIGHT_BITS),
       .INPUT_BITS         (INPUT_BITS),
-      .INPUT_WIDTH        (INPUT_WIDTH),
-      .INPUT_HEIGHT       (INPUT_HEIGHT),
+      .IMAGE_WIDTH        (IMAGE_WIDTH),
+      .IMAGE_HEIGHT       (IMAGE_HEIGHT),
       .OUTPUT_BITS        (OUTPUT_BITS),
       .PATCH_WIDTH        (PATCH_WIDTH),
       .PATCH_HEIGHT       (PATCH_HEIGHT),
@@ -501,10 +525,7 @@ module my_top #(
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
       .i_st         (i_start),
-      .i_relu_en    (w_lyr_relu_en), 
-      // wgt  
-      .i_wgt_st     (w_lyr_wst),
-      .o_wgt_rdn    (w_lyr_wrdn),
+      .i_relu_en    (w_lyr_relu_en),
       // ipt 
       .o_ipt_rdy    (w_lyr_rdy),
       .i_ipt_vld    (w_skid_vld),
@@ -516,7 +537,15 @@ module my_top #(
       .i_opt_rdy    (w_ctrl_rdy),
 `endif
       .o_opt_vld    (w_lyr_vld),
-      .o_opt_dout   (w_lyr_dat)
+      .o_opt_dout   (w_lyr_dat),
+      // temp
+      .i_ch_num     (w_ch_num),
+      .i_filt_num   (w_filt_num),
+      .i_lbuf_st    (w_lbuf_st),
+      .i_wgt_re     (w_wgt_re),
+      .i_wgt_raddr  (w_wgt_raddr),
+      .i_ipt_mask   (w_ipt_mask),
+      .i_bias_sel   (w_bias_sel)
   );
 `endif  // RECURSIVE
 

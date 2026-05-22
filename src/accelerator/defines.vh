@@ -1,13 +1,14 @@
 `ifndef DEFINES_VH
 `define DEFINES_VH 
-// --------------- select architecture --------------- 
-// select
+// ==================================================
+//  **** select **** 
+// ==================================================
 // `define RELEASE_4_2 
 // `define RELEASE_8_4 
 // `define RELEASE_8_8  
- `define DEBUG_4_2 
+// `define DEBUG_4_2 
 // `define DEBUG_8_4 
-// `define DEBUG_8_8    
+ `define DEBUG_8_8    
 
 // select
 //`define IMAGE_1
@@ -25,7 +26,7 @@
 `endif
  
 // ==================================================
-// recursive select
+// recursive 
 // ==================================================
 `ifdef RELEASE_4_2  
     `define RECURSIVE
@@ -38,7 +39,7 @@
 `endif 
 
 // ==================================================
-// streamline select
+// streamline 
 // ==================================================
 `ifdef RELEASE_8_4
     `define STREAMLINE 

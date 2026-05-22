@@ -23,8 +23,8 @@ module rcursiv_layer #(
     parameter PADDING_EN          = 1,
     parameter WEIGHT_BITS         = 16,
     parameter INPUT_BITS          = 16,
-    parameter INPUT_WIDTH         = 150,
-    parameter INPUT_HEIGHT        = 150,
+    parameter IMAGE_WIDTH         = 5,
+    parameter IMAGE_HEIGHT        = 5,
     parameter OUTPUT_BITS         = 16,
     parameter PATCH_WIDTH         = 3,
     parameter PATCH_HEIGHT        = 3,
@@ -55,16 +55,14 @@ module rcursiv_layer #(
     localparam MAX_WEIGHT_ADDR = `MAX2(L1_WEIGHT_ADDR, `MAX2(L2_WEIGHT_ADDR, L3_WEIGHT_ADDR)),
     localparam PATCH_AREA      = PATCH_WIDTH * PATCH_HEIGHT,
 
-    localparam LINE_WIDTH  = INPUT_WIDTH + 2 * PADDING_EN,
+    localparam LINE_WIDTH  = IMAGE_WIDTH + 2 * PADDING_EN,
     localparam LINE_HEIGHT = 3
 ) (
     input                                      i_clk,
     input                                      i_rstn,
     input                                      i_st,
     input                                      i_relu_en,
-    // wgt
-    input                                      i_wgt_st,
-    output                                     o_wgt_rdn,
+    // wgt 
     // ipt 
     output                                     o_ipt_rdy,
     input                                      i_ipt_vld,
@@ -72,7 +70,15 @@ module rcursiv_layer #(
     // opt
     input                                      i_opt_rdy,
     output                                     o_opt_vld,
-    output signed [ INPUT_BITS*MAX_FILTER-1:0] o_opt_dout
+    output signed [ INPUT_BITS*MAX_FILTER-1:0] o_opt_dout,
+    // temp
+    input         [     $clog2(MAX_CHANNEL):0] i_ch_num,
+    input         [      $clog2(MAX_FILTER):0] i_filt_num,
+    input         [           MAX_CHANNEL-1:0] i_lbuf_st,
+    input         [                       2:0] i_wgt_re,
+    input         [       MAX_WEIGHT_ADDR-1:0] i_wgt_raddr,
+    input         [           MAX_CHANNEL-1:0] i_ipt_mask,
+    input         [                       2:0] i_bias_sel
 );
   // ------------------- parmeter -------------------  
   localparam FILTER_CNT_BITS = (MAX_FILTER <= 1) ? 1 : $clog2(MAX_FILTER);
@@ -85,22 +91,15 @@ module rcursiv_layer #(
 
   integer i, j;
   genvar c, p, g;
-  // --------------------- wire --------------------- 
-  // current channel and filter
-  wire        [      $clog2(MAX_CHANNEL):0] w_ch_num;
-  wire        [       $clog2(MAX_FILTER):0] w_filt_num;
+  // --------------------- wire ---------------------  
   // weight
   wire                                      w_wgt_vld      [              0:2];
   wire                                      w_wgt_svld;
   wire signed [            WEIGHT_BITS-1:0] w_wgt_dat      [              0:2];
   wire signed [            WEIGHT_BITS-1:0] w_wgt_sdat;
-  wire        [                        2:0] w_wgt_re;
-  wire        [        MAX_WEIGHT_ADDR-1:0] w_wgt_raddr;
   // IO port 
   wire signed [             INPUT_BITS-1:0] w_ipt_dat      [  0:MAX_CHANNEL-1];
-  wire        [            MAX_CHANNEL-1:0] w_ipt_mask;
-  // line bufferS 
-  wire        [            MAX_CHANNEL-1:0] w_lbuf_st;
+  // line bufferS  
   wire        [            MAX_CHANNEL-1:0] w_lbuf_rdy;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_vld;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_pu_vld  [   0:MAX_FILTER-1];
@@ -119,7 +118,7 @@ module rcursiv_layer #(
   wire signed [           CAT_OUT_BITS-1:0] w_cat_dat      [   0:MAX_FILTER-1];
   // bias 
   wire signed [           CAT_OUT_BITS-1:0] w_bias_exdat   [   0:MAX_FILTER-1];
-  wire        [                        2:0] w_bias_sel;
+
   // adder
   wire                                      w_add_act      [   0:MAX_FILTER-1];
   wire                                      w_add_rdy;
@@ -188,7 +187,7 @@ module rcursiv_layer #(
   // line buffer
   generate
     for (p = 0; p < MAX_FILTER; p = p + 1) begin
-      assign w_lbuf_pu_vld[p] = (p < w_filt_num) ? w_lbuf_vld : 'd0;
+      assign w_lbuf_pu_vld[p] = (p < i_filt_num) ? w_lbuf_vld : 'd0;
     end
   endgenerate
   // ------------------------ always ----------------------- 
@@ -225,11 +224,11 @@ module rcursiv_layer #(
         r_ptch_cnt <= r_ptch_cnt + 'd1;
       end else begin
         r_ptch_cnt <= 'd0;
-        if (r_ch_cnt < w_ch_num - 1) begin
+        if (r_ch_cnt < i_ch_num - 1) begin
           r_ch_cnt <= r_ch_cnt + 'd1;
         end else begin
           r_ch_cnt <= 'd0;
-          if (r_pu_cnt < w_filt_num - 1) begin
+          if (r_pu_cnt < i_filt_num - 1) begin
             r_pu_cnt <= r_pu_cnt + 'd1;
           end else begin
             r_pu_cnt <= 'd0;
@@ -247,17 +246,17 @@ module rcursiv_layer #(
       end
     end else begin
       r_bias_vld <= 'd0;
-      if (w_bias_sel[0]) begin
+      if (i_bias_sel[0]) begin
         for (i = 0; i < L1_FILTER_NUM; i = i + 1) begin
           r_bias_dat[i] <= r_bias1_dat[i];
           r_bias_vld[i] <= 'b1;
         end
-      end else if (w_bias_sel[1]) begin
+      end else if (i_bias_sel[1]) begin
         for (i = 0; i < L2_FILTER_NUM; i = i + 1) begin
           r_bias_dat[i] <= r_bias2_dat[i];
           r_bias_vld[i] <= 'b1;
         end
-      end else if (w_bias_sel[2]) begin
+      end else if (i_bias_sel[2]) begin
         for (i = 0; i < L3_FILTER_NUM; i = i + 1) begin
           r_bias_dat[i] <= r_bias3_dat[i];
           r_bias_vld[i] <= 'b1;
@@ -312,8 +311,8 @@ module rcursiv_layer #(
   ) wgt_mem1 (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),
-      .i_re   (w_wgt_re[0]),
-      .i_raddr(w_wgt_raddr[L1_WEIGHT_ADDR-1:0]),
+      .i_re   (i_wgt_re[0]),
+      .i_raddr(i_wgt_raddr[L1_WEIGHT_ADDR-1:0]),
       .i_we   (),
       .i_waddr(),
       .i_wdin (),
@@ -327,8 +326,8 @@ module rcursiv_layer #(
   ) wgt_mem2 (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),
-      .i_re   (w_wgt_re[1]),
-      .i_raddr(w_wgt_raddr[L2_WEIGHT_ADDR-1:0]),
+      .i_re   (i_wgt_re[1]),
+      .i_raddr(i_wgt_raddr[L2_WEIGHT_ADDR-1:0]),
       .i_we   (),
       .i_waddr(),
       .i_wdin (),
@@ -342,43 +341,13 @@ module rcursiv_layer #(
   ) wgt_mem3 (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),
-      .i_re   (w_wgt_re[2]),
-      .i_raddr(w_wgt_raddr[L3_WEIGHT_ADDR-1:0]),
+      .i_re   (i_wgt_re[2]),
+      .i_raddr(i_wgt_raddr[L3_WEIGHT_ADDR-1:0]),
       .i_we   (),
       .i_waddr(),
       .i_wdin (),
       .o_vld  (w_wgt_vld[2]),
       .o_dout (w_wgt_dat[2])
-  );
-  // local ctrl
-  rcursiv_local_ctrl #(
-      .WEIGHT_BITS    (WEIGHT_BITS),
-      .L1_CHANNEL_NUM (L1_CHANNEL_NUM),
-      .L1_FILTER_NUM  (L1_FILTER_NUM),
-      .L1_WEIGHT_DEPTH(L1_WEIGHT_DEPTH),
-      .L2_CHANNEL_NUM (L2_CHANNEL_NUM),
-      .L2_FILTER_NUM  (L2_FILTER_NUM),
-      .L2_WEIGHT_DEPTH(L2_WEIGHT_DEPTH),
-      .L3_CHANNEL_NUM (L3_CHANNEL_NUM),
-      .L3_FILTER_NUM  (L3_FILTER_NUM),
-      .L3_WEIGHT_DEPTH(L3_WEIGHT_DEPTH)
-  ) inst_local_ctl (
-      .i_clk      (i_clk),
-      .i_rstn     (i_rstn),
-      // ch fil
-      .o_ch_num   (w_ch_num),
-      .o_filt_num (w_filt_num),
-      // line buffer
-      .o_lbuf_st  (w_lbuf_st),
-      // wgt
-      .i_wgt_st   (i_wgt_st),
-      .o_wgt_re   (w_wgt_re),
-      .o_wgt_raddr(w_wgt_raddr),
-      .o_wgt_rdn  (o_wgt_rdn),
-      // ipt 
-      .o_ipt_mask (w_ipt_mask),
-      // bias
-      .o_bias_sel (w_bias_sel)
   );
   // line buffer
   generate
@@ -387,18 +356,18 @@ module rcursiv_layer #(
           .IMAGE_NUM   (IMAGE_NUM),
           .PADDING_EN  (PADDING_EN),
           .INPUT_BITS  (INPUT_BITS),
-          .INPUT_WIDTH (INPUT_WIDTH),
-          .INPUT_HEIGHT(INPUT_HEIGHT),
+          .IMAGE_WIDTH (IMAGE_WIDTH),
+          .IMAGE_HEIGHT(IMAGE_HEIGHT),
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_line_buffer (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_st      (w_lbuf_st[c]),
+          .i_st      (i_lbuf_st[c]),
           // ipt
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
-          .i_ipt_vld (w_ipt_mask[c] && i_ipt_vld),
+          .i_ipt_vld (i_ipt_mask[c] && i_ipt_vld),
           // opt
           .i_opt_rdy (&w_pu_rdy_pck[c]),            // TODO 
           .o_opt_vld (w_lbuf_vld[c]),
@@ -421,7 +390,7 @@ module rcursiv_layer #(
         ) inst_pu (
             .i_clk     (i_clk),
             .i_rstn    (i_rstn),
-            .i_clr     (o_wgt_rdn),
+            .i_clr     (i_lbuf_st[c]),
             // wgt 
             .i_wgt_vld (r_pu_wvld[p][c]),
             .i_wgt_din (r_pu_wdat),
