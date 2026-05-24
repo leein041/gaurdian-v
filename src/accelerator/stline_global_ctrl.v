@@ -54,16 +54,16 @@ module stline_global_ctrl #(
     output                   o_obuf_we,
     output [OUTPUT_ADDR-1:0] o_obuf_addr,
     output [         BITS:0] o_obuf_dout,
-    output                   o_done        
+    output                   o_done
 );
-  // ------------------- parmeter -------------------  
+  // ====================== parmeter ======================= 
   localparam IDLE = 2'd0;
   localparam LOAD_WEIGHT = 2'd1;
   localparam COMPUTE_IMAGE = 2'd2;
   localparam DONE_IMAGE = 2'd3;
-  // --------------------- wire --------------------- 
+  // ====================== wire ===========================
   wire                   w_all_wgtdn;
-  // ------------------------- reg -------------------------        
+  // ====================== reg ============================ 
   reg  [            1:0] r_lp_cstat;  // current state
   reg  [            1:0] r_lp_nstat;  // next state  
   // img
@@ -71,10 +71,7 @@ module stline_global_ctrl #(
   reg                    r_img_st;
   // ctroller
   reg                    r_ctrl_rdy;
-  // wgt
-  reg                    r_lyr1_wgtdn;
-  reg                    r_lyr2_wgtdn;
-  reg                    r_lyr3_wgtdn;
+  // wgt 
   // ipt 
   reg                    r_ibuf_re;
   reg  [ INPUT_ADDR-1:0] r_ibuf_rcnt;
@@ -86,12 +83,12 @@ module stline_global_ctrl #(
   reg  [         BITS:0] r_obuf_dat;
   reg                    r_o_done;
 
-  // ------------------------ assign ----------------------- 
+  // ====================== assign ========================= 
   // cotroller
   assign o_ctrl_rdy   = r_ctrl_rdy;
   assign o_img_st     = r_img_st;
   // wgt
-  assign w_all_wgtdn  = r_lyr1_wgtdn && r_lyr2_wgtdn && r_lyr3_wgtdn;
+  assign w_all_wgtdn  = i_lyr1_wrdn && i_lyr2_wrdn && i_lyr3_wrdn;
   // ipt
   assign o_ibuf_re    = r_ibuf_re;
   assign o_ibuf_raddr = r_ibuf_addr;
@@ -100,7 +97,7 @@ module stline_global_ctrl #(
   assign o_obuf_addr  = r_obuf_addr;
   assign o_obuf_dout  = r_obuf_dat;
   assign o_done       = r_o_done;
-  // ------------------------ always -----------------------  
+  // ====================== always ========================= 
 
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
@@ -114,26 +111,11 @@ module stline_global_ctrl #(
   always @(*) begin
     r_lp_nstat = r_lp_cstat;
     case (r_lp_cstat)
-      IDLE: begin
-        if (i_st) begin
-          r_lp_nstat = LOAD_WEIGHT;
-        end
-      end
-
-      LOAD_WEIGHT: begin
-        // 각 레이어가 모두 가중치 로드를 마쳤으면 COMPUTE_IMAGE로 천이
-        if (w_all_wgtdn) r_lp_nstat = COMPUTE_IMAGE;
-      end
-
-      COMPUTE_IMAGE: begin
-`ifdef DEBUG
-        if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) r_lp_nstat = DONE_IMAGE;
-`else
-        if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) r_lp_nstat = DONE_IMAGE;
-`endif
-      end
-      DONE_IMAGE: r_lp_nstat = (r_img_cnt == IMAGE_NUM) ? IDLE : COMPUTE_IMAGE;
-      default: ;
+      IDLE:          if (i_st) r_lp_nstat = LOAD_WEIGHT;
+      LOAD_WEIGHT:   if (w_all_wgtdn) r_lp_nstat = COMPUTE_IMAGE;
+      COMPUTE_IMAGE: if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) r_lp_nstat = DONE_IMAGE;
+      DONE_IMAGE:    r_lp_nstat = (r_img_cnt == IMAGE_NUM) ? IDLE : COMPUTE_IMAGE;
+      default:       ;
     endcase
   end
   //  compute RTL operations
@@ -141,10 +123,7 @@ module stline_global_ctrl #(
     if (~i_rstn) begin
       r_ctrl_rdy   <= 'd1;
       r_img_st     <= 'd0;
-      r_img_cnt    <= 'd0;
-      r_lyr1_wgtdn <= 'b0;
-      r_lyr2_wgtdn <= 'b0;
-      r_lyr3_wgtdn <= 'b0;
+      r_img_cnt    <= 'd0; 
       r_ibuf_re    <= 'b0;
       r_ibuf_rcnt  <= 'd0;
       r_ibuf_addr  <= {INPUT_ADDR{1'b1}};
@@ -163,10 +142,7 @@ module stline_global_ctrl #(
           r_obuf_addr <= {OUTPUT_ADDR{1'b1}};
           r_obuf_wcnt <= 'd0;
         end
-        LOAD_WEIGHT: begin
-          if (i_lyr1_wrdn) r_lyr1_wgtdn <= 1'b1;
-          if (i_lyr2_wrdn) r_lyr2_wgtdn <= 1'b1;
-          if (i_lyr3_wrdn) r_lyr3_wgtdn <= 1'b1;
+        LOAD_WEIGHT: begin 
           if (w_all_wgtdn && i_lyr1_rdy) begin
             r_img_st <= 'b1;
           end
@@ -210,7 +186,7 @@ module stline_global_ctrl #(
     end
   end
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
 
 

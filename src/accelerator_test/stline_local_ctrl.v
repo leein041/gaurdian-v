@@ -38,12 +38,14 @@ module stline_local_ctrl #(
     output [WEIGHT_ADDR-1:0] o_wgt_raddr,  // weight adress   
     output                   o_wgt_rdn
 );
-  // ----------------------- parmeter ----------------------  
+  // ====================== parmeter ======================= 
+-  
   localparam IDLE = 2'd0;
   localparam LOAD_WEIGHT = 2'd1;
   localparam DONE = 2'd2;
-  // ------------------------- wire ------------------------ 
-  // ------------------------- reg -------------------------  
+// ====================== wire ===========================
+
+// ====================== reg ============================ 
   // FSM
   reg [            1:0] r_lp_cstat;  // current state
   reg [            1:0] r_lp_nstat;  // next state 
@@ -53,14 +55,15 @@ module stline_local_ctrl #(
   reg                   r_wgt_re;
   reg [WEIGHT_ADDR-1:0] r_wgt_raddr;
   reg                   r_wgt_rdn;
-  // ------------------------ assign -----------------------    
+// ====================== assign ========================= 
   assign o_lbuf_st   = r_lbuf_st;
   assign o_wgt_rdn   = r_wgt_rdn;
   assign o_wgt_re    = r_wgt_re;
   assign o_wgt_raddr = r_wgt_raddr;
-  // ---------------------- hand shake --------------------- 
-  // ------------------------ always ----------------------- 
-  // ------------------------- FSM -------------------------    
+  // ====================== hand shake ===================== 
+  // ====================== always ========================= 
+// ====================== FSM ============================    
+
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -127,7 +130,7 @@ module stline_local_ctrl #(
   end
 
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
 
 

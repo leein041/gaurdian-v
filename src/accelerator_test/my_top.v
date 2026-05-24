@@ -393,14 +393,14 @@ module my_top #(
   wire [       MAX_WEIGHT_ADDR-1:0] w_wgt_raddr;
   wire [           MAX_CHANNEL-1:0] w_ipt_mask;
   wire [                       2:0] w_bias_sel;
-  // ------------------------- reg ------------------------- 
-  // ------------------------ assign ----------------------- 
+  // ====================== reg ============================ 
+  // ====================== assign ========================= 
   // act/image buffer select
   assign w_sel_dat  = (w_ibuf_vld) ? {{(INPUT_BITS*(MAX_CHANNEL-1)){1'b0}} ,w_ibuf_dat} : w_abuf_rdat;
   assign w_sel_vld = w_ibuf_vld || w_abuf_rvld;
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
   // ------------------- Unpack / Pack -------------------  
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
   rcursiv_global_ctrl #(
       .IMAGE_NUM      (IMAGE_NUM),
       .BITS           (INPUT_BITS),

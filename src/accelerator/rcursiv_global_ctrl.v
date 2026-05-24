@@ -64,7 +64,7 @@ module rcursiv_global_ctrl #(
     output [      MAX_CHANNEL-1:0] o_ipt_mask,
     output [                  2:0] o_bias_sel
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   localparam IDLE = 4'd0;
   localparam LOAD_WEIGHT_1 = 4'd1;
   localparam COMPUTE_LAYER_1 = 4'd2;  // load image and write layer 1 output at act buffer
@@ -74,7 +74,7 @@ module rcursiv_global_ctrl #(
   localparam COMPUTE_LAYER_3 = 4'd6;  // load layer 2 output and layer 3 output(end) 
   localparam DONE = 4'd7;
   // --------------------- wire ---------------------  
-  // ------------------------- reg -------------------------        
+// ====================== reg ============================ 
   reg [                  3:0] r_cstat;  // current state
   reg [                  3:0] r_nstat;  // next state   
   // ctrl
@@ -122,7 +122,7 @@ module rcursiv_global_ctrl #(
   // ipt channel select siganl
 
 
-  // ------------------------ assign -----------------------  
+// ====================== assign ========================= 
   assign o_ctrl_rdy    = r_ctrl_rdy;
   // ipt
   assign o_ibuf_re     = r_ibuf_re;
@@ -149,7 +149,7 @@ module rcursiv_global_ctrl #(
   assign o_wgt_raddr   = r_wgt_raddr;
   assign o_ipt_mask    = r_ipt_mask;
   assign o_bias_sel    = r_bias_sel;
-  // ------------------------ always -----------------------  
+// ====================== always ========================= 
 
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
@@ -329,5 +329,5 @@ module rcursiv_global_ctrl #(
     end
   end
 
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
 endmodule

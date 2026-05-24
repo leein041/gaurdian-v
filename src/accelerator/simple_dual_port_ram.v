@@ -13,7 +13,7 @@ module simple_dual_port_ram #(
     parameter WIDTH      = 16,
     parameter DEPTH      = 1024,
     parameter ADDR_WIDTH = $clog2(DEPTH),
-    parameter MEM_TYPE   = `BRAM_TYPE,  // 매크로 이름 충돌 방지를 위해 변경
+    parameter MEM_TYPE   = `BRAM_TYPE,   
     parameter INIT_FILE  = ""
 ) (
     input                               i_clk,
@@ -28,9 +28,9 @@ module simple_dual_port_ram #(
 );
 
   //==========================================================================
-  // 1. BRAM 모드 (2클럭 레이턴시 가정)
+  //  BRAM 모드 
   //==========================================================================
-  if (MEM_TYPE == `BRAM_TYPE) begin : gen_bram
+  if (MEM_TYPE == `BRAM_TYPE) begin  
     (* ram_style = "block" *) reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];
     reg signed [WIDTH-1:0] r_dat_dly;  
     reg                    r_vld_dly;  
@@ -62,7 +62,7 @@ module simple_dual_port_ram #(
   end
 
   //==========================================================================
-  // 2. URAM 모드 (2클럭 레이턴시 매핑)
+  //  URAM 모드 
   //==========================================================================
   else if (MEM_TYPE == `URAM_TYPE) begin : gen_uram
     (* ram_style = "ultra" *) reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];

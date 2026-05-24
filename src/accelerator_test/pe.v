@@ -43,12 +43,13 @@ module pe #(
     // opt  
     output signed [OUTPUT_BITS - 1:0] o_opt_dout
 );
-  // ----------------------- parmeter ----------------------  
+  // ====================== parmeter ======================= 
+-  
   integer                      i;
-  // ------------------------- reg -------------------------  
+// ====================== reg ============================ 
   reg signed [WEIGHT_BITS-1:0] r_wgt_dat;
 
-  // ------------------------ always -----------------------  
+// ====================== always ========================= 
   // init weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -58,7 +59,7 @@ module pe #(
     end
   end
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
   mac #(
       .INPUT_BITS (INPUT_BITS),

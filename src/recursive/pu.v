@@ -71,11 +71,11 @@ module pu #(
   // mac at
   wire        [              PATCH_AREA-1:0] w_mat_ipt_vld;
   wire                                       w_mat_rdy;
-  // ------------------------- reg ------------------------- 
+  // ====================== reg ============================ 
   reg         [              PATCH_AREA-1:0] r_wgt_vld;
   reg         [        $clog2(PATCH_AREA):0] r_pe_cnt;
   reg                                        r_pe_vld;
-  // ---------------------- hand shake ---------------------  
+// ====================== hand shake ===================== 
   assign dbg_stv       = o_ipt_rdy && (!i_ipt_vld);
   assign dbg_bpss      = !i_opt_rdy && o_opt_vld;
   assign w_pe_rdy      = w_mat_rdy || !r_pe_vld;
@@ -83,7 +83,7 @@ module pu #(
   // ------------------------ assign -----------------------   
   // mat
   assign w_mat_ipt_vld = (r_pe_vld) ? {PATCH_AREA{1'b1}} : 'd0;
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
   // internal PE counter
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -121,7 +121,7 @@ module pu #(
       assign w_pe_dat_pck[p*PE_OUTPUT_BIT+:PE_OUTPUT_BIT] = w_pe_dat[p];
     end
   endgenerate
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
   patch #(
       .INPUT_BITS  (INPUT_BITS),
       .PATCH_WIDTH (PATCH_WIDTH),

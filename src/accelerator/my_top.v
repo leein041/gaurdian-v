@@ -230,8 +230,8 @@ module my_top #(
       .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L1_RELU_EN),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (INPUT_WIDTH),
-      .INPUT_HEIGHT    (INPUT_HEIGHT),
+      .IMAGE_WIDTH     (IMAGE_WIDTH),
+      .IMAGE_HEIGHT    (IMAGE_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L1_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
@@ -244,7 +244,7 @@ module my_top #(
   ) layer1 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_st         (i_start),
+      .i_wgt_st      (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr1_wrdn),  // wgt read done
@@ -275,8 +275,8 @@ module my_top #(
       .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L2_RELU_EN),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (INPUT_WIDTH),
-      .INPUT_HEIGHT    (INPUT_HEIGHT),
+      .IMAGE_WIDTH     (IMAGE_WIDTH),
+      .IMAGE_HEIGHT    (IMAGE_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L2_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
@@ -289,7 +289,7 @@ module my_top #(
   ) layer2 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_st         (i_start),
+      .i_wgt_st         (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr2_wrdn),
@@ -320,8 +320,8 @@ module my_top #(
       .PADDING_EN      (PADDING_EN),
       .RELU_EN         (L3_RELU_EN),
       .INPUT_BITS      (INPUT_BITS),
-      .INPUT_WIDTH     (INPUT_WIDTH),
-      .INPUT_HEIGHT    (INPUT_HEIGHT),
+      .IMAGE_WIDTH     (IMAGE_WIDTH),
+      .IMAGE_HEIGHT    (IMAGE_HEIGHT),
       .WEIGHT_BITS     (WEIGHT_BITS),
       .WEIGHT_DEPTH    (L3_WEIGHT_DEPTH),
       .OUTPUT_BITS     (OUTPUT_BITS),
@@ -334,7 +334,7 @@ module my_top #(
   ) layer3 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_st         (i_start),
+      .i_wgt_st         (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr3_wrdn),
@@ -393,14 +393,14 @@ module my_top #(
   wire [       MAX_WEIGHT_ADDR-1:0] w_wgt_raddr;
   wire [           MAX_CHANNEL-1:0] w_ipt_mask;
   wire [                       2:0] w_bias_sel;
-  // ------------------------- reg ------------------------- 
-  // ------------------------ assign ----------------------- 
+  // ====================== reg ============================ 
+  // ====================== assign ========================= 
   // act/image buffer select
   assign w_sel_dat  = (w_ibuf_vld) ? {{(INPUT_BITS*(MAX_CHANNEL-1)){1'b0}} ,w_ibuf_dat} : w_abuf_rdat;
   assign w_sel_vld = w_ibuf_vld || w_abuf_rvld;
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
   // ------------------- Unpack / Pack -------------------  
-  // ------------------------- module ----------------------  
+  // ====================== module ========================= 
   rcursiv_global_ctrl #(
       .IMAGE_NUM      (IMAGE_NUM),
       .BITS           (INPUT_BITS),
@@ -485,7 +485,7 @@ module my_top #(
   // image/act - layer skid buffer
   skid_buffer #(
       .BITS    (INPUT_BITS * MAX_FILTER),
-      .LATENCY (2),
+      .LATENCY (3),
       .MEM_SKID(1)
   ) inst_skid_buffer (
       .i_clk     (i_clk),

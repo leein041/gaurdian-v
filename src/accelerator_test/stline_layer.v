@@ -55,7 +55,7 @@ module stline_layer #(
     output                                     o_opt_vld,
     output signed [ INPUT_BITS*FILTER_NUM-1:0] o_opt_dout
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   localparam FILTER_CNT_BITS = (FILTER_NUM <= 1) ? 1 : $clog2(FILTER_NUM);
   localparam CHANNEL_CNT_BITS = (CHANNEL_NUM <= 1) ? 1 : $clog2(CHANNEL_NUM);
   localparam PATCH_CNT_BITS = (PATCH_AREA <= 1) ? 1 : $clog2(PATCH_AREA);
@@ -66,7 +66,7 @@ module stline_layer #(
 
   integer i;
   genvar c, p, g;
-  // --------------------- wire --------------------- 
+// ====================== wire ===========================
   // wgt
   wire                                        w_wgt_vld;
   wire signed [              WEIGHT_BITS-1:0] w_wgt_dat;
@@ -103,7 +103,7 @@ module stline_layer #(
   wire        [  FILTER_NUM*INPUT_BITS - 1:0] w_add_dat_pck;
 
 
-  // ------------------------- reg -------------------------  
+// ====================== reg ============================ 
   // interenal counter
   reg         [          FILTER_CNT_BITS-1:0] r_pu_cnt;
   reg         [         CHANNEL_CNT_BITS-1:0] r_ch_cnt;
@@ -125,7 +125,7 @@ module stline_layer #(
     end
   endgenerate
 
-  // ----------------------- function ----------------------  
+// ====================== function ======================= 
   function signed [INPUT_BITS-1:0] sat_q16_16_to_q8_8;
     input signed [ADDER_OUT_BITS-1:0] din;
     begin
@@ -138,7 +138,7 @@ module stline_layer #(
       end
     end
   endfunction
-  // ------------------------ assign -----------------------  
+// ====================== assign ========================= 
   assign o_ipt_rdy = &w_lbuf_rdy_pck;
   generate
     for (p = 0; p < FILTER_NUM; p = p + 1) begin
@@ -148,7 +148,7 @@ module stline_layer #(
       end
     end
   endgenerate
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
 
   // 가중치 초기화 구간
   always @(posedge i_clk or negedge i_rstn) begin
@@ -183,7 +183,7 @@ module stline_layer #(
       end
     end
   end
-  // ------------------- Unpack / Pack ------------------- 
+// ====================== Unpack / Pack ================== 
   generate
     for (c = 0; c < CHANNEL_NUM; c = c + 1) begin
       // ipt
@@ -211,7 +211,7 @@ module stline_layer #(
 
   endgenerate
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
   // weight buffer
   simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
@@ -325,7 +325,7 @@ module stline_layer #(
     end
   endgenerate
 
-  // ------------------------- output ---------------------- 
+  // ====================== output ========================= 
   assign o_opt_vld  = &r_add_vld;
   assign o_opt_dout = w_add_dat_pck;
 endmodule

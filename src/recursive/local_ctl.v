@@ -59,7 +59,8 @@ module local_ctl #(
     output [                  2:0] o_bias_sel
 
 );
-  // ----------------------- parmeter ----------------------    
+  // ====================== parmeter ======================= 
+-    
   localparam IDLE = 3'd0;
   localparam LOAD_WEIGHT1 = 3'd1;
   localparam PROCESS_LAYER1 = 3'd2;
@@ -68,8 +69,9 @@ module local_ctl #(
   localparam LOAD_WEIGHT3 = 3'd5;
   localparam PROCESS_LAYER3 = 3'd6;
   localparam DONE = 3'd7;
-  // ------------------------- wire ------------------------ 
-  // ------------------------- reg -------------------------  
+// ====================== wire ===========================
+
+// ====================== reg ============================ 
   // FSM
   reg [                  2:0] r_cstat;
   reg [                  2:0] r_nstat;
@@ -84,7 +86,7 @@ module local_ctl #(
   reg                         r_wgt_rdn;
   // bias
   reg [                  2:0] r_bias_sel;
-  // ------------------------ assign ----------------------- 
+  // ====================== assign ========================= 
   assign o_ch_num = r_ch_num;
   assign o_filt_num = r_filt_num;
   // line buffer
@@ -101,9 +103,10 @@ module local_ctl #(
     (r_cstat == PROCESS_LAYER2) ? {{(MAX_CHANNEL-L2_CHANNEL_NUM){1'b0}}, {L2_CHANNEL_NUM{1'b1}}} :
     (r_cstat == PROCESS_LAYER3) ? {{(MAX_CHANNEL-L3_CHANNEL_NUM){1'b0}}, {L3_CHANNEL_NUM{1'b1}}} :
      {MAX_CHANNEL{1'b0}} : {MAX_CHANNEL{1'b0}};
-  // ---------------------- hand shake --------------------- 
-  // ------------------------ always ----------------------- 
-  // ------------------------- FSM -------------------------    
+  // ====================== hand shake ===================== 
+  // ====================== always ========================= 
+// ====================== FSM ============================    
+
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -212,7 +215,7 @@ module local_ctl #(
   end
 
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
 
 

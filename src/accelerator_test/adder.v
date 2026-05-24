@@ -13,17 +13,17 @@ module adder #(
     // opt  
     output signed [  BITS : 0] o_opt_dout
 );
-  // ------------------------- wire ------------------------
+  // ====================== wire ===========================
   wire signed [  BITS:0] w_ipt1_ext;
   wire signed [  BITS:0] w_ipt2_ext;
   wire signed [  BITS:0] w_sum;
-  // ------------------------- reg ------------------------- 
+  // ====================== reg ============================ 
   reg signed  [BITS : 0] r_opt_dat;
-  // ------------------------ assign ----------------------- 
+  // ====================== assign ========================= 
   assign w_ipt1_ext = {i_ipt1_din[BITS-1], i_ipt1_din};
   assign w_ipt2_ext = {i_ipt2_din[BITS-1], i_ipt2_din};
   assign w_sum      = w_ipt1_ext + w_ipt2_ext;
-  // ------------------------ always -----------------------  
+// ====================== always ========================= 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_opt_dat <= 'd0;
@@ -33,7 +33,7 @@ module adder #(
       r_opt_dat <= 'd0;
     end
   end
-  // ------------------------- output ----------------------  
+// ====================== output ========================= 
   assign o_opt_dout = r_opt_dat;
 
 

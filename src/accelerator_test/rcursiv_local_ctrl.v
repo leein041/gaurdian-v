@@ -58,7 +58,8 @@ module rcursiv_local_ctrl #(
     output [                  2:0] o_bias_sel
 
 );
-  // ----------------------- parmeter ----------------------    
+  // ====================== parmeter ======================= 
+-    
   localparam IDLE = 3'd0;
   localparam LOAD_WEIGHT1 = 3'd1;
   localparam COMPUTE_LAYER1 = 3'd2;
@@ -67,8 +68,9 @@ module rcursiv_local_ctrl #(
   localparam LOAD_WEIGHT3 = 3'd5;
   localparam COMPUTE_LAYER3 = 3'd6;
   localparam DONE = 3'd7;
-  // ------------------------- wire ------------------------ 
-  // ------------------------- reg -------------------------  
+// ====================== wire ===========================
+
+// ====================== reg ============================ 
   // FSM
   reg [                  2:0] r_cstat;
   reg [                  2:0] r_nstat;
@@ -85,7 +87,7 @@ module rcursiv_local_ctrl #(
   reg                         r_wgt_rdn;
   // bias
   reg [                  2:0] r_bias_sel;
-  // ------------------------ assign ----------------------- 
+  // ====================== assign ========================= 
   assign o_ch_num = r_ch_num;
   assign o_filt_num = r_filt_num;
   // line buffer
@@ -100,9 +102,10 @@ module rcursiv_local_ctrl #(
   assign o_bias_sel = r_bias_sel;
   // ipt         
 
-  // ---------------------- hand shake --------------------- 
-  // ------------------------ always ----------------------- 
-  // ------------------------- FSM -------------------------    
+  // ====================== hand shake ===================== 
+  // ====================== always ========================= 
+// ====================== FSM ============================    
+
   // ipt channel select siganl
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -223,7 +226,7 @@ module rcursiv_local_ctrl #(
   end
 
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
 
 

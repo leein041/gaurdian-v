@@ -80,15 +80,23 @@ module rcursiv_layer #(
     input         [           MAX_CHANNEL-1:0] i_ipt_mask,
     input         [                       2:0] i_bias_sel
 );
-  // ------------------- parmeter -------------------  
-  localparam FILTER_CNT_BITS = (MAX_FILTER <= 1) ? 1 : $clog2(MAX_FILTER);
-  localparam CHANNEL_CNT_BITS = (MAX_CHANNEL <= 1) ? 1 : $clog2(MAX_CHANNEL);
-  localparam PATCH_CNT_BITS = (PATCH_AREA <= 1) ? 1 : $clog2(PATCH_AREA);
+  // ------------------- parmeter -------------------    
+`ifdef RESOURCE
+  localparam PE_OUT_BITS = OUTPUT_BITS * 2 + $clog2(PATCH_AREA);
+  localparam PU_OUT_BITS = PE_OUT_BITS;
+  localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
+  localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
+`elsif BALANCE
+  localparam PE_OUT_BITS = OUTPUT_BITS * 2 + $clog2(PATCH_HEIGHT);
+  localparam PU_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_WIDTH);
+  localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
+  localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
+`elsif PERFORMANCE
   localparam PE_OUT_BITS = OUTPUT_BITS * 2;
   localparam PU_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_AREA);
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
-
+`endif
   integer i, j;
   genvar c, p, g;
   // --------------------- wire ---------------------  
@@ -108,6 +116,7 @@ module rcursiv_layer #(
   // pu
   wire                                      w_pu_rdy       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
   wire        [             0:MAX_FILTER-1] w_pu_rdy_pck   [  0:MAX_CHANNEL-1];
+  wire                                      w_pu_all_rdy   [  0:MAX_CHANNEL-1];
   wire                                      w_pu_vld       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
   wire        [            MAX_CHANNEL-1:0] w_pu_vld_cpck  [   0:MAX_FILTER-1];
   wire signed [            PU_OUT_BITS-1:0] w_pu_dat       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
@@ -127,11 +136,11 @@ module rcursiv_layer #(
   wire        [  MAX_FILTER*INPUT_BITS-1:0] w_add_dat_pck;
 
 
-  // ------------------------- reg -------------------------  
+  // ====================== reg ============================ 
   // interenal counter
-  reg         [        FILTER_CNT_BITS-1:0] r_pu_cnt;
-  reg         [       CHANNEL_CNT_BITS-1:0] r_ch_cnt;
-  reg         [         PATCH_CNT_BITS-1:0] r_ptch_cnt;
+  reg         [       $clog2(MAX_FILTER):0] r_pu_cnt;
+  reg         [      $clog2(MAX_CHANNEL):0] r_ch_cnt;
+  reg         [       $clog2(PATCH_AREA):0] r_ptch_cnt;
   // pu
   reg signed  [            WEIGHT_BITS-1:0] r_pu_wdat;
   reg                                       r_pu_wvld      [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
@@ -161,7 +170,7 @@ module rcursiv_layer #(
     end
 
   endgenerate
-  // ----------------------- function ----------------------  
+  // ====================== function ======================= 
   // 16.16 -> 8.8 saturation cliping function
   function signed [INPUT_BITS-1:0] sat_q16_16_to_q8_8;
     input signed [ADDER_OUT_BITS-1:0] din;
@@ -175,10 +184,10 @@ module rcursiv_layer #(
       end
     end
   endfunction
-  // ---------------------- hand shake --------------------- 
+  // ====================== hand shake ===================== 
   assign o_ipt_rdy = |w_lbuf_rdy;
 
-  // ------------------------ assign -----------------------  
+  // ====================== assign ========================= 
   // weight select
   assign w_wgt_sdat = (w_wgt_vld[0]) ? w_wgt_dat[0] : 
                       (w_wgt_vld[1]) ? w_wgt_dat[1] : 
@@ -190,7 +199,8 @@ module rcursiv_layer #(
       assign w_lbuf_pu_vld[p] = (p < i_filt_num) ? w_lbuf_vld : 'd0;
     end
   endgenerate
-  // ------------------------ always ----------------------- 
+
+  // ====================== always ========================= 
   // select PU for initializing weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -274,35 +284,32 @@ module rcursiv_layer #(
       end
     end
   end
-  // ------------------- Unpack / Pack ------------------- 
+
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
-      // ipt
+      assign w_pu_all_rdy[c]   = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
       assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
-      // line buffer
       assign w_lbuf_vld_pck[c] = w_lbuf_vld[c];
       for (p = 0; p < MAX_FILTER; p = p + 1) begin
-        assign w_pu_rdy_pck[c][p] = w_pu_rdy[p][c];
-        assign w_pu_vld_cpck[p][c] = w_pu_vld[p][c];
+        assign w_pu_rdy_pck[c][p]                           = w_pu_rdy[p][c];
+        assign w_pu_vld_cpck[p][c]                          = w_pu_vld[p][c];
         assign w_pu_dat_cpck[p][c*PU_OUT_BITS+:PU_OUT_BITS] = w_pu_dat[p][c];
       end
     end
     for (p = 0; p < MAX_FILTER; p = p + 1) begin
-      // bias
       assign w_bias_exdat[p] = {
         {(CAT_OUT_BITS - OUTPUT_BITS + 8) {r_bias_dat[p][15]}}, r_bias_dat[p], 8'd0
       };
       // adder
-      assign w_add_rdy = i_opt_rdy || !(|r_add_vld);
       assign w_add_act[p] = w_cat_vld[p] && w_add_rdy;
       assign w_add_88dat[p] = sat_q16_16_to_q8_8(w_add_dat[p]);
       assign w_add_dat_pck[p*INPUT_BITS+:INPUT_BITS] = (i_relu_en && w_add_88dat[p][15]) ? 16'd0 : w_add_88dat[p];
     end
 
-
+    assign w_add_rdy = i_opt_rdy || !(|r_add_vld);
   endgenerate
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
   // weight buffer
   simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
@@ -369,7 +376,7 @@ module rcursiv_layer #(
           .i_ipt_din (w_ipt_dat[c]),
           .i_ipt_vld (i_ipt_mask[c] && i_ipt_vld),
           // opt
-          .i_opt_rdy (&w_pu_rdy_pck[c]),            // TODO 
+          .i_opt_rdy (w_pu_all_rdy[c]),
           .o_opt_vld (w_lbuf_vld[c]),
           .o_opt_dout(w_lbuf_dat[c])
       );
@@ -381,8 +388,7 @@ module rcursiv_layer #(
       for (c = 0; c < MAX_CHANNEL; c = c + 1) begin : ch_array
         pu #(
             .INPUT_BITS  (INPUT_BITS),
-            .WEIGHT_BITS (WEIGHT_BITS),
-            .OUTPUT_BITS (PU_OUT_BITS),
+            .WEIGHT_BITS (WEIGHT_BITS), 
             .PATCH_WIDTH (PATCH_WIDTH),
             .PATCH_HEIGHT(PATCH_HEIGHT),
             .LINE_WIDTH  (LINE_WIDTH),
@@ -433,7 +439,7 @@ module rcursiv_layer #(
     end
   endgenerate
 
-  // ------------------------- output ---------------------- 
+  // ====================== output ========================= 
   assign o_opt_vld  = |r_add_vld;
   assign o_opt_dout = w_add_dat_pck;
 endmodule

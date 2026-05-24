@@ -3,6 +3,9 @@
 `include "defines.vh"
 module tbtb ();
 
+  //-------------------------------------------------------------------------------
+  // parameter
+  //-------------------------------------------------------------------------------
 `ifdef IMAGE_1
   parameter IMAGE_NUM = 1;
   parameter INPUT_INIT_FILE = "c:/seop_tb/test_image_1.txt";
@@ -46,10 +49,10 @@ module tbtb ();
   parameter L3_BIAS_INIT_FILE = "c:/seop_tb/bias_L3.txt";
 
   //-------------------------------------------------------------------------------
-  // SYSTEM SIGNALS
+  // internal signal
   //-------------------------------------------------------------------------------
   wire o_opt_vld;
-  wire signed [INPUT_BITS-1:0] o_opt_dat; // 본인의 데이터 비트 폭에 맞게 수정하세요.
+  wire signed [INPUT_BITS-1:0] o_opt_dat;
 
   reg i_clk;
   reg i_rstn;
@@ -64,7 +67,7 @@ module tbtb ();
 
   reg i_rdy_test;
   //-------------------------------------------------------------------------------
-  // DBG (Reset / Start)
+  // 핸드셰이크 테스트
   //-------------------------------------------------------------------------------
 
   initial begin
@@ -105,7 +108,6 @@ module tbtb ();
   // Component Define
   //-------------------------------------------------------------------------------
 
-  // TOP prac3
   my_top #(
 `ifdef DEBUG
       .IMAGE_NUM          (IMAGE_NUM),
@@ -187,7 +189,7 @@ module tbtb ();
 
   initial begin
 `ifdef DEBUG
-    #10000;
+    #100000;
 `else
     #1000000;
 `endif

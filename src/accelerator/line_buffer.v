@@ -49,73 +49,65 @@ module line_buffer #(
     output                                           o_opt_vld,
     output        [INPUT_BITS * PATCH_HEIGHT  - 1:0] o_opt_dout
 );
-  // ------------------- parmeter -------------------  
+  // ====================== parmeter ======================= 
   // FSM
   localparam LB_IDLE = 3'd0;
-  localparam LB_ENTER_LINEx2 = 3'd1;
-  localparam LB_ENTER_LINE = 3'd2;
-  localparam LB_DONE = 3'd3;
+  localparam LB_ENTER_LINE = 3'd1;
+  localparam LB_DONE = 3'd2;
   // delay
   localparam PATCH_EN_DLY = 3;
   localparam PROW_DLY = 3;
 
   integer i, j;
   genvar g, h;
-  // ------------------ hand shake ------------------- 
-  // --------------------- wire ---------------------     
-  // hand shake
-  wire                                      w_dat_vld;
+  // ====================== hand shake ===================== 
+  // ====================== wire ===========================
+  // hand shake 
   wire                                      w_act;
   // ipt
   wire signed [             INPUT_BITS-1:0] w_ipt_dat;
   // feature map
   wire                                      w_pad_en;
   // line buffer
-  wire                                      w_lbuf_we        [0:LINE_HEIGHT-1];
-  wire                                      w_lbuf_vld       [0:LINE_HEIGHT-1];
-  wire signed [             INPUT_BITS-1:0] w_lbuf_dat       [0:LINE_HEIGHT-1];
+  wire                                      w_lbuf_we    [0:LINE_HEIGHT-1];
+  wire                                      w_lbuf_vld   [0:LINE_HEIGHT-1];
+  wire signed [             INPUT_BITS-1:0] w_lbuf_dat   [0:LINE_HEIGHT-1];
   // skid buffer
-  wire        [            LINE_HEIGHT-1:0] w_sbuf_rdy_pck;
-  wire                                      w_sbuf_all_rdy;
-  wire                                      w_sbuf_vld       [0:LINE_HEIGHT-1];
-  wire        [            LINE_HEIGHT-1:0] w_sbuf_vld_pck;
-  wire signed [             INPUT_BITS-1:0] w_sbuf_dat       [0:LINE_HEIGHT-1];
-  // patch
-  wire                                      w_prow_en;  //   
+  wire        [            LINE_HEIGHT-1:0] w_sbuf_rdy;
+  wire        [            LINE_HEIGHT-1:0] w_sbuf_vld;
+  wire signed [             INPUT_BITS-1:0] w_sbuf_dat   [0:LINE_HEIGHT-1];
+  // patch 
   // opt 
-  // ------------------------- reg -------------------------   
+  // ====================== reg ============================ 
+  reg         [                        1:0] r_lbuf_cstat;
+  reg         [                        1:0] r_lbuf_nstat;
   // feature map 
   reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
   reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_fcol;
   // patch      
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_pcol;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_rd_addr;
   // line buffer
-  reg         [                        1:0] r_lbuf_cstat;
-  reg         [                        1:0] r_lbuf_nstat;
   reg                                       r_lbuf_re;
   reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lrow;
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lcol;
-  // ---------------------- hand shake --------------------- 
-  assign o_ipt_rdy = (w_sbuf_all_rdy) && !w_pad_en;
-  assign w_act = w_sbuf_all_rdy && w_dat_vld;
-  // ------------------------ assign -----------------------   
-  assign w_sbuf_all_rdy = &w_sbuf_rdy_pck;
-  assign w_dat_vld = i_ipt_vld || w_pad_en;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_wr_addr;
+  // ====================== hand shake ===================== 
+  assign o_ipt_rdy = w_sbuf_rdy[0] && !w_pad_en;
+  assign w_act = w_sbuf_rdy[0] && (i_ipt_vld || w_pad_en);
+  // ====================== assign =========================
   // ipt
   assign w_ipt_dat = (w_pad_en) ? 'd0 : i_ipt_din;
   // feature map    
   assign w_pad_en = (PADDING_EN) 
-                 && (r_frow == 0 || r_frow == FMAP_HEIGHT - 1  
-                 || r_fcol == 0 || r_fcol == FMAP_WIDTH - 1);
-  // patch
-  assign w_prow_en = (r_pcol == LINE_WIDTH - 1);
-  // ------------------------ always -----------------------  
-  // ------------------------- FSM -------------------------    
+                 && (r_frow == 0 || (r_frow == FMAP_HEIGHT - 1)   
+                 || r_fcol == 0 ||  (r_fcol == FMAP_WIDTH - 1));
+  // ====================== always ========================= 
+  // ====================== FSM ============================    
+
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_lbuf_cstat <= LB_IDLE;
-    end else if (w_act) begin
+    end else begin
       r_lbuf_cstat <= r_lbuf_nstat;
     end
   end
@@ -123,10 +115,7 @@ module line_buffer #(
   always @(*) begin
     r_lbuf_nstat = r_lbuf_cstat;
     case (r_lbuf_cstat)
-      LB_IDLE: if (i_st) r_lbuf_nstat = LB_ENTER_LINEx2;
-
-      LB_ENTER_LINEx2:
-      if (r_lrow == 'd1 && (r_lcol == LINE_WIDTH - 1) && w_act) r_lbuf_nstat = LB_ENTER_LINE;
+      LB_IDLE: if (i_st) r_lbuf_nstat = LB_ENTER_LINE;
 
       LB_ENTER_LINE:
       if (r_frow == FMAP_HEIGHT - 1 && r_fcol == FMAP_WIDTH - 1) r_lbuf_nstat = LB_DONE;
@@ -143,62 +132,55 @@ module line_buffer #(
       r_fcol    <= 'd0;
       r_lbuf_re <= 'd0;
       r_lrow    <= 'd0;
-      r_lcol    <= 'd0;
-      r_pcol    <= 'd0;
+      r_wr_addr    <= 'd0;
+      r_rd_addr    <= 'd0;
     end else begin
-      if (w_act) begin
-        case (r_lbuf_cstat)
-          LB_IDLE: begin
-            r_frow    <= 'd0;
-            r_fcol    <= 'd0;
-            r_lbuf_re <= 'd0;
-            r_lrow    <= 'd0;
-            r_lcol    <= 'd0;
-            r_pcol    <= 'd0;
-          end
-          LB_ENTER_LINEx2, LB_ENTER_LINE: begin
-            if (r_lbuf_cstat == LB_ENTER_LINE) begin
+      case (r_lbuf_cstat)
+        LB_IDLE: begin
+          r_frow    <= 'd0;
+          r_fcol    <= 'd0;
+          r_lbuf_re <= 'd0;
+          r_lrow    <= 'd0;
+          r_wr_addr    <= 'd0;
+          r_rd_addr    <= 'd0;
+        end
+        LB_ENTER_LINE: begin
+          if (w_act) begin
+            if ('d1 < r_frow) begin
               r_lbuf_re <= 1'b1;
-              r_pcol    <= r_lcol; // 읽기 주소 쓰기 주소를 1클럭 뒤 따라감
+            end else begin
+              r_lbuf_re <= 1'b0;
             end
-            // 특징맵(패딩넣은 맵) 업데이트
+            // 읽기 주소(쓰기의 전 주소)   
+            r_rd_addr <= r_wr_addr;
+            // FAMP 카운트
             if (r_fcol < FMAP_WIDTH - 1) begin
               r_fcol <= r_fcol + 'd1;
             end else begin
               r_fcol <= 'd0;
-              if (r_frow < FMAP_HEIGHT - 1) begin
-                r_frow <= r_frow + 'd1;
-              end else begin
-                r_frow <= 'd0;
-              end
+              if (r_frow < FMAP_HEIGHT - 1) r_frow <= r_frow + 'd1;
+              else r_frow <= 'd0;
             end
-            // 라인버퍼 업데이트
-            if (r_lcol < LINE_WIDTH - 1) begin
-              r_lcol <= r_lcol + 'd1;
+            // LINE BUFFER 카운트
+            if (r_wr_addr < LINE_WIDTH - 1) begin
+              r_wr_addr <= r_wr_addr + 'd1;
             end else begin
-              r_lcol <= 'd0;
+              r_wr_addr <= 'd0;
               if (r_lrow < LINE_HEIGHT - 1) r_lrow <= r_lrow + 'd1;
               else r_lrow <= 'd0;
             end
-          end
-          LB_DONE: begin
-            r_lbuf_re <= 'b0;
-            r_pcol    <= 'd0;
-          end
-          default: ;
-        endcase
-      end else begin  // w_act =0, stall 상태
-        r_lbuf_re <= 'd0;  // 메모리 중복 읽기를 방지 읽기 신호는 0
-      end
+          end else r_lbuf_re <= 'b0;  // w_act = 0일때 읽기 신호 내림(중복읽기 방지)
+        end
+        LB_DONE: begin
+          r_lbuf_re <= 'b0;
+          r_rd_addr <= 'd0;
+        end
+        default: ;
+      endcase
     end
   end
-  // ------------------- Unpack / Pack -------------------  
-  generate
-    for (g = 0; g < LINE_HEIGHT; g = g + 1) begin
-      assign w_sbuf_vld_pck[g] = w_sbuf_vld[g];
-    end
-  endgenerate
-  // ------------------------- module ----------------------  
+  // ====================== Unpack / Pack ==================
+  // ====================== module ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
       assign w_lbuf_we[g] = (w_act && (g == r_lrow));
@@ -209,33 +191,34 @@ module line_buffer #(
           .i_clk  (i_clk),
           .i_rstn (i_rstn),
           .i_re   (r_lbuf_re),
-          .i_raddr(r_pcol),
+          .i_raddr(r_rd_addr),
           .i_we   (w_lbuf_we[g]),
-          .i_waddr(r_lcol), // 주소 0부터 
+          .i_waddr(r_wr_addr), // 주소 0부터 
           .i_wdin (w_ipt_dat),
           .o_vld  (w_lbuf_vld[g]),
           .o_dout (w_lbuf_dat[g])
       );
       skid_buffer #(
           .BITS   (INPUT_BITS),
-          .LATENCY(2),
+          .LATENCY(3),
           .MEM_SKID(1)
       ) inst_skid_buffer (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
           .i_ipt_vld (w_lbuf_vld[g]),
           .i_ipt_din (w_lbuf_dat[g]),
-          .o_ipt_rdy (w_sbuf_rdy_pck[g]),
+          .o_ipt_rdy (w_sbuf_rdy[g]),
           .i_opt_rdy (i_opt_rdy),
           .o_opt_dout(w_sbuf_dat[g]),
           .o_opt_vld (w_sbuf_vld[g])
       );
     end
   endgenerate
-
-  // ------------------------- output ----------------------  
-  for (g = 0; g < LINE_HEIGHT; g = g + 1) begin
-    assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = w_sbuf_dat[g];
-  end
-  assign o_opt_vld = &w_sbuf_vld_pck;
+  // ====================== output ========================= 
+  generate
+    for (g = 0; g < LINE_HEIGHT; g = g + 1) begin
+      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = w_sbuf_dat[g];
+    end
+  endgenerate
+  assign o_opt_vld = w_sbuf_vld[0];  // 동시 작업이므로 LUT 최소화
 endmodule

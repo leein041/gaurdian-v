@@ -56,14 +56,14 @@ module stline_global_ctrl #(
     output [         BITS:0] o_obuf_dout,
     output                   o_done        
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   localparam IDLE = 2'd0;
   localparam LOAD_WEIGHT = 2'd1;
   localparam COMPUTE_IMAGE = 2'd2;
   localparam DONE_IMAGE = 2'd3;
-  // --------------------- wire --------------------- 
+// ====================== wire ===========================
   wire                   w_all_wgtdn;
-  // ------------------------- reg -------------------------        
+// ====================== reg ============================ 
   reg  [            1:0] r_lp_cstat;  // current state
   reg  [            1:0] r_lp_nstat;  // next state  
   // img
@@ -86,7 +86,7 @@ module stline_global_ctrl #(
   reg  [         BITS:0] r_obuf_dat;
   reg                    r_o_done;
 
-  // ------------------------ assign ----------------------- 
+  // ====================== assign ========================= 
   // cotroller
   assign o_ctrl_rdy   = r_ctrl_rdy;
   assign o_img_st     = r_img_st;
@@ -100,7 +100,7 @@ module stline_global_ctrl #(
   assign o_obuf_addr  = r_obuf_addr;
   assign o_obuf_dout  = r_obuf_dat;
   assign o_done       = r_o_done;
-  // ------------------------ always -----------------------  
+// ====================== always ========================= 
 
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
@@ -210,7 +210,7 @@ module stline_global_ctrl #(
     end
   end
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
 
 
 

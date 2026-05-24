@@ -49,7 +49,7 @@ module line_buffer #(
     output                                           o_opt_vld,
     output        [INPUT_BITS * PATCH_HEIGHT  - 1:0] o_opt_dout
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   // FSM
   localparam LB_IDLE = 3'd0;
   localparam LB_ENTER_LINEx2 = 3'd1;
@@ -61,8 +61,8 @@ module line_buffer #(
 
   integer i, j;
   genvar g, h;
-  // ------------------ hand shake ------------------- 
-  // --------------------- wire ---------------------     
+// ====================== hand shake ===================== 
+// ====================== wire ===========================
   // hand shake
   wire                                      w_dat_vld;
   wire                                      w_act;
@@ -83,7 +83,7 @@ module line_buffer #(
   // patch
   wire                                      w_prow_en;  //   
   // opt 
-  // ------------------------- reg -------------------------   
+// ====================== reg ============================ 
   // feature map
   reg                                       r_fmap_dn;
   reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
@@ -96,7 +96,7 @@ module line_buffer #(
   reg                                       r_lbuf_re;
   reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lrow;
   reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lcol;
-  // ---------------------- hand shake --------------------- 
+  // ====================== hand shake ===================== 
   assign o_ipt_rdy = (w_sbuf_all_rdy) && !w_pad_en;
   assign w_act = w_sbuf_all_rdy && w_dat_vld;
   // ------------------------ assign -----------------------   
@@ -110,8 +110,9 @@ module line_buffer #(
                  || r_fcol == 0 || r_fcol == FMAP_WIDTH - 1);
   // patch
   assign w_prow_en = (r_pcol == LINE_WIDTH - 1);
-  // ------------------------ always -----------------------  
-  // ------------------------- FSM -------------------------    
+// ====================== always ========================= 
+// ====================== FSM ============================    
+
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -203,7 +204,7 @@ module line_buffer #(
       assign w_sbuf_vld_pck[g] = w_sbuf_vld[g];
     end
   endgenerate
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
       assign w_lbuf_we[g] = (w_act && (g == r_lrow));
@@ -238,7 +239,7 @@ module line_buffer #(
     end
   endgenerate
 
-  // ------------------------- output ----------------------  
+// ====================== output ========================= 
   for (g = 0; g < LINE_HEIGHT; g = g + 1) begin
     assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = w_sbuf_dat[g];
   end

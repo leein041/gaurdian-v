@@ -36,7 +36,7 @@ module stline_global_ctrl #(
     output [              BITS:0] o_obuf_dout,
     output                        o_done          // what is this
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   localparam IDLE = 4'd0;
   localparam LOAD_WEIGHT_1 = 4'd1;
   localparam ACT_1 = 4'd2;  // load image and write layer 1 output at act buffer
@@ -45,9 +45,9 @@ module stline_global_ctrl #(
   localparam LOAD_WEIGHT_3 = 4'd5;
   localparam ACT_3 = 4'd6;  // load layer 2 output and layer 3 output(end) 
   localparam DONE = 4'd7;
-  // --------------------- wire --------------------- 
+// ====================== wire ===========================
   wire                        w_all_wgtdn;
-  // ------------------------- reg -------------------------        
+// ====================== reg ============================ 
   reg  [                 3:0] r_lp_cstat;  // current state
   reg  [                 3:0] r_lp_nstat;  // next state   
   // ctrl
@@ -74,7 +74,7 @@ module stline_global_ctrl #(
   reg  [      IMAGE_ADDR-1:0] r_obuf_waddr;
   reg  [              BITS:0] r_obuf_wdat;
 
-  // ------------------------ assign -----------------------  
+// ====================== assign ========================= 
   assign o_ctrl_rdy    = r_ctrl_rdy;
   // ipt
   assign o_ibuf_re     = r_ibuf_re;
@@ -93,7 +93,7 @@ module stline_global_ctrl #(
   assign o_obuf_addr   = r_obuf_waddr;
   assign o_obuf_dout   = r_obuf_wdat;
   assign o_done        = r_o_done;
-  // ------------------------ always -----------------------  
+// ====================== always ========================= 
 
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
@@ -216,5 +216,5 @@ module stline_global_ctrl #(
     end
   end
 
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
 endmodule

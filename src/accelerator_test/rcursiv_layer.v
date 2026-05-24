@@ -80,7 +80,7 @@ module rcursiv_layer #(
     input         [           MAX_CHANNEL-1:0] i_ipt_mask,
     input         [                       2:0] i_bias_sel
 );
-  // ------------------- parmeter -------------------  
+// ====================== parmeter ======================= 
   localparam FILTER_CNT_BITS = (MAX_FILTER <= 1) ? 1 : $clog2(MAX_FILTER);
   localparam CHANNEL_CNT_BITS = (MAX_CHANNEL <= 1) ? 1 : $clog2(MAX_CHANNEL);
   localparam PATCH_CNT_BITS = (PATCH_AREA <= 1) ? 1 : $clog2(PATCH_AREA);
@@ -127,7 +127,7 @@ module rcursiv_layer #(
   wire        [  MAX_FILTER*INPUT_BITS-1:0] w_add_dat_pck;
 
 
-  // ------------------------- reg -------------------------  
+// ====================== reg ============================ 
   // interenal counter
   reg         [        FILTER_CNT_BITS-1:0] r_pu_cnt;
   reg         [       CHANNEL_CNT_BITS-1:0] r_ch_cnt;
@@ -161,7 +161,7 @@ module rcursiv_layer #(
     end
 
   endgenerate
-  // ----------------------- function ----------------------  
+// ====================== function ======================= 
   // 16.16 -> 8.8 saturation cliping function
   function signed [INPUT_BITS-1:0] sat_q16_16_to_q8_8;
     input signed [ADDER_OUT_BITS-1:0] din;
@@ -175,10 +175,10 @@ module rcursiv_layer #(
       end
     end
   endfunction
-  // ---------------------- hand shake --------------------- 
+  // ====================== hand shake ===================== 
   assign o_ipt_rdy = |w_lbuf_rdy;
 
-  // ------------------------ assign -----------------------  
+// ====================== assign ========================= 
   // weight select
   assign w_wgt_sdat = (w_wgt_vld[0]) ? w_wgt_dat[0] : 
                       (w_wgt_vld[1]) ? w_wgt_dat[1] : 
@@ -190,7 +190,7 @@ module rcursiv_layer #(
       assign w_lbuf_pu_vld[p] = (p < i_filt_num) ? w_lbuf_vld : 'd0;
     end
   endgenerate
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
   // select PU for initializing weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -274,7 +274,7 @@ module rcursiv_layer #(
       end
     end
   end
-  // ------------------- Unpack / Pack ------------------- 
+// ====================== Unpack / Pack ================== 
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
       // ipt
@@ -302,7 +302,7 @@ module rcursiv_layer #(
 
   endgenerate
 
-  // ------------------------- module ---------------------- 
+  // ====================== module ========================= 
   // weight buffer
   simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
@@ -433,7 +433,7 @@ module rcursiv_layer #(
     end
   endgenerate
 
-  // ------------------------- output ---------------------- 
+  // ====================== output ========================= 
   assign o_opt_vld  = |r_add_vld;
   assign o_opt_dout = w_add_dat_pck;
 endmodule

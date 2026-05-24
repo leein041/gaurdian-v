@@ -103,14 +103,14 @@ module my_top #(
   wire                              w_lyr_rdy;
   wire                              w_lyr_vld;
   wire [ INPUT_BITS*MAX_FILTER-1:0] w_lyr_dat;
-  // ------------------------- reg ------------------------- 
-  // ------------------------ assign ----------------------- 
+  // ====================== reg ============================ 
+  // ====================== assign ========================= 
   // act/image buffer select
   assign w_sel_dat  = (w_ibuf_vld) ? {{(INPUT_BITS*(MAX_CHANNEL-1)){1'b0}} ,w_ibuf_dat} : w_abuf_rdat;
   assign w_sel_vld = w_ibuf_vld || w_abuf_rvld;
-  // ------------------------ always ----------------------- 
+  // ====================== always ========================= 
   // ------------------- Unpack / Pack -------------------  
-  // ------------------------- module ----------------------  
+// ====================== module ========================= 
   stline_global_ctrl #(
       .MAX_CHANNEL(MAX_CHANNEL),
       .BITS       (INPUT_BITS),
