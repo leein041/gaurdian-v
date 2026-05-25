@@ -228,10 +228,9 @@ module pu #(
   );
   generate
     for (p = 0; p < PATCH_HEIGHT; p = p + 1) begin : pe_array
-      pe_bal #(
+      pe #(
           .INPUT_BITS  (INPUT_BITS),
-          .WEIGHT_BITS (WEIGHT_BITS),
-          .OUTPUT_BITS (PE_OUT_BITS),
+          .WEIGHT_BITS (WEIGHT_BITS), 
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_pe (

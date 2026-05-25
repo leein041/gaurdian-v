@@ -198,6 +198,7 @@ module my_top #(
   simple_dual_port_ram #(
       .WIDTH    (INPUT_BITS * L1_CHANNEL_NUM),
       .DEPTH    (INPUT_DEPTH),
+      .MEM_TYPE (`BRAM_TYPE),
       .INIT_FILE(INPUT_INIT_FILE)
   ) input_mem (
       .i_clk  ( i_clk),
@@ -213,7 +214,7 @@ module my_top #(
 
   skid_buffer #(
       .BITS   (INPUT_BITS*L1_CHANNEL_NUM),
-      .LATENCY(3),
+      .LATENCY(2),
       .MEM_SKID(1)
   ) inst_skid_buffer (
       .i_clk     (i_clk),
@@ -244,7 +245,7 @@ module my_top #(
   ) layer1 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_wgt_st      (i_start),
+      .i_wgt_st     (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr1_wrdn),  // wgt read done
@@ -259,7 +260,7 @@ module my_top #(
   );
   skid_buffer #(
       .BITS(INPUT_BITS * L1_FILTER_NUM),
-      .LATENCY(6)
+      .LATENCY(2)
   ) inst_L1_skid_buffer (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -289,7 +290,7 @@ module my_top #(
   ) layer2 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_wgt_st         (i_start),
+      .i_wgt_st     (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr2_wrdn),
@@ -304,7 +305,7 @@ module my_top #(
   );
   skid_buffer #(
       .BITS(INPUT_BITS * L2_FILTER_NUM),
-      .LATENCY(6)
+      .LATENCY(2)
   ) inst_L2_skid_buffer (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -334,7 +335,7 @@ module my_top #(
   ) layer3 (
       .i_clk        (i_clk),
       .i_rstn       (i_rstn),
-      .i_wgt_st         (i_start),
+      .i_wgt_st     (i_start),
       .i_img_st     (w_img_st),
       // wgt 
       .o_wgt_rdn    (w_lyr3_wrdn),
@@ -485,7 +486,7 @@ module my_top #(
   // image/act - layer skid buffer
   skid_buffer #(
       .BITS    (INPUT_BITS * MAX_FILTER),
-      .LATENCY (3),
+      .LATENCY (2),
       .MEM_SKID(1)
   ) inst_skid_buffer (
       .i_clk     (i_clk),

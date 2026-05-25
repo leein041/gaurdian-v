@@ -44,9 +44,7 @@ module stline_layer #(
     input                                      i_rstn,
     input                                      i_img_st,
     // wgt
-    input                                      i_wgt_st,
-    input                                      i_wgt_re,
-    input         [           WEIGHT_ADDR-1:0] i_wgt_raddr,
+    input                                      i_wgt_st,  
     output                                     o_wgt_rdn,
     // ipt 
     output                                     o_ipt_rdy,
@@ -282,7 +280,7 @@ module stline_layer #(
   generate
     for (p = 0; p < FILTER_NUM; p = p + 1) begin : pu_array
       for (c = 0; c < CHANNEL_NUM; c = c + 1) begin : ch_array
-        pu_perf #(
+        pu #(
             .INPUT_BITS  (INPUT_BITS),
             .WEIGHT_BITS (WEIGHT_BITS), 
             .PATCH_WIDTH (PATCH_WIDTH),

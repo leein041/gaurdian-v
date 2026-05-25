@@ -17,9 +17,8 @@ module skid_buffer #(
     output                    o_opt_vld,
     output signed [BITS -1:0] o_opt_dout
 );
-  // ====================== parmeter =======================     
-  localparam RESERVE = 2;
-  localparam DEPTH = LATENCY + RESERVE;
+  // ====================== parmeter =======================      
+  localparam DEPTH = 2 + LATENCY;
   integer i;
   // ====================== wire ===========================
   wire wr_en;
@@ -31,7 +30,7 @@ module skid_buffer #(
   reg [$clog2(DEPTH):0] r_cnt;
   // ====================== assign ========================= 
   // ipt
-  assign o_ipt_rdy  = (r_cnt < (DEPTH - LATENCY));
+  assign o_ipt_rdy  = (r_cnt < (DEPTH - 2));
   // opt
   assign o_opt_dout = r_buf[r_rd_ptr];
   assign o_opt_vld  = (r_cnt > 0);

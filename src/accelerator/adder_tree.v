@@ -18,7 +18,7 @@ module adder_tree #(
     output signed [           OUTPUT_BIT - 1:0] o_opt_dout
 );
 
-// ====================== hand shake ===================== 
+  // ====================== hand shake ===================== 
   assign o_ipt_rdy = i_opt_rdy || !o_opt_vld;
 
   // ----------------------- parameter ---------------------- 
@@ -26,12 +26,10 @@ module adder_tree #(
   genvar s;
   integer                     j;
 
-// ====================== reg ============================ 
+  // ====================== reg ============================ 
   // 모든 스테이지 비트 폭 MAX_BITS
   reg signed [OUTPUT_BIT-1:0] r_stg_dat [0:STAGES] [0:INPUT_NUM-1];
-  reg        [ INPUT_NUM-1:0] r_stg_vld [0:STAGES];
-  reg                         r_opt_vld;
-  reg signed [OUTPUT_BIT-1:0] r_opt_dat;
+  reg        [ INPUT_NUM-1:0] r_stg_vld [0:STAGES]; 
 
   // ====================== function ======================= 
   function integer get_stg_size(input integer stage);
@@ -45,11 +43,8 @@ module adder_tree #(
     end
   endfunction
 
-  // ====================== assign ========================= 
-  assign o_opt_vld = r_opt_vld;
-  assign o_opt_dout = r_opt_dat; // 정해진 출력 폭만큼 하위 비트가 할당됨 (자동 크롭)
-
-  // ------------------------ Stage 0 ----------------------- 
+  // ====================== assign =========================  
+ 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_stg_vld[0] <= 'd0;
@@ -97,19 +92,7 @@ module adder_tree #(
     end
   endgenerate
 
-  // ------------------------ Output ----------------------- 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_opt_vld <= 1'b0;
-      r_opt_dat <= 0;
-    end else begin
-      if (o_ipt_rdy) begin
-        r_opt_vld <= r_stg_vld[STAGES][0];
-        if (r_stg_vld[STAGES][0]) begin
-          r_opt_dat <= r_stg_dat[STAGES][0];
-        end
-      end
-    end
-  end
-
+  // ====================== output =========================
+  assign o_opt_vld  = r_stg_vld[STAGES][0];
+  assign o_opt_dout = r_stg_dat[STAGES][0]; 
 endmodule

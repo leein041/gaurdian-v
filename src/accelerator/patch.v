@@ -99,7 +99,7 @@ module patch #(
         if (r_lcol_cnt < LINE_WIDTH) begin
           r_lcol_cnt <= r_lcol_cnt + 'd1;
         end else begin
-          r_lcol_cnt <= 'd0;
+          r_lcol_cnt <= 'd1;
           r_prow_0   <= r_prow_2;
           r_prow_1   <= r_prow_0;
           r_prow_2   <= r_prow_1;
@@ -182,8 +182,8 @@ module patch #(
       end else if (w_act_in) begin
         if (r_lcol_cnt < LINE_WIDTH) begin
           r_lcol_cnt <= r_lcol_cnt + 'd1;
-        end else begin
-          r_lcol_cnt <= 'd0;
+        end else begin 
+          r_lcol_cnt <= 'd1; // 왜 1인가? 처음은 비었지만 다음줄 넘어갈떈이미 하나가 들어와있기 때문
           r_prow_0   <= r_prow_2;
           r_prow_1   <= r_prow_0;
           r_prow_2   <= r_prow_1;

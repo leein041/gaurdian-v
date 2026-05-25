@@ -200,7 +200,7 @@ module line_buffer #(
       );
       skid_buffer #(
           .BITS   (INPUT_BITS),
-          .LATENCY(3),
+          .LATENCY(2),
           .MEM_SKID(1)
       ) inst_skid_buffer (
           .i_clk     (i_clk),
