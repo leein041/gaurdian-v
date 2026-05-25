@@ -4,17 +4,17 @@
 // 테스트 / 성능 / 이미지 -> 항목당 하나만 주석 해제하여 테스트
 // ==================================================
 // select (O: 테스트 통과 X: 테스트 실패)
-// `define RELEASE_4_2 
-// `define RELEASE_8_4 
-// `define RELEASE_8_8  
+ `define RELEASE_4_2  // (RESCOURCE:- ,BALANCE:- , PERFORMANCE:- )
+// `define RELEASE_8_4  // (RESCOURCE:- ,BALANCE:- , PERFORMANCE:- )
+// `define RELEASE_8_8  // (RESCOURCE:- ,BALANCE:- , PERFORMANCE:- )
 // `define DEBUG_4_2 // (RESCOURCE:O ,BALANCE:O, PERFORMANCE: O)
 // `define DEBUG_8_4 // (RESCOURCE:O ,BALANCE:O, PERFORMANCE: O)
- `define DEBUG_8_8  // (RESCOURCE:O ,BALANCE:O, PERFORMANCE: O)
+// `define DEBUG_8_8  // (RESCOURCE:O ,BALANCE:O, PERFORMANCE: O)
 
 // select
 // `define RESOURCE  
-// `define BALANCE 
- `define PERFORMANCE  
+ `define BALANCE 
+// `define PERFORMANCE  
 
 // select
 // `define IMAGE_1

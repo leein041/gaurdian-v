@@ -1,7 +1,6 @@
 `include "defines.vh"
 module my_top #(
     parameter PADDING_EN = 1,
-
     parameter WEIGHT_BITS = 16,
     parameter INPUT_BITS = 16,
     parameter OUTPUT_BITS = 16,
@@ -13,7 +12,6 @@ module my_top #(
     parameter OUTPUT_HEIGHT = 150,
     parameter PATCH_WIDTH = 3,
     parameter PATCH_HEIGHT = 3,
-
     parameter L1_RELU_EN = 1,
     parameter L2_RELU_EN = 1,
     parameter L3_RELU_EN = 0,

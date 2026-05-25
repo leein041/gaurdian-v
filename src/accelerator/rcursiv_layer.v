@@ -82,17 +82,17 @@ module rcursiv_layer #(
 );
   // ------------------- parmeter -------------------    
 `ifdef RESOURCE
-  localparam PE_OUT_BITS = OUTPUT_BITS * 2 + $clog2(PATCH_AREA);
+  localparam PE_OUT_BITS = INPUT_BITS + WEIGHT_BITS + $clog2(PATCH_AREA);
   localparam PU_OUT_BITS = PE_OUT_BITS;
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
 `elsif BALANCE
-  localparam PE_OUT_BITS = OUTPUT_BITS * 2 + $clog2(PATCH_HEIGHT);
+  localparam PE_OUT_BITS = INPUT_BITS + WEIGHT_BITS + $clog2(PATCH_HEIGHT);
   localparam PU_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_WIDTH);
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
 `elsif PERFORMANCE
-  localparam PE_OUT_BITS = OUTPUT_BITS * 2;
+  localparam PE_OUT_BITS = INPUT_BITS + WEIGHT_BITS;
   localparam PU_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_AREA);
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(MAX_CHANNEL);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
@@ -288,8 +288,7 @@ module rcursiv_layer #(
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
       assign w_pu_all_rdy[c]   = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
-      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
-      assign w_lbuf_vld_pck[c] = w_lbuf_vld[c];
+      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS]; 
       for (p = 0; p < MAX_FILTER; p = p + 1) begin
         assign w_pu_rdy_pck[c][p]                           = w_pu_rdy[p][c];
         assign w_pu_vld_cpck[p][c]                          = w_pu_vld[p][c];
@@ -388,7 +387,7 @@ module rcursiv_layer #(
       for (c = 0; c < MAX_CHANNEL; c = c + 1) begin : ch_array
         pu #(
             .INPUT_BITS  (INPUT_BITS),
-            .WEIGHT_BITS (WEIGHT_BITS), 
+            .WEIGHT_BITS (WEIGHT_BITS),
             .PATCH_WIDTH (PATCH_WIDTH),
             .PATCH_HEIGHT(PATCH_HEIGHT),
             .LINE_WIDTH  (LINE_WIDTH),

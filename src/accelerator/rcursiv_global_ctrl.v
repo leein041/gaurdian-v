@@ -64,7 +64,7 @@ module rcursiv_global_ctrl #(
     output [      MAX_CHANNEL-1:0] o_ipt_mask,
     output [                  2:0] o_bias_sel
 );
-// ====================== parmeter ======================= 
+  // ====================== parmeter ======================= 
   localparam IDLE = 4'd0;
   localparam LOAD_WEIGHT_1 = 4'd1;
   localparam COMPUTE_LAYER_1 = 4'd2;  // load image and write layer 1 output at act buffer
@@ -74,7 +74,7 @@ module rcursiv_global_ctrl #(
   localparam COMPUTE_LAYER_3 = 4'd6;  // load layer 2 output and layer 3 output(end) 
   localparam DONE = 4'd7;
   // --------------------- wire ---------------------  
-// ====================== reg ============================ 
+  // ====================== reg ============================ 
   reg [                  3:0] r_cstat;  // current state
   reg [                  3:0] r_nstat;  // next state   
   // ctrl
@@ -122,7 +122,7 @@ module rcursiv_global_ctrl #(
   // ipt channel select siganl
 
 
-// ====================== assign ========================= 
+  // ====================== assign ========================= 
   assign o_ctrl_rdy    = r_ctrl_rdy;
   // ipt
   assign o_ibuf_re     = r_ibuf_re;
@@ -149,7 +149,7 @@ module rcursiv_global_ctrl #(
   assign o_wgt_raddr   = r_wgt_raddr;
   assign o_ipt_mask    = r_ipt_mask;
   assign o_bias_sel    = r_bias_sel;
-// ====================== always ========================= 
+  // ====================== always ========================= 
 
   //  initialize and update state register
   always @(posedge i_clk or negedge i_rstn) begin
@@ -164,11 +164,11 @@ module rcursiv_global_ctrl #(
     r_nstat = r_cstat;
     case (r_cstat)
       IDLE:            if (i_st) r_nstat = LOAD_WEIGHT_1;
-      LOAD_WEIGHT_1:   if (L1_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_1;
+      LOAD_WEIGHT_1:   if (L1_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_1;
       COMPUTE_LAYER_1: if (IMAGE_DEPTH <= r_abuf_wcnt) r_nstat = LOAD_WEIGHT_2;
-      LOAD_WEIGHT_2:   if (L2_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_2;
+      LOAD_WEIGHT_2:   if (L2_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_2;
       COMPUTE_LAYER_2: if (IMAGE_DEPTH <= r_abuf_wcnt) r_nstat = LOAD_WEIGHT_3;
-      LOAD_WEIGHT_3:   if (L3_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_3;
+      LOAD_WEIGHT_3:   if (L3_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_3;
       COMPUTE_LAYER_3: if (IMAGE_DEPTH <= r_obuf_wcnt) r_nstat = DONE;
       DONE: begin
         if (r_img_cnt < IMAGE_NUM - 1) r_nstat = LOAD_WEIGHT_1;
@@ -290,12 +290,12 @@ module rcursiv_global_ctrl #(
           end else begin  // act -> layer 2 / layer 3
             if (i_skid_rdy && (r_abuf_rcnt < IMAGE_DEPTH)) begin
               r_abuf_re    <= 'd1;
-              r_abuf_rcnt   <= r_abuf_rcnt + 'd1;
+              r_abuf_rcnt  <= r_abuf_rcnt + 'd1;
               r_abuf_raddr <= r_abuf_raddr + 'd1;
             end
           end
           // weight load start when act buffer write done
-          if (r_abuf_waddr == IMAGE_DEPTH - 1) r_lyr_wst <= 'b1;
+          if (r_abuf_rcnt == IMAGE_DEPTH) r_lyr_wst <= 'b1;
 
           // layer 1/2 relu enable
           if (r_cstat == COMPUTE_LAYER_1 || r_cstat == COMPUTE_LAYER_2) begin
@@ -329,5 +329,5 @@ module rcursiv_global_ctrl #(
     end
   end
 
-// ====================== module ========================= 
+  // ====================== module ========================= 
 endmodule

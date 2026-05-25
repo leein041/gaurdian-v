@@ -121,17 +121,17 @@ module stline_global_ctrl #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_ctrl_rdy   <= 'd1;
-      r_img_st     <= 'd0;
-      r_img_cnt    <= 'd0; 
-      r_ibuf_re    <= 'b0;
-      r_ibuf_rcnt  <= 'd0;
-      r_ibuf_addr  <= {INPUT_ADDR{1'b1}};
-      r_obuf_we    <= 'd0;
-      r_obuf_addr  <= {OUTPUT_ADDR{1'b1}};
-      r_obuf_wcnt  <= 'd0;
-      r_obuf_dat   <= 'd0;
-      r_o_done     <= 'b0;
+      r_ctrl_rdy  <= 'd1;
+      r_img_st    <= 'd0;
+      r_img_cnt   <= 'd0;
+      r_ibuf_re   <= 'b0;
+      r_ibuf_rcnt <= 'd0;
+      r_ibuf_addr <= {INPUT_ADDR{1'b1}};
+      r_obuf_we   <= 'd0;
+      r_obuf_addr <= {OUTPUT_ADDR{1'b1}};
+      r_obuf_wcnt <= 'd0;
+      r_obuf_dat  <= 'd0;
+      r_o_done    <= 'b0;
     end else begin
       r_ctrl_rdy <= 'd1;  // 일단 항상 받기 
       r_ibuf_re  <= 'b0;
@@ -142,7 +142,7 @@ module stline_global_ctrl #(
           r_obuf_addr <= {OUTPUT_ADDR{1'b1}};
           r_obuf_wcnt <= 'd0;
         end
-        LOAD_WEIGHT: begin 
+        LOAD_WEIGHT: begin
           if (w_all_wgtdn && i_lyr1_rdy) begin
             r_img_st <= 'b1;
           end
@@ -164,17 +164,10 @@ module stline_global_ctrl #(
               r_obuf_wcnt <= r_obuf_wcnt + 'd1;
             end
           end
-`ifdef DEBUG
           if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) begin
             r_o_done  <= 1'b1;
             r_img_cnt <= r_img_cnt + 'd1;
           end
-`else
-          if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) begin
-            r_o_done  <= 1'b1;
-            r_img_cnt <= r_img_cnt + 'd1;
-          end
-`endif
         end
         DONE_IMAGE: begin
           if (r_img_cnt < IMAGE_NUM) r_img_st <= 'b1;

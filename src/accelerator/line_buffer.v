@@ -85,11 +85,11 @@ module line_buffer #(
   reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
   reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_fcol;
   // patch      
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_rd_addr;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_raddr;
   // line buffer
   reg                                       r_lbuf_re;
   reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lrow;
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_wr_addr;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr;
   // ====================== hand shake ===================== 
   assign o_ipt_rdy = w_sbuf_rdy[0] && !w_pad_en;
   assign w_act = w_sbuf_rdy[0] && (i_ipt_vld || w_pad_en);
@@ -118,7 +118,7 @@ module line_buffer #(
       LB_IDLE: if (i_st) r_lbuf_nstat = LB_ENTER_LINE;
 
       LB_ENTER_LINE:
-      if (r_frow == FMAP_HEIGHT - 1 && r_fcol == FMAP_WIDTH - 1) r_lbuf_nstat = LB_DONE;
+      if (w_act && r_frow == FMAP_HEIGHT - 1 && r_fcol == FMAP_WIDTH - 1) r_lbuf_nstat = LB_DONE;
 
       LB_DONE: r_lbuf_nstat = LB_IDLE;
 
@@ -132,48 +132,40 @@ module line_buffer #(
       r_fcol    <= 'd0;
       r_lbuf_re <= 'd0;
       r_lrow    <= 'd0;
-      r_wr_addr    <= 'd0;
-      r_rd_addr    <= 'd0;
+      r_lbuf_waddr    <= 'd0;
+      r_lbuf_raddr    <= 'd0;
     end else begin
       case (r_lbuf_cstat)
         LB_IDLE: begin
           r_frow    <= 'd0;
           r_fcol    <= 'd0;
-          r_lbuf_re <= 'd0;
           r_lrow    <= 'd0;
-          r_wr_addr    <= 'd0;
-          r_rd_addr    <= 'd0;
+          r_lbuf_waddr    <= 'd0;
+          r_lbuf_raddr    <= 'd0;
         end
         LB_ENTER_LINE: begin
           if (w_act) begin
-            if ('d1 < r_frow) begin
-              r_lbuf_re <= 1'b1;
-            end else begin
-              r_lbuf_re <= 1'b0;
-            end
-            // 읽기 주소(쓰기의 전 주소)   
-            r_rd_addr <= r_wr_addr;
-            // FAMP 카운트
-            if (r_fcol < FMAP_WIDTH - 1) begin
-              r_fcol <= r_fcol + 'd1;
-            end else begin
+            if (r_fcol < FMAP_WIDTH - 1) r_fcol <= r_fcol + 'd1;
+            else begin
               r_fcol <= 'd0;
               if (r_frow < FMAP_HEIGHT - 1) r_frow <= r_frow + 'd1;
               else r_frow <= 'd0;
             end
             // LINE BUFFER 카운트
-            if (r_wr_addr < LINE_WIDTH - 1) begin
-              r_wr_addr <= r_wr_addr + 'd1;
-            end else begin
-              r_wr_addr <= 'd0;
+            if (r_lbuf_waddr < LINE_WIDTH - 1) r_lbuf_waddr <= r_lbuf_waddr + 'd1;
+            else begin
+              r_lbuf_waddr <= 'd0;
               if (r_lrow < LINE_HEIGHT - 1) r_lrow <= r_lrow + 'd1;
               else r_lrow <= 'd0;
             end
+
+            if ('d2 <= r_frow) r_lbuf_re <= 1'b1;
+            r_lbuf_raddr <= r_lbuf_waddr;
+
           end else r_lbuf_re <= 'b0;  // w_act = 0일때 읽기 신호 내림(중복읽기 방지)
         end
         LB_DONE: begin
           r_lbuf_re <= 'b0;
-          r_rd_addr <= 'd0;
         end
         default: ;
       endcase
@@ -191,9 +183,9 @@ module line_buffer #(
           .i_clk  (i_clk),
           .i_rstn (i_rstn),
           .i_re   (r_lbuf_re),
-          .i_raddr(r_rd_addr),
+          .i_raddr(r_lbuf_raddr),
           .i_we   (w_lbuf_we[g]),
-          .i_waddr(r_wr_addr), // 주소 0부터 
+          .i_waddr(r_lbuf_waddr), // 주소 0부터 
           .i_wdin (w_ipt_dat),
           .o_vld  (w_lbuf_vld[g]),
           .o_dout (w_lbuf_dat[g])

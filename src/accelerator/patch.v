@@ -265,8 +265,8 @@ module patch #(
         end
       end
     end else begin
-      if (o_ipt_rdy) begin
-        if (i_ipt_vld) begin
+        if (o_ipt_rdy) begin
+          if (i_ipt_vld) begin
           r_opt_vld <= (r_ptch_cnt >= PATCH_WIDTH - 1);
         end else begin
           r_opt_vld <= 1'b0;
