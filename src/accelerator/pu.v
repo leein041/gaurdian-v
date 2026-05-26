@@ -33,7 +33,7 @@ module pu #(
     localparam PE_OUT_BITS = INPUT_BITS + WEIGHT_BITS + $clog2(PATCH_AREA),
     localparam PU_OUT_BITS = PE_OUT_BITS,
 `elsif BALANCE
-    localparam PE_OUT_BITS = INPUT_BITS * 2 + 2,
+    localparam PE_OUT_BITS = INPUT_BITS + WEIGHT_BITS + $clog2(PATCH_WIDTH),
     localparam MAT_OUT_BITS = PE_OUT_BITS + $clog2(PATCH_HEIGHT),
     localparam PU_OUT_BITS = MAT_OUT_BITS,
 `elsif PERFORMANCE

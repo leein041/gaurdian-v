@@ -58,27 +58,27 @@ module rcursiv_layer #(
     localparam LINE_WIDTH  = IMAGE_WIDTH + 2 * PADDING_EN,
     localparam LINE_HEIGHT = 3
 ) (
-    input                                      i_clk,
-    input                                      i_rstn,
-    input                                      i_st,
-    input                                      i_relu_en,
+    input                               i_clk,
+    input                               i_rstn,
+    input                               i_st,
+    input                               i_relu_en,
     // wgt 
     // ipt 
-    output                                     o_ipt_rdy,
-    input                                      i_ipt_vld,
-    input         [INPUT_BITS*MAX_CHANNEL-1:0] i_ipt_din_pck,
+    output                              o_ipt_rdy,
+    input                               i_ipt_vld,
+    input  [INPUT_BITS*MAX_CHANNEL-1:0] i_ipt_din_pck,
     // opt
-    input                                      i_opt_rdy,
-    output                                     o_opt_vld,
-    output signed [ INPUT_BITS*MAX_FILTER-1:0] o_opt_dout,
+    input                               i_opt_rdy,
+    output                              o_opt_vld,
+    output [ INPUT_BITS*MAX_FILTER-1:0] o_opt_dout,
     // temp
-    input         [     $clog2(MAX_CHANNEL):0] i_ch_num,
-    input         [      $clog2(MAX_FILTER):0] i_filt_num,
-    input         [           MAX_CHANNEL-1:0] i_lbuf_st,
-    input         [                       2:0] i_wgt_re,
-    input         [       MAX_WEIGHT_ADDR-1:0] i_wgt_raddr,
-    input         [           MAX_CHANNEL-1:0] i_ipt_mask,
-    input         [                       2:0] i_bias_sel
+    input  [     $clog2(MAX_CHANNEL):0] i_ch_num,
+    input  [      $clog2(MAX_FILTER):0] i_filt_num,
+    input  [           MAX_CHANNEL-1:0] i_lbuf_st,
+    input  [                       2:0] i_wgt_re,
+    input  [       MAX_WEIGHT_ADDR-1:0] i_wgt_raddr,
+    input  [           MAX_CHANNEL-1:0] i_ipt_mask,
+    input  [                       2:0] i_bias_sel
 );
   // ------------------- parmeter -------------------    
 `ifdef RESOURCE
@@ -112,7 +112,7 @@ module rcursiv_layer #(
   wire        [            MAX_CHANNEL-1:0] w_lbuf_vld;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_pu_vld  [   0:MAX_FILTER-1];
   wire        [            MAX_CHANNEL-1:0] w_lbuf_vld_pck;
-  wire signed [INPUT_BITS*PATCH_HEIGHT-1:0] w_lbuf_dat     [  0:MAX_CHANNEL-1];
+  wire        [INPUT_BITS*PATCH_HEIGHT-1:0] w_lbuf_dat     [  0:MAX_CHANNEL-1];
   // pu
   wire                                      w_pu_rdy       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
   wire        [             0:MAX_FILTER-1] w_pu_rdy_pck   [  0:MAX_CHANNEL-1];
@@ -288,7 +288,7 @@ module rcursiv_layer #(
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
       assign w_pu_all_rdy[c]   = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
-      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS]; 
+      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
       for (p = 0; p < MAX_FILTER; p = p + 1) begin
         assign w_pu_rdy_pck[c][p]                           = w_pu_rdy[p][c];
         assign w_pu_vld_cpck[p][c]                          = w_pu_vld[p][c];

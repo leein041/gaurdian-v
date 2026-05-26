@@ -52,7 +52,7 @@ module line_buffer #(
   // ====================== parmeter ======================= 
   // FSM
   localparam LB_IDLE = 3'd0;
-  localparam LB_ENTER_LINE = 3'd1;
+  localparam LB_ENTER_LINE = 31'b1;
   localparam LB_DONE = 3'd2;
   // delay
   localparam PATCH_EN_DLY = 3;
@@ -84,11 +84,10 @@ module line_buffer #(
   // feature map 
   reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
   reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_fcol;
-  // patch      
+  // line buffer   
   reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_raddr;
-  // line buffer
   reg                                       r_lbuf_re;
-  reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lrow;
+  reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lbuf_sel;
   reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr;
   // ====================== hand shake ===================== 
   assign o_ipt_rdy = w_sbuf_rdy[0] && !w_pad_en;
@@ -131,7 +130,7 @@ module line_buffer #(
       r_frow    <= 'd0;
       r_fcol    <= 'd0;
       r_lbuf_re <= 'd0;
-      r_lrow    <= 'd0;
+      r_lbuf_sel    <= 'd0;
       r_lbuf_waddr    <= 'd0;
       r_lbuf_raddr    <= 'd0;
     end else begin
@@ -139,24 +138,24 @@ module line_buffer #(
         LB_IDLE: begin
           r_frow    <= 'd0;
           r_fcol    <= 'd0;
-          r_lrow    <= 'd0;
+          r_lbuf_sel    <= 'd0;
           r_lbuf_waddr    <= 'd0;
           r_lbuf_raddr    <= 'd0;
         end
         LB_ENTER_LINE: begin
           if (w_act) begin
-            if (r_fcol < FMAP_WIDTH - 1) r_fcol <= r_fcol + 'd1;
+            if (r_fcol < FMAP_WIDTH - 1) r_fcol <= r_fcol + 1'b1;
             else begin
               r_fcol <= 'd0;
-              if (r_frow < FMAP_HEIGHT - 1) r_frow <= r_frow + 'd1;
+              if (r_frow < FMAP_HEIGHT - 1) r_frow <= r_frow + 1'b1;
               else r_frow <= 'd0;
             end
             // LINE BUFFER 카운트
-            if (r_lbuf_waddr < LINE_WIDTH - 1) r_lbuf_waddr <= r_lbuf_waddr + 'd1;
+            if (r_lbuf_waddr < LINE_WIDTH - 1) r_lbuf_waddr <= r_lbuf_waddr + 1'b1;
             else begin
               r_lbuf_waddr <= 'd0;
-              if (r_lrow < LINE_HEIGHT - 1) r_lrow <= r_lrow + 'd1;
-              else r_lrow <= 'd0;
+              if (r_lbuf_sel < LINE_HEIGHT - 1) r_lbuf_sel <= r_lbuf_sel + 1'b1;
+              else r_lbuf_sel <= 'd0;
             end
 
             if ('d2 <= r_frow) r_lbuf_re <= 1'b1;
@@ -175,7 +174,7 @@ module line_buffer #(
   // ====================== module ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
-      assign w_lbuf_we[g] = (w_act && (g == r_lrow));
+      assign w_lbuf_we[g] = (w_act && (g == r_lbuf_sel));
       simple_dual_port_ram #(
           .WIDTH(INPUT_BITS),
           .DEPTH(LINE_WIDTH)
@@ -192,7 +191,7 @@ module line_buffer #(
       );
       skid_buffer #(
           .BITS   (INPUT_BITS),
-          .LATENCY(2),
+          .LATENCY(3),
           .MEM_SKID(1)
       ) inst_skid_buffer (
           .i_clk     (i_clk),

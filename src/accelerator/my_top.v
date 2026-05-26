@@ -18,7 +18,7 @@ module my_top #(
 
 `ifdef IMAGE_1
     parameter IMAGE_NUM = 1,
-    parameter INPUT_INIT_FILE = "C:/DSD26_Termproject_Materials/02_Provided_Data/input_Y_channel_only_hex/test_0_hex.txt",
+    parameter INPUT_INIT_FILE = "C:/DSD26_Termproject_Materials/02_Provided_Data/input_Y_channel_only_hex/test_51_hex.txt",
 `elsif IMAGE_3
     parameter IMAGE_NUM = 3,
     parameter INPUT_INIT_FILE = "C:/DSD26_Termproject_Materials/03_Demo_Environment/input_image/input_text51_89_64.txt",
@@ -484,7 +484,7 @@ module my_top #(
   // image/act - layer skid buffer
   skid_buffer #(
       .BITS    (INPUT_BITS * MAX_FILTER),
-      .LATENCY (2),
+      .LATENCY (4),
       .MEM_SKID(1)
   ) inst_skid_buffer (
       .i_clk     (i_clk),

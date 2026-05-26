@@ -62,7 +62,8 @@ module stline_global_ctrl #(
   localparam COMPUTE_IMAGE = 2'd2;
   localparam DONE_IMAGE = 2'd3;
   // ====================== wire ===========================
-  wire                   w_all_wgtdn;
+  wire                   w_wgt_load_dn;
+  wire                   w_img_dn;
   // ====================== reg ============================ 
   reg  [            1:0] r_lp_cstat;  // current state
   reg  [            1:0] r_lp_nstat;  // next state  
@@ -88,7 +89,7 @@ module stline_global_ctrl #(
   assign o_ctrl_rdy   = r_ctrl_rdy;
   assign o_img_st     = r_img_st;
   // wgt
-  assign w_all_wgtdn  = i_lyr1_wrdn && i_lyr2_wrdn && i_lyr3_wrdn;
+  assign w_wgt_load_dn  = i_lyr1_wrdn && i_lyr2_wrdn && i_lyr3_wrdn;
   // ipt
   assign o_ibuf_re    = r_ibuf_re;
   assign o_ibuf_raddr = r_ibuf_addr;
@@ -97,6 +98,8 @@ module stline_global_ctrl #(
   assign o_obuf_addr  = r_obuf_addr;
   assign o_obuf_dout  = r_obuf_dat;
   assign o_done       = r_o_done;
+  // img
+  assign w_img_dn   = (r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we;
   // ====================== always ========================= 
 
   //  initialize and update state register
@@ -112,8 +115,8 @@ module stline_global_ctrl #(
     r_lp_nstat = r_lp_cstat;
     case (r_lp_cstat)
       IDLE:          if (i_st) r_lp_nstat = LOAD_WEIGHT;
-      LOAD_WEIGHT:   if (w_all_wgtdn) r_lp_nstat = COMPUTE_IMAGE;
-      COMPUTE_IMAGE: if ((r_obuf_wcnt == IMAGE_DEPTH) && r_obuf_we) r_lp_nstat = DONE_IMAGE;
+      LOAD_WEIGHT:   if (w_wgt_load_dn) r_lp_nstat = COMPUTE_IMAGE;
+      COMPUTE_IMAGE: if (w_img_dn) r_lp_nstat = DONE_IMAGE;
       DONE_IMAGE:    r_lp_nstat = (r_img_cnt == IMAGE_NUM) ? IDLE : COMPUTE_IMAGE;
       default:       ;
     endcase
@@ -143,7 +146,7 @@ module stline_global_ctrl #(
           r_obuf_wcnt <= 'd0;
         end
         LOAD_WEIGHT: begin
-          if (w_all_wgtdn && i_lyr1_rdy) begin
+          if (w_wgt_load_dn && i_lyr1_rdy) begin
             r_img_st <= 'b1;
           end
         end

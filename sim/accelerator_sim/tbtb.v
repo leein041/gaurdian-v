@@ -164,13 +164,13 @@ module tbtb ();
     // 출력 txt 저장 경로
 `ifdef DEUBUF_MODE
     // 여기에는 디버깅 결과 저장할 txt 파일 경로를 적어주면 됌, 근데 데이터 적어서 파형으로도 볼수 있으니 굳이
-    file_handle = $fopen("c:/", "w");
+    file_handle = $fopen("C:/", "w");
 `elsif RELEASE_4_2
-    file_handle = $fopen("c:/DSD26_Termproject_Materials/01_Reference_SW/save_4_2/output.txt", "w");
+    file_handle = $fopen("C:/DSD26_Termproject_Materials/01_Reference_SW/save_4_2/output.txt", "w");
 `elsif RELEASE_8_4
-    file_handle = $fopen("c:/DSD26_Termproject_Materials/01_Reference_SW/save_8_4/output.txt", "w");
+    file_handle = $fopen("C:/DSD26_Termproject_Materials/01_Reference_SW/save_8_4/output.txt", "w");
 `elsif RELEASE_8_8
-    file_handle = $fopen("c:/DSD26_Termproject_Materials/01_Reference_SW/save_8_8/output.txt", "w");
+    file_handle = $fopen("C:/DSD26_Termproject_Materials/01_Reference_SW/save_8_8/output.txt", "w");
 `endif
 
 
@@ -191,7 +191,7 @@ module tbtb ();
 `ifdef DEBUG
     #100000;
 `else
-    #1000000;
+    #100000000;
 `endif
     if (file_handle != 0) begin
       $fclose(file_handle);

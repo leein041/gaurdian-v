@@ -17,8 +17,8 @@
 // `define PERFORMANCE  
 
 // select
-// `define IMAGE_1
- `define IMAGE_3
+ `define IMAGE_1
+// `define IMAGE_3
 
 // ==================================================
 // debug mode

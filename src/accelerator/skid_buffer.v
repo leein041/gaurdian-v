@@ -30,7 +30,7 @@ module skid_buffer #(
   reg [$clog2(DEPTH):0] r_cnt;
   // ====================== assign ========================= 
   // ipt
-  assign o_ipt_rdy  = (r_cnt < (DEPTH - 2));
+  assign o_ipt_rdy  = (r_cnt < (DEPTH - LATENCY));
   // opt
   assign o_opt_dout = r_buf[r_rd_ptr];
   assign o_opt_vld  = (r_cnt > 0);

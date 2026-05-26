@@ -28,18 +28,14 @@ module simple_dual_port_ram #(
   //==========================================================================
   if (MEM_TYPE == `BRAM_TYPE) begin  
     (* ram_style = "block" *) reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];
-    reg signed [WIDTH-1:0] r_dat_dly;  
-    reg                    r_vld_dly;  
  
     always @(posedge i_clk) begin
       if (i_we) r_mem[i_waddr] <= i_wdin;
     end
  
     always @(posedge i_clk or negedge i_rstn) begin
-      if (~i_rstn) begin
-        r_vld_dly  <= 1'b0;
-        o_vld     <= 1'b0;    
-        r_dat_dly <= 0;
+      if (~i_rstn) begin 
+        o_vld     <= 1'b0;     
         o_dout    <= 0;   
       end else begin      
         o_vld     <= i_re;
@@ -55,12 +51,14 @@ module simple_dual_port_ram #(
   end
 
   //==========================================================================
-  //  URAM 모드 ( 2 clock )
+  //  URAM 모드 ( 3 clock )
   //==========================================================================
   else if (MEM_TYPE == `URAM_TYPE) begin : gen_uram
     (* ram_style = "ultra" *) reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];
-    reg signed [WIDTH-1:0] r_dat_dly;
-    reg                    r_vld_dly;
+    reg signed [WIDTH-1:0] r_dat_dly1;
+    reg                    r_vld_dly1;
+    reg signed [WIDTH-1:0] r_dat_dly2;
+    reg                    r_vld_dly2;
  
     always @(posedge i_clk) begin
       if (i_we) r_mem[i_waddr] <= i_wdin;
@@ -68,16 +66,21 @@ module simple_dual_port_ram #(
  
     always @(posedge i_clk or negedge i_rstn) begin
       if (~i_rstn) begin
-        r_vld_dly  <= 1'b0;
+        r_vld_dly1  <= 1'b0;
+        r_dat_dly1 <= 0;
+        r_vld_dly2  <= 1'b0;
+        r_dat_dly2 <= 0;
         o_vld     <= 1'b0;
-        r_dat_dly <= 0;
         o_dout    <= 0;
       end else begin 
-        r_vld_dly  <= i_re;
-        if (i_re) r_dat_dly <= r_mem[i_raddr];
+        r_vld_dly1  <= i_re;
+        if (i_re) r_dat_dly1 <= r_mem[i_raddr];
  
-        o_vld     <= r_vld_dly;
-        o_dout    <= r_dat_dly;
+        r_vld_dly2         <= r_vld_dly1;
+        r_dat_dly2    <= r_dat_dly1;    
+
+        o_vld     <= r_vld_dly2;
+        o_dout    <= r_dat_dly2;
       end
     end
 
