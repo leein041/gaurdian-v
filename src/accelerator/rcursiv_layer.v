@@ -98,7 +98,7 @@ module rcursiv_layer #(
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
 `endif
   integer i, j;
-  genvar c, p, g;
+  genvar c, p;
   // --------------------- wire ---------------------  
   // weight
   wire                                      w_wgt_vld      [              0:2];
@@ -111,7 +111,6 @@ module rcursiv_layer #(
   wire        [            MAX_CHANNEL-1:0] w_lbuf_rdy;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_vld;
   wire        [            MAX_CHANNEL-1:0] w_lbuf_pu_vld  [   0:MAX_FILTER-1];
-  wire        [            MAX_CHANNEL-1:0] w_lbuf_vld_pck;
   wire        [INPUT_BITS*PATCH_HEIGHT-1:0] w_lbuf_dat     [  0:MAX_CHANNEL-1];
   // pu
   wire                                      w_pu_rdy       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
@@ -129,12 +128,14 @@ module rcursiv_layer #(
   wire signed [           CAT_OUT_BITS-1:0] w_bias_exdat   [   0:MAX_FILTER-1];
 
   // adder
-  wire                                      w_add_act      [   0:MAX_FILTER-1];
   wire                                      w_add_rdy;
   wire signed [         ADDER_OUT_BITS-1:0] w_add_dat      [   0:MAX_FILTER-1];
-  wire signed [             INPUT_BITS-1:0] w_add_88dat    [   0:MAX_FILTER-1];
-  wire        [  MAX_FILTER*INPUT_BITS-1:0] w_add_dat_pck;
+  wire        [  MAX_FILTER*INPUT_BITS-1:0] w_relu_dat_pck;
 
+  // slice
+  wire                                      w_88_rdy;
+  // relu
+  wire                                      w_relu_rdy;
 
   // ====================== reg ============================ 
   // interenal counter
@@ -152,6 +153,12 @@ module rcursiv_layer #(
   reg signed  [             MAX_FILTER-1:0] r_bias_vld;
   // adder
   reg         [             MAX_FILTER-1:0] r_add_vld;
+  // pipe line 1 : slice
+  reg                                       r_88_vld;
+  reg signed  [             INPUT_BITS-1:0] r_88_dat       [   0:MAX_FILTER-1];
+  // pipe line 1 : relu
+  reg                                       r_relu_vld;
+  reg signed  [             INPUT_BITS-1:0] r_relu_dat     [   0:MAX_FILTER-1];
 
   // init bias
   generate
@@ -168,8 +175,8 @@ module rcursiv_layer #(
         for (i = 0; i < L3_FILTER_NUM; i = i + 1) r_bias3_dat[i] = {INPUT_BITS{1'b0}};
       end
     end
-
   endgenerate
+
   // ====================== function ======================= 
   // 16.16 -> 8.8 saturation cliping function
   function signed [INPUT_BITS-1:0] sat_q16_16_to_q8_8;
@@ -184,8 +191,13 @@ module rcursiv_layer #(
       end
     end
   endfunction
+
   // ====================== hand shake ===================== 
-  assign o_ipt_rdy = |w_lbuf_rdy;
+  assign o_ipt_rdy = w_lbuf_rdy[0];
+
+  assign w_add_rdy = w_88_rdy || !r_add_vld[0];
+  assign w_88_rdy = w_relu_rdy || !r_88_vld;
+  assign w_relu_rdy = i_opt_rdy || !r_relu_vld;
 
   // ====================== assign ========================= 
   // weight select
@@ -213,16 +225,16 @@ module rcursiv_layer #(
     end else begin
       for (i = 0; i < MAX_FILTER; i = i + 1) begin
         for (j = 0; j < MAX_CHANNEL; j = j + 1) begin
-          if (w_wgt_svld && (r_pu_cnt == i) && (r_ch_cnt == j)) begin
-            r_pu_wvld[i][j] <= 1'b1;
-          end else begin
-            r_pu_wvld[i][j] <= 1'b0;
-          end
+          r_pu_wvld[i][j] <= 1'b0;
         end
+      end
+      if (w_wgt_svld && (r_pu_cnt < MAX_FILTER) && (r_ch_cnt < MAX_CHANNEL)) begin
+        r_pu_wvld[r_pu_cnt][r_ch_cnt] <= 1'b1;
       end
       if (w_wgt_svld) r_pu_wdat <= w_wgt_sdat;
     end
   end
+
   // update interenal counter
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -247,6 +259,7 @@ module rcursiv_layer #(
       end
     end
   end
+
   // select bias
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -274,7 +287,8 @@ module rcursiv_layer #(
       end
     end
   end
-  // update adder valid
+
+  // adder 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_add_vld <= 'd0;
@@ -285,9 +299,29 @@ module rcursiv_layer #(
     end
   end
 
+  // pipeline :  slice and relu 
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_88_vld   <= 1'b0;
+      r_relu_vld <= 1'b0;
+      for (i = 0; i < MAX_FILTER; i = i + 1) begin
+        r_88_dat[i]   <= 'd0;
+        r_relu_dat[i] <= 'd0;
+      end
+    end else begin
+      if (w_88_rdy) r_88_vld <= r_add_vld[0];
+      if (w_relu_rdy) r_relu_vld <= r_88_vld;
+
+      for (i = 0; i < MAX_FILTER; i = i + 1) begin
+        if (w_88_rdy) r_88_dat[i] <= sat_q16_16_to_q8_8(w_add_dat[i]);
+        if (w_relu_rdy) r_relu_dat[i] <= (i_relu_en && r_88_dat[i][15]) ? 16'd0 : r_88_dat[i];
+      end
+    end
+  end
+
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
-      assign w_pu_all_rdy[c]   = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
+      assign w_pu_all_rdy[c] = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
       assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
       for (p = 0; p < MAX_FILTER; p = p + 1) begin
         assign w_pu_rdy_pck[c][p]                           = w_pu_rdy[p][c];
@@ -296,16 +330,9 @@ module rcursiv_layer #(
       end
     end
     for (p = 0; p < MAX_FILTER; p = p + 1) begin
-      assign w_bias_exdat[p] = {
-        {(CAT_OUT_BITS - OUTPUT_BITS + 8) {r_bias_dat[p][15]}}, r_bias_dat[p], 8'd0
-      };
-      // adder
-      assign w_add_act[p] = w_cat_vld[p] && w_add_rdy;
-      assign w_add_88dat[p] = sat_q16_16_to_q8_8(w_add_dat[p]);
-      assign w_add_dat_pck[p*INPUT_BITS+:INPUT_BITS] = (i_relu_en && w_add_88dat[p][15]) ? 16'd0 : w_add_88dat[p];
+      assign w_bias_exdat[p] = $signed(r_bias_dat[p]) << 8;
+      assign w_relu_dat_pck[p*INPUT_BITS+:INPUT_BITS] = r_relu_dat[p];
     end
-
-    assign w_add_rdy = i_opt_rdy || !(|r_add_vld);
   endgenerate
 
   // ====================== module ========================= 
@@ -325,6 +352,7 @@ module rcursiv_layer #(
       .o_vld  (w_wgt_vld[0]),
       .o_dout (w_wgt_dat[0])
   );
+
   simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
       .DEPTH    (L2_WEIGHT_DEPTH),
@@ -340,6 +368,7 @@ module rcursiv_layer #(
       .o_vld  (w_wgt_vld[1]),
       .o_dout (w_wgt_dat[1])
   );
+
   simple_dual_port_ram #(
       .WIDTH    (WEIGHT_BITS),
       .DEPTH    (L3_WEIGHT_DEPTH),
@@ -355,6 +384,8 @@ module rcursiv_layer #(
       .o_vld  (w_wgt_vld[2]),
       .o_dout (w_wgt_dat[2])
   );
+
+ 
   // line buffer
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin : LINE_BUFFER_ARRAY
@@ -370,12 +401,10 @@ module rcursiv_layer #(
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
           .i_st      (i_lbuf_st[c]),
-          // ipt
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
           .i_ipt_vld (i_ipt_mask[c] && i_ipt_vld),
-          // opt
-          .i_opt_rdy (w_pu_all_rdy[c]),
+          .i_opt_rdy (w_pu_rdy[0][c]),
           .o_opt_vld (w_lbuf_vld[c]),
           .o_opt_dout(w_lbuf_dat[c])
       );
@@ -396,49 +425,46 @@ module rcursiv_layer #(
             .i_clk     (i_clk),
             .i_rstn    (i_rstn),
             .i_clr     (i_lbuf_st[c]),
-            // wgt 
             .i_wgt_vld (r_pu_wvld[p][c]),
             .i_wgt_din (r_pu_wdat),
-            // ipt
             .o_ipt_rdy (w_pu_rdy[p][c]),
-            .i_ipt_vld (w_lbuf_pu_vld[p][c]),
+            .i_ipt_vld (w_lbuf_vld[c]),
             .i_ipt_din (w_lbuf_dat[c]),
-            // opt
             .i_opt_rdy (w_cat_rdy[p]),
             .o_opt_vld (w_pu_vld[p][c]),
             .o_opt_dout(w_pu_dat[p][c])
         );
       end
+
       adder_tree #(
           .INPUT_BIT(PU_OUT_BITS),
           .INPUT_NUM(MAX_CHANNEL)
       ) inst_ch_at (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          // ipt
           .o_ipt_rdy (w_cat_rdy[p]),
           .i_ipt_vld (w_pu_vld_cpck[p]),
           .i_ipt_din (w_pu_dat_cpck[p]),
-          // opt
           .i_opt_rdy (w_add_rdy),
           .o_opt_vld (w_cat_vld[p]),
           .o_opt_dout(w_cat_dat[p])
       );
+
       adder #(
           .BITS(CAT_OUT_BITS)
       ) inst_adder (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_add_en  (w_add_act[p]),
+          .i_add_en  (w_add_rdy && w_cat_vld[p]),
           .i_ipt1_din(w_cat_dat[p]),
           .i_ipt2_din(w_bias_exdat[p]),
-          .o_opt_dout(w_add_dat[p])      // 16 + 16 = 17 bit
+          .o_opt_dout(w_add_dat[p])
       );
-
     end
   endgenerate
 
   // ====================== output ========================= 
-  assign o_opt_vld  = |r_add_vld;
-  assign o_opt_dout = w_add_dat_pck;
+  assign o_opt_vld  = r_relu_vld;
+  assign o_opt_dout = w_relu_dat_pck;
+
 endmodule

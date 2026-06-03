@@ -59,9 +59,14 @@ module pu #(
     output signed [              PU_OUT_BITS - 1:0] o_opt_dout
 );
   // ====================== parmeter =======================   
-  integer i;
+  integer i, j;
   genvar c, p;
 
+  reg r_ptch_clr;  // clear signal
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) r_ptch_clr <= 1'b0;
+    else r_ptch_clr <= i_clr;
+  end
   //      ____                                    
   //     |  _ \ ___  ___  ___  _   _ _ __ ___ ___ 
   //     | |_) / _ \/ __|/ _ \| | | | '__/ __/ _ \
@@ -81,17 +86,25 @@ module pu #(
   // ====================== hand shake =====================  
   assign w_pe_act = w_ptch_vld && i_opt_rdy;
   // ====================== always =========================  
+
   // initialize weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       for (i = 0; i < PATCH_AREA; i = i + 1) begin
         r_wgt_dat[i] <= 'd0;
       end
-    end else if (i_wgt_vld) begin
-      for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
-        r_wgt_dat[i] <= r_wgt_dat[i+1];
+    end else begin
+      if (i_wgt_vld) begin
+        for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
+          r_wgt_dat[i] <= r_wgt_dat[i+1];
+        end
+        r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
+      end else if (w_pe_act) begin
+        for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
+          r_wgt_dat[i] <= r_wgt_dat[i+1];
+        end
+        r_wgt_dat[PATCH_AREA-1] <= r_wgt_dat[0];
       end
-      r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
     end
   end
   // weigt counter 
@@ -99,7 +112,7 @@ module pu #(
     if (~i_rstn) begin
       r_wgt_cnt <= 'd0;
     end else begin
-      if (i_clr) begin
+      if (r_ptch_clr) begin
         r_wgt_cnt <= 'd0;
       end else if (w_pe_act) begin
         if (r_wgt_cnt < PATCH_AREA - 1) begin
@@ -120,7 +133,7 @@ module pu #(
   ) inst_patch_rsc (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
-      .i_clr     (i_clr),
+      .i_clr     (r_ptch_clr),
       // ipt
       .i_ipt_din (i_ipt_din),
       .i_ipt_vld (i_ipt_vld),
@@ -140,7 +153,7 @@ module pu #(
       .i_rstn    (i_rstn),
       .i_pe_en   (w_pe_act),
       // wgt 
-      .i_wgt_din (r_wgt_dat[r_wgt_cnt]),
+      .i_wgt_din (r_wgt_dat[0]),
       // ipt  
       .i_ipt_vld (w_ptch_vld),
       .i_ipt_din (w_ptch_dat),
@@ -154,19 +167,18 @@ module pu #(
   //     | |_) | (_| | | (_| | | | | (_|  __/
   //     |____/ \__,_|_|\__,_|_| |_|\___\___|
   //                                         
-`elsif BALANCE    
+`elsif BALANCE
   // ====================== wire =========================== 
-  wire                                         w_ptch_vld;
-  wire signed [                INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_HEIGHT-1];
-  wire        [  INPUT_BITS *PATCH_HEIGHT-1:0] w_ptch_dat_pck;
-  wire                                         w_pe_act;
-  wire        [              PATCH_HEIGHT-1:0] w_pe_vld;    
+  wire                                       w_ptch_vld;
+  wire signed [              INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_HEIGHT-1];
+  wire        [INPUT_BITS *PATCH_HEIGHT-1:0] w_ptch_dat_pck;
+  wire                                       w_pe_act;
+  wire        [            PATCH_HEIGHT-1:0] w_pe_vld;
   wire signed [             PE_OUT_BITS-1:0] w_pe_dat       [0:PATCH_HEIGHT-1];
-  wire        [PE_OUT_BITS*PATCH_HEIGHT-1:0] w_pe_dat_pck;    
-  wire                                         w_mat_rdy;
-  // ====================== reg ============================ 
-  reg         [        $clog2(PATCH_AREA)-1:0] r_wgt_cnt;
-  reg signed  [               WEIGHT_BITS-1:0] r_wgt_dat      [  0:PATCH_AREA-1];
+  wire        [PE_OUT_BITS*PATCH_HEIGHT-1:0] w_pe_dat_pck;
+  wire                                       w_mat_rdy;
+  // ====================== reg ============================  
+  reg signed  [             WEIGHT_BITS-1:0] r_wgt_dat      [  0:PATCH_AREA-1];
   // ====================== hand shake =====================  
   assign w_pe_act = w_ptch_vld && w_mat_rdy;
   // ====================== always =========================  
@@ -176,25 +188,19 @@ module pu #(
       for (i = 0; i < PATCH_AREA; i = i + 1) begin
         r_wgt_dat[i] <= 'd0;
       end
-    end else if (i_wgt_vld) begin
-      for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
-        r_wgt_dat[i] <= r_wgt_dat[i+1];
-      end
-      r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
-    end
-  end
-  // weigt counter 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_wgt_cnt <= 'd0;
     end else begin
-      if (i_clr) begin
-        r_wgt_cnt <= 'd0;
+      if (i_wgt_vld) begin
+        for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
+          r_wgt_dat[i] <= r_wgt_dat[i+1];
+        end
+        r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
       end else if (w_pe_act) begin
-        if (r_wgt_cnt < PATCH_WIDTH - 1) begin
-          r_wgt_cnt <= r_wgt_cnt + 'd1;
-        end else begin
-          r_wgt_cnt <= 'd0;
+        // shift
+        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+          for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
+            r_wgt_dat[i*PATCH_WIDTH+j] <= r_wgt_dat[i*PATCH_WIDTH+j+1];
+          end
+          r_wgt_dat[i*PATCH_WIDTH+PATCH_WIDTH-1] <= r_wgt_dat[i*PATCH_WIDTH];
         end
       end
     end
@@ -216,7 +222,7 @@ module pu #(
   ) inst_patch_bal (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
-      .i_clr     (i_clr),
+      .i_clr     (r_ptch_clr),
       // ipt
       .i_ipt_din (i_ipt_din),
       .i_ipt_vld (i_ipt_vld),
@@ -230,7 +236,7 @@ module pu #(
     for (p = 0; p < PATCH_HEIGHT; p = p + 1) begin : pe_array
       pe #(
           .INPUT_BITS  (INPUT_BITS),
-          .WEIGHT_BITS (WEIGHT_BITS), 
+          .WEIGHT_BITS (WEIGHT_BITS),
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_pe (
@@ -238,7 +244,7 @@ module pu #(
           .i_rstn    (i_rstn),
           .i_pe_en   (w_pe_act),
           // wgt 
-          .i_wgt_din (r_wgt_dat[p*PATCH_WIDTH+r_wgt_cnt]),
+          .i_wgt_din (r_wgt_dat[p*PATCH_WIDTH]),
           // ipt  
           .i_ipt_vld (w_ptch_vld),
           .i_ipt_din (w_ptch_dat[p]),
@@ -262,28 +268,27 @@ module pu #(
       .i_opt_rdy (i_opt_rdy),
       .o_opt_vld (o_opt_vld),
       .o_opt_dout(o_opt_dout)
-  );                                                   
-`elsif PERFORMANCE
+  );
+
   //      ____            __                                           
   //     |  _ \ ___ _ __ / _| ___  _ __ _ __ ___   __ _ _ __   ___ ___ 
   //     | |_) / _ \ '__| |_ / _ \| '__| '_ ` _ \ / _` | '_ \ / __/ _ \
   //     |  __/  __/ |  |  _| (_) | |  | | | | | | (_| | | | | (_|  __/
   //     |_|   \___|_|  |_|  \___/|_|  |_| |_| |_|\__,_|_| |_|\___\___|
-  //                
-  wire                                       w_ptch_vld;
-  wire signed [              INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_AREA-1];
-  wire        [  INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
-  wire                                       w_pe_act;
-  wire                                       w_pe_rdy;
-  wire signed [           PE_OUT_BITS-1:0] w_pe_dat           [0:PATCH_AREA-1];
+  //     
+`elsif PERFORMANCE
+  wire                                     w_ptch_vld;
+  wire signed [            INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_AREA-1];
+  wire        [INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
+  wire                                     w_pe_act;
+  wire                                     w_pe_rdy;
+  wire signed [           PE_OUT_BITS-1:0] w_pe_dat       [0:PATCH_AREA-1];
   wire        [PE_OUT_BITS*PATCH_AREA-1:0] w_pe_dat_pck;
-  wire        [              PATCH_AREA-1:0] w_mat_ipt_vld;
-  wire                                       w_mat_rdy;
-  // ====================== reg ============================    
-  reg         [        $clog2(PATCH_AREA)-1:0] r_wgt_cnt;
-  reg signed  [               WEIGHT_BITS-1:0] r_wgt_dat      [  0:PATCH_AREA-1]; 
-  reg         [        $clog2(PATCH_AREA):0] r_pe_cnt;
-  reg                                        r_pe_vld;
+  wire        [            PATCH_AREA-1:0] w_mat_ipt_vld;
+  wire                                     w_mat_rdy;
+  // ====================== reg ============================     
+  reg signed  [           WEIGHT_BITS-1:0] r_wgt_dat      [0:PATCH_AREA-1];
+  reg                                      r_pe_vld;
   // ====================== hand shake =====================  
   assign w_pe_rdy      = w_mat_rdy || !r_pe_vld;
   assign w_pe_act      = w_ptch_vld && w_pe_rdy;
@@ -302,7 +307,7 @@ module pu #(
       end
       r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
     end
-  end 
+  end
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_pe_vld <= 'd0;
@@ -329,7 +334,7 @@ module pu #(
   ) inst_patch_perf (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
-      .i_clr     (i_clr),
+      .i_clr     (r_ptch_clr),
       // ipt
       .i_ipt_din (i_ipt_din),
       .i_ipt_vld (i_ipt_vld),
@@ -343,7 +348,7 @@ module pu #(
     for (p = 0; p < PATCH_AREA; p = p + 1) begin : pe_array
       pe #(
           .INPUT_BITS  (INPUT_BITS),
-          .WEIGHT_BITS (WEIGHT_BITS), 
+          .WEIGHT_BITS (WEIGHT_BITS),
           .PATCH_WIDTH (PATCH_WIDTH),
           .PATCH_HEIGHT(PATCH_HEIGHT)
       ) inst_pe (
@@ -353,8 +358,10 @@ module pu #(
           // wgt  
           .i_wgt_din (r_wgt_dat[p]),
           // ipt  
+          .i_ipt_vld (),
           .i_ipt_din (w_ptch_dat[p]),
           // opt  
+          .o_opt_vld (),
           .o_opt_dout(w_pe_dat[p])
       );
     end

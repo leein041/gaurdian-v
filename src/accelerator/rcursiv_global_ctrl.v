@@ -164,11 +164,11 @@ module rcursiv_global_ctrl #(
     r_nstat = r_cstat;
     case (r_cstat)
       IDLE:            if (i_st) r_nstat = LOAD_WEIGHT_1;
-      LOAD_WEIGHT_1:   if (L1_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_1;
+      LOAD_WEIGHT_1:   if (L1_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_1;
       COMPUTE_LAYER_1: if (IMAGE_DEPTH <= r_abuf_wcnt) r_nstat = LOAD_WEIGHT_2;
-      LOAD_WEIGHT_2:   if (L2_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_2;
+      LOAD_WEIGHT_2:   if (L2_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_2;
       COMPUTE_LAYER_2: if (IMAGE_DEPTH <= r_abuf_wcnt) r_nstat = LOAD_WEIGHT_3;
-      LOAD_WEIGHT_3:   if (L3_WEIGHT_DEPTH <= r_wgt_rcnt && !i_lyr_vld) r_nstat = COMPUTE_LAYER_3;
+      LOAD_WEIGHT_3:   if (L3_WEIGHT_DEPTH <= r_wgt_rcnt) r_nstat = COMPUTE_LAYER_3;
       COMPUTE_LAYER_3: if (IMAGE_DEPTH <= r_obuf_wcnt) r_nstat = DONE;
       DONE: begin
         if (r_img_cnt < IMAGE_NUM - 1) r_nstat = LOAD_WEIGHT_1;
@@ -193,7 +193,7 @@ module rcursiv_global_ctrl #(
         r_cur_wgt_depth = L1_WEIGHT_DEPTH;
         r_wgt_sel       = 3'b001;
         r_bias_sel      = 3'b001;
-        r_ipt_mask <= {{(MAX_CHANNEL - L1_CHANNEL_NUM) {1'b0}}, {L1_CHANNEL_NUM{1'b1}}};
+        r_ipt_mask      = {{(MAX_CHANNEL - L1_CHANNEL_NUM) {1'b0}}, {L1_CHANNEL_NUM{1'b1}}};
       end
       LOAD_WEIGHT_2, COMPUTE_LAYER_2: begin
         r_cur_ch_num    = L2_CHANNEL_NUM;
@@ -201,7 +201,7 @@ module rcursiv_global_ctrl #(
         r_cur_wgt_depth = L2_WEIGHT_DEPTH;
         r_wgt_sel       = 3'b010;
         r_bias_sel      = 3'b010;
-        r_ipt_mask <= {{(MAX_CHANNEL - L2_CHANNEL_NUM) {1'b0}}, {L2_CHANNEL_NUM{1'b1}}};
+        r_ipt_mask      = {{(MAX_CHANNEL - L2_CHANNEL_NUM) {1'b0}}, {L2_CHANNEL_NUM{1'b1}}};
 
       end
       LOAD_WEIGHT_3, COMPUTE_LAYER_3: begin
@@ -210,7 +210,7 @@ module rcursiv_global_ctrl #(
         r_cur_wgt_depth = L3_WEIGHT_DEPTH;
         r_wgt_sel       = 3'b100;
         r_bias_sel      = 3'b100;
-        r_ipt_mask <= {{(MAX_CHANNEL - L3_CHANNEL_NUM) {1'b0}}, {L3_CHANNEL_NUM{1'b1}}};
+        r_ipt_mask      = {{(MAX_CHANNEL - L3_CHANNEL_NUM) {1'b0}}, {L3_CHANNEL_NUM{1'b1}}};
       end
       DONE:    ;
       default: ;

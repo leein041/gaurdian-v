@@ -27,7 +27,7 @@ module stline_layer #(
     parameter IMAGE_HEIGHT     = 5,
     parameter WEIGHT_BITS      = 16,
     parameter WEIGHT_DEPTH     = 9,
-    parameter OUTPUT_BITS      = 16,
+    parameter OUTPUT_BITS      = INPUT_BITS,
     parameter PATCH_WIDTH      = 3,
     parameter PATCH_HEIGHT     = 3,
     parameter CHANNEL_NUM      = 1,
@@ -44,7 +44,7 @@ module stline_layer #(
     input                                      i_rstn,
     input                                      i_img_st,
     // wgt
-    input                                      i_wgt_st,  
+    input                                      i_wgt_st,
     output                                     o_wgt_rdn,
     // ipt 
     output                                     o_ipt_rdy,
@@ -53,7 +53,7 @@ module stline_layer #(
     // opt
     input                                      i_opt_rdy,
     output                                     o_opt_vld,
-    output signed [ INPUT_BITS*FILTER_NUM-1:0] o_opt_dout
+    output signed [OUTPUT_BITS*FILTER_NUM-1:0] o_opt_dout
 );
   // ====================== parmeter ======================= 
   localparam FILTER_CNT_BITS = (FILTER_NUM <= 1) ? 1 : $clog2(FILTER_NUM);
@@ -64,55 +64,69 @@ module stline_layer #(
   localparam CAT_OUT_BITS = PU_OUT_BITS + $clog2(CHANNEL_NUM);
   localparam ADDER_OUT_BITS = CAT_OUT_BITS + 1;
 
-  integer i;
-  genvar c, p, g;
+  integer i, j;
+  genvar c, p;
   // ====================== wire ===========================
   // wgt
   wire                                        w_wgt_rdn;
   wire                                        w_wgt_vld;
   wire signed [              WEIGHT_BITS-1:0] w_wgt_dat;
   // IO port 
-  wire signed [             INPUT_BITS - 1:0] w_ipt_dat     [0:CHANNEL_NUM-1];
+  wire signed [             INPUT_BITS - 1:0] w_ipt_dat      [0:CHANNEL_NUM-1];
   // line bufferS  
   wire        [              CHANNEL_NUM-1:0] w_lbuf_rdy;
-  wire                                        w_lbuf_vld    [0:CHANNEL_NUM-1];
-  wire signed [INPUT_BITS*PATCH_HEIGHT - 1:0] w_lbuf_dat    [0:CHANNEL_NUM-1];
+  wire                                        w_lbuf_vld     [0:CHANNEL_NUM-1];
+  wire signed [INPUT_BITS*PATCH_HEIGHT - 1:0] w_lbuf_dat     [0:CHANNEL_NUM-1];
   // pu
-  wire                                        w_pu_wvld     [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
-  wire                                        w_pu_rdy      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
-  wire        [               0:FILTER_NUM-1] w_pu_rdy_pck  [0:CHANNEL_NUM-1];
-  wire                                        w_pu_vld      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
-  wire        [              CHANNEL_NUM-1:0] w_pu_vld_cpck [ 0:FILTER_NUM-1];
-  wire signed [            PU_OUT_BITS - 1:0] w_pu_dat      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
-  wire        [  CHANNEL_NUM*PU_OUT_BITS-1:0] w_pu_dat_cpck [ 0:FILTER_NUM-1];
+  wire                                        w_pu_wvld      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
+  wire                                        w_pu_rdy       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
+  wire        [               0:FILTER_NUM-1] w_pu_rdy_pck   [0:CHANNEL_NUM-1];
+  wire                                        w_pu_vld       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
+  wire        [              CHANNEL_NUM-1:0] w_pu_vld_cpck  [ 0:FILTER_NUM-1];
+  wire signed [            PU_OUT_BITS - 1:0] w_pu_dat       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
+  wire        [  CHANNEL_NUM*PU_OUT_BITS-1:0] w_pu_dat_cpck  [ 0:FILTER_NUM-1];
   // channel adder tree 
-  wire                                        w_cat_rdy     [ 0:FILTER_NUM-1];
-  wire                                        w_cat_vld     [ 0:FILTER_NUM-1];
-  wire signed [          CAT_OUT_BITS  - 1:0] w_cat_dat     [ 0:FILTER_NUM-1];
+  wire                                        w_cat_rdy      [ 0:FILTER_NUM-1];
+  wire                                        w_cat_vld      [ 0:FILTER_NUM-1];
+  wire signed [          CAT_OUT_BITS  - 1:0] w_cat_dat      [ 0:FILTER_NUM-1];
   // bias 
-  wire signed [             CAT_OUT_BITS-1:0] w_bias_exdat  [ 0:FILTER_NUM-1];
-  // bias dder
-  wire                                        w_add_act     [ 0:FILTER_NUM-1];
+  wire signed [             CAT_OUT_BITS-1:0] w_bias_exdat   [ 0:FILTER_NUM-1];
+  // bias adder
   wire                                        w_add_rdy;
-  wire signed [         ADDER_OUT_BITS - 1:0] w_add_dat     [ 0:FILTER_NUM-1];
-  wire signed [             INPUT_BITS - 1:0] w_add_88dat   [ 0:FILTER_NUM-1];
-  wire        [  FILTER_NUM*INPUT_BITS - 1:0] w_add_dat_pck;
+  wire signed [         ADDER_OUT_BITS - 1:0] w_add_dat      [ 0:FILTER_NUM-1];
+  wire        [  FILTER_NUM*INPUT_BITS - 1:0] w_relu_dat_pck;
 
+  // slice
+  wire                                        w_88_rdy;
+  // relu
+  wire                                        w_relu_rdy;
 
   // ====================== reg ============================ 
+  // stary/reset
+  reg                                         r_lbuf_st;
+  reg                                         r_pu_clr;
   // wgt 
   reg                                         r_wgt_busy;
   reg                                         r_wgt_re;
   reg         [              WEIGHT_ADDR-1:0] r_wgt_cnt;
   reg         [              WEIGHT_ADDR-1:0] r_wgt_raddr;
+  // PU
+  reg                                         r_pu_wvld      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
+  reg signed  [              WEIGHT_BITS-1:0] r_pu_wdat;
   // interenal counter
   reg         [          FILTER_CNT_BITS-1:0] r_pu_cnt;
   reg         [         CHANNEL_CNT_BITS-1:0] r_ch_cnt;
   reg         [           PATCH_CNT_BITS-1:0] r_ptch_cnt;
   // adder
   reg         [               FILTER_NUM-1:0] r_add_vld;
+  // pipe line 1 : slice
+  reg                                         r_88_vld;
+  reg signed  [               INPUT_BITS-1:0] r_88_dat       [ 0:FILTER_NUM-1];
+  // pipe line 1 : relu
+  reg                                         r_relu_vld;
+  reg signed  [               INPUT_BITS-1:0] r_relu_dat     [ 0:FILTER_NUM-1];
 
-  reg signed  [               INPUT_BITS-1:0] r_bias_dat    [ 0:FILTER_NUM-1];
+  reg signed  [               INPUT_BITS-1:0] r_bias_dat     [ 0:FILTER_NUM-1];
   generate
     if (BIAS_INIT_FILE != "") begin : init_bias
       initial begin
@@ -139,43 +153,28 @@ module stline_layer #(
       end
     end
   endfunction
+
+  // ====================== hand shake ===================== 
+  assign w_add_rdy  = w_88_rdy || !r_add_vld[0];
+  assign w_88_rdy   = w_relu_rdy || !r_88_vld;
+  assign w_relu_rdy = i_opt_rdy || !r_relu_vld;
+
   // ====================== assign ========================= 
-  assign o_wgt_rdn = (r_wgt_raddr == WEIGHT_DEPTH - 1);
-  assign o_ipt_rdy = w_lbuf_rdy[0];
-  generate
-    for (p = 0; p < FILTER_NUM; p = p + 1) begin
-      for (c = 0; c < CHANNEL_NUM; c = c + 1) begin
-        // 가중치 버퍼에서 어느 필터, 어느 채널에 꽂아줄지 선택하는 로직 
-        assign w_pu_wvld[p][c] = (w_wgt_vld && (r_pu_cnt == p) && (r_ch_cnt == c)) ? 'b1 : 'b0;
-      end
-    end
-  endgenerate
-  // ====================== always ========================= 
-  // 가중치 초기화
+  assign o_wgt_rdn  = (r_wgt_raddr == WEIGHT_DEPTH - 1);
+  assign o_ipt_rdy  = w_lbuf_rdy[0];
+
+  // ====================== always =========================  
+  // 시작/리셋 신호
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_wgt_busy <= 'd0;
+      r_lbuf_st <= 1'b1;
+      r_pu_clr  <= 1'b1;
     end else begin
-      if (i_wgt_st) r_wgt_busy <= 'b1;
-      else if (r_wgt_cnt == WEIGHT_DEPTH) r_wgt_busy <= 'b0;
+      r_lbuf_st <= i_img_st;
+      r_pu_clr  <= i_img_st;
     end
   end
-  // 가중치 주소 카운터
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_wgt_re    <= 'b0;
-      r_wgt_cnt   <= 'd0;
-      r_wgt_raddr <= {WEIGHT_ADDR{1'b1}};
-    end else if (r_wgt_busy) begin
-      if (r_wgt_cnt < WEIGHT_DEPTH) begin
-        r_wgt_re    <= 'b1;
-        r_wgt_cnt   <= r_wgt_cnt + 'd1;
-        r_wgt_raddr <= r_wgt_raddr + 'd1;
-      end else begin
-        r_wgt_re <= 'b0;
-      end
-    end
-  end
+
   // PU 가중치 저장
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -200,6 +199,55 @@ module stline_layer #(
       end
     end
   end
+
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_pu_wdat <= 'd0;
+      for (i = 0; i < FILTER_NUM; i = i + 1) begin
+        for (j = 0; j < CHANNEL_NUM; j = j + 1) begin
+          r_pu_wvld[i][j] <= 1'b0;
+        end
+      end
+    end else begin
+      for (i = 0; i < FILTER_NUM; i = i + 1) begin
+        for (j = 0; j < CHANNEL_NUM; j = j + 1) begin
+          r_pu_wvld[i][j] <= 1'b0;
+        end
+      end
+      if (w_wgt_vld && (r_pu_cnt < FILTER_NUM) && (r_ch_cnt < CHANNEL_NUM)) begin
+        r_pu_wvld[r_pu_cnt][r_ch_cnt] <= 1'b1;
+      end
+      if (w_wgt_vld) r_pu_wdat <= w_wgt_dat;
+    end
+  end
+
+  // 가중치 초기화
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_wgt_busy <= 'd0;
+    end else begin
+      if (i_wgt_st) r_wgt_busy <= 'b1;
+      else if (r_wgt_cnt == WEIGHT_DEPTH) r_wgt_busy <= 'b0;
+    end
+  end
+
+  // 가중치 주소 카운터
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_wgt_re    <= 'b0;
+      r_wgt_cnt   <= 'd0;
+      r_wgt_raddr <= {WEIGHT_ADDR{1'b1}};
+    end else if (r_wgt_busy) begin
+      if (r_wgt_cnt < WEIGHT_DEPTH) begin
+        r_wgt_re    <= 'b1;
+        r_wgt_cnt   <= r_wgt_cnt + 'd1;
+        r_wgt_raddr <= r_wgt_raddr + 'd1;
+      end else begin
+        r_wgt_re <= 'b0;
+      end
+    end
+  end
+
   // adder valid signal
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -210,6 +258,27 @@ module stline_layer #(
       end
     end
   end
+
+  // pipeline : slice and relu
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_88_vld   <= 1'b0;
+      r_relu_vld <= 1'b0;
+      for (i = 0; i < FILTER_NUM; i = i + 1) begin
+        r_88_dat[i]   <= 'd0;
+        r_relu_dat[i] <= 'd0;
+      end
+    end else begin
+      if (w_88_rdy) r_88_vld <= r_add_vld[0];
+      if (w_relu_rdy) r_relu_vld <= r_88_vld;
+
+      for (i = 0; i < FILTER_NUM; i = i + 1) begin
+        if (w_88_rdy) r_88_dat[i] <= sat_q16_16_to_q8_8(w_add_dat[i]);
+        if (w_relu_rdy) r_relu_dat[i] <= (RELU_EN && r_88_dat[i][15]) ? 16'd0 : r_88_dat[i];
+      end
+    end
+  end
+
   // ====================== Unpack / Pack ================== 
   generate
     for (c = 0; c < CHANNEL_NUM; c = c + 1) begin
@@ -222,17 +291,9 @@ module stline_layer #(
       end
     end
     for (p = 0; p < FILTER_NUM; p = p + 1) begin
-      assign w_bias_exdat[p] = {
-        {(CAT_OUT_BITS - OUTPUT_BITS + 8) {r_bias_dat[p][15]}}, r_bias_dat[p], 8'd0
-      };
-
-      assign w_add_rdy = i_opt_rdy || !(&r_add_vld);
-      assign w_add_act[p] = w_cat_vld[p] && w_add_rdy;
-      assign w_add_88dat[p] = sat_q16_16_to_q8_8(w_add_dat[p]);
-      assign w_add_dat_pck[p*INPUT_BITS+:INPUT_BITS] = (RELU_EN && w_add_88dat[p][15]) ? 16'd0 : w_add_88dat[p];
+      assign w_bias_exdat[p] = $signed(r_bias_dat[p]) << 8;
+      assign w_relu_dat_pck[p*INPUT_BITS+:INPUT_BITS] = r_relu_dat[p];
     end
-
-
   endgenerate
 
   // ====================== module =========================  
@@ -251,6 +312,11 @@ module stline_layer #(
       .o_vld  (w_wgt_vld),
       .o_dout (w_wgt_dat)
   );
+
+  wire [INPUT_BITS*PATCH_HEIGHT-1:0] w_sbuf_dat[0:CHANNEL_NUM-1];
+  wire [CHANNEL_NUM-1:0] w_sbuf_vld;
+  wire [CHANNEL_NUM-1:0] w_sbuf_rdy;
+
   generate
     for (c = 0; c < CHANNEL_NUM; c = c + 1) begin : LINE_BUFFER_ARRAY
       line_buffer #(
@@ -264,13 +330,11 @@ module stline_layer #(
       ) line_buf (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_st      (i_img_st),
-          // ipt
+          .i_st      (r_lbuf_st),
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
           .i_ipt_vld (i_ipt_vld),
-          // opt
-          .i_opt_rdy (w_pu_rdy_pck[0]),
+          .i_opt_rdy (w_pu_rdy[0][c]),
           .o_opt_vld (w_lbuf_vld[c]),
           .o_opt_dout(w_lbuf_dat[c])
       );
@@ -282,7 +346,7 @@ module stline_layer #(
       for (c = 0; c < CHANNEL_NUM; c = c + 1) begin : ch_array
         pu #(
             .INPUT_BITS  (INPUT_BITS),
-            .WEIGHT_BITS (WEIGHT_BITS), 
+            .WEIGHT_BITS (WEIGHT_BITS),
             .PATCH_WIDTH (PATCH_WIDTH),
             .PATCH_HEIGHT(PATCH_HEIGHT),
             .LINE_WIDTH  (LINE_WIDTH),
@@ -290,49 +354,47 @@ module stline_layer #(
         ) inst_pu (
             .i_clk     (i_clk),
             .i_rstn    (i_rstn),
-            .i_clr     (i_img_st),
-            // wgt 
-            .i_wgt_vld (w_pu_wvld[p][c]),
-            .i_wgt_din (w_wgt_dat),
-            // ipt
+            .i_clr     (r_pu_clr),
+            .i_wgt_vld (r_pu_wvld[p][c]),
+            .i_wgt_din (r_pu_wdat),
             .o_ipt_rdy (w_pu_rdy[p][c]),
             .i_ipt_vld (w_lbuf_vld[c]),
             .i_ipt_din (w_lbuf_dat[c]),
-            // opt
             .i_opt_rdy (w_cat_rdy[p]),
             .o_opt_vld (w_pu_vld[p][c]),
             .o_opt_dout(w_pu_dat[p][c])
         );
       end
+
       adder_tree #(
           .INPUT_BIT(PU_OUT_BITS),
           .INPUT_NUM(CHANNEL_NUM)
       ) inst_ch_at (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          // ipt
           .o_ipt_rdy (w_cat_rdy[p]),
           .i_ipt_vld (w_pu_vld_cpck[p]),
           .i_ipt_din (w_pu_dat_cpck[p]),
-          // opt
           .i_opt_rdy (w_add_rdy),
           .o_opt_vld (w_cat_vld[p]),
           .o_opt_dout(w_cat_dat[p])
       );
+
       adder #(
           .BITS(CAT_OUT_BITS)
       ) inst_adder (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_add_en  (w_add_act[p]),
+          .i_add_en  (w_add_rdy && w_cat_vld[p]),
           .i_ipt1_din(w_cat_dat[p]),
           .i_ipt2_din(w_bias_exdat[p]),
-          .o_opt_dout(w_add_dat[p])      // 16 + 16 = 17 bit
-      ); 
+          .o_opt_dout(w_add_dat[p])
+      );
     end
   endgenerate
 
   // ====================== output ========================= 
-  assign o_opt_vld  = &r_add_vld;
-  assign o_opt_dout = w_add_dat_pck;
+  assign o_opt_vld  = r_relu_vld;
+  assign o_opt_dout = w_relu_dat_pck;
+
 endmodule

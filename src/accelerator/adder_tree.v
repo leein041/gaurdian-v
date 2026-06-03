@@ -18,19 +18,18 @@ module adder_tree #(
     output signed [           OUTPUT_BIT - 1:0] o_opt_dout
 );
 
-  // ====================== hand shake ===================== 
-  assign o_ipt_rdy = i_opt_rdy || !o_opt_vld;
-
   // ----------------------- parameter ---------------------- 
 
   genvar s;
-  integer                     j;
+  integer                           j;
 
-  // ====================== reg ============================ 
-  // 모든 스테이지 비트 폭 MAX_BITS
-  reg signed [OUTPUT_BIT-1:0] r_stg_dat [0:STAGES] [0:INPUT_NUM-1];
-  reg        [ INPUT_NUM-1:0] r_stg_vld [0:STAGES]; 
+  // ====================== reg ============================  
+  reg signed  [     OUTPUT_BIT-1:0] r_stg_dat     [     1:STAGES] [0:$clog2(INPUT_NUM)];
+  reg         [$clog2(INPUT_NUM):0] r_stg_vld     [     1:STAGES];
 
+  wire signed [      INPUT_BIT-1:0] w_ipt_dat_mask[0:INPUT_NUM-1];
+  wire signed [     OUTPUT_BIT-1:0] w_stg0_dat    [0:INPUT_NUM-1];
+  wire        [      INPUT_NUM-1:0] w_stg0_vld;
   // ====================== function ======================= 
   function integer get_stg_size(input integer stage);
     integer i, size;
@@ -44,55 +43,61 @@ module adder_tree #(
   endfunction
 
   // ====================== assign =========================  
- 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_stg_vld[0] <= 'd0;
-      for (j = 0; j < INPUT_NUM; j = j + 1) begin
-        r_stg_dat[0][j] <= 'd0;
-      end
-    end else if (o_ipt_rdy) begin
-      r_stg_vld[0] <= i_ipt_vld;
-      for (j = 0; j < INPUT_NUM; j = j + 1) begin
-        if (i_ipt_vld[j]) begin
-          r_stg_dat[0][j] <= $signed(i_ipt_din[j*INPUT_BIT+:INPUT_BIT]);
-        end else begin
-          r_stg_dat[0][j] <= 'd0;
-        end
-      end
-    end
-  end
 
-  // --------------------- Stage 1 ~ STAGES --------------------- 
   generate
-    for (s = 0; s < STAGES; s = s + 1) begin : STAGE_LOGIC
-      localparam CUR_IN_SIZE = get_stg_size(s);
-      localparam CUR_OUT_SIZE = get_stg_size(s + 1);
 
-      always @(posedge i_clk or negedge i_rstn) begin
-        if (~i_rstn) begin
-          r_stg_vld[s+1] <= 'd0;
-          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
-            r_stg_dat[s+1][j] <= 'd0;
-          end
-        end else if (o_ipt_rdy) begin
-          for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
-            if (2 * j + 1 < CUR_IN_SIZE) begin
-              r_stg_vld[s+1][j] <= r_stg_vld[s][2*j] || r_stg_vld[s][2*j+1];
-              r_stg_dat[s+1][j] <= (r_stg_vld[s][2*j]   ? r_stg_dat[s][2*j]   : 'd0) + 
-                                   (r_stg_vld[s][2*j+1] ? r_stg_dat[s][2*j+1] : 'd0);
-            end else begin
-              r_stg_vld[s+1][j] <= r_stg_vld[s][2*j];
-              r_stg_dat[s+1][j] <= r_stg_vld[s][2*j] ? r_stg_dat[s][2*j] : 'd0;
+    if (INPUT_NUM == 1) begin  // bypass
+      assign o_ipt_rdy  = i_opt_rdy;
+      assign o_opt_vld  = i_ipt_vld;
+      assign o_opt_dout = i_ipt_din;
+    end else begin
+      // masking non valid -> zero
+      for (s = 0; s < INPUT_NUM; s = s + 1) begin
+        assign w_stg0_vld[s]     = i_ipt_vld[s];
+        assign w_ipt_dat_mask[s] = (i_ipt_vld[s]) ? i_ipt_din[s*INPUT_BIT+:INPUT_BIT] : 'd0;
+        assign w_stg0_dat[s]     = $signed(w_ipt_dat_mask[s]);
+      end
+      assign o_ipt_rdy  = i_opt_rdy || !o_opt_vld;
+      assign o_opt_vld  = r_stg_vld[STAGES][0];
+      assign o_opt_dout = r_stg_dat[STAGES][0];
+      for (s = 0; s < STAGES; s = s + 1) begin : STAGE_LOGIC
+        localparam CUR_IN_SIZE = get_stg_size(s);
+        localparam CUR_OUT_SIZE = get_stg_size(s + 1);
+        if (s == 0)
+          always @(posedge i_clk or negedge i_rstn) begin
+            if (~i_rstn) begin
+              r_stg_vld[s+1] <= 'd0;
+            end else if (o_ipt_rdy) begin
+              for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
+                if (2 * j + 1 < CUR_IN_SIZE) begin
+                  r_stg_vld[s+1][j] <= i_ipt_vld[2*j] || i_ipt_vld[2*j+1];
+                  r_stg_dat[s+1][j] <= w_stg0_dat[2*j] + w_stg0_dat[2*j+1];
+                end else begin
+                  r_stg_vld[s+1][j] <= i_ipt_vld[2*j];
+                  r_stg_dat[s+1][j] <= w_stg0_dat[2*j];
+                end
+              end
             end
           end
-        end
+        else
+          always @(posedge i_clk or negedge i_rstn) begin
+            if (~i_rstn) begin
+              r_stg_vld[s+1] <= 'd0;
+            end else if (o_ipt_rdy) begin
+              for (j = 0; j < CUR_OUT_SIZE; j = j + 1) begin
+                if (2 * j + 1 < CUR_IN_SIZE) begin
+                  r_stg_vld[s+1][j] <= r_stg_vld[s][2*j] || r_stg_vld[s][2*j+1];
+                  r_stg_dat[s+1][j] <= r_stg_dat[s][2*j] + r_stg_dat[s][2*j+1];
+                end else begin
+                  r_stg_vld[s+1][j] <= r_stg_vld[s][2*j];
+                  r_stg_dat[s+1][j] <= r_stg_dat[s][2*j];
+                end
+              end
+            end
+          end
       end
-
     end
   endgenerate
 
   // ====================== output =========================
-  assign o_opt_vld  = r_stg_vld[STAGES][0];
-  assign o_opt_dout = r_stg_dat[STAGES][0]; 
 endmodule

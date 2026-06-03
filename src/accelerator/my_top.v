@@ -140,20 +140,12 @@ module my_top #(
   wire                                 w_lyr1_wrdn;
   wire                                 w_lyr1_rdy;
   wire                                 w_lyr1_vld;
-  wire [ INPUT_BITS*L1_FILTER_NUM-1:0] w_lyr1_dat;
-  // layer 1 - layer 2 skide buffer
-  wire                                 w_lyr1_srdy;
-  wire                                 w_lyr1_svld;
-  wire [ INPUT_BITS*L1_FILTER_NUM-1:0] w_lyr1_sdat;
+  wire [ INPUT_BITS*L1_FILTER_NUM-1:0] w_lyr1_dat; 
   // layer 2 
   wire                                 w_lyr2_wrdn;
   wire                                 w_lyr2_rdy;
   wire                                 w_lyr2_vld;
-  wire [ INPUT_BITS*L2_FILTER_NUM-1:0] w_lyr2_dat;
-  // layer 2 - layer 3 skid buffer
-  wire                                 w_lyr2_srdy;
-  wire                                 w_lyr2_svld;
-  wire [ INPUT_BITS*L2_FILTER_NUM-1:0] w_lyr2_sdat;
+  wire [ INPUT_BITS*L2_FILTER_NUM-1:0] w_lyr2_dat; 
   // layer 3 
   wire                                 w_lyr3_wrdn;
   wire                                 w_lyr3_rdy;
@@ -252,22 +244,9 @@ module my_top #(
       .i_ipt_vld    (w_sbuf_vld),
       .i_ipt_din_pck(w_sbuf_dat),
       // opt
-      .i_opt_rdy    (w_lyr1_srdy),  // for test
+      .i_opt_rdy    (w_lyr2_rdy),
       .o_opt_vld    (w_lyr1_vld),
       .o_opt_dout   (w_lyr1_dat)
-  );
-  skid_buffer #(
-      .BITS(INPUT_BITS * L1_FILTER_NUM),
-      .LATENCY(2)
-  ) inst_L1_skid_buffer (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      .i_ipt_vld (w_lyr1_vld),
-      .i_ipt_din (w_lyr1_dat),
-      .o_ipt_rdy (w_lyr1_srdy),
-      .i_opt_rdy (w_lyr2_rdy),
-      .o_opt_dout(w_lyr1_sdat),
-      .o_opt_vld (w_lyr1_svld)
   );
   stline_layer #(
       .IMAGE_NUM       (IMAGE_NUM),
@@ -294,25 +273,12 @@ module my_top #(
       .o_wgt_rdn    (w_lyr2_wrdn),
       // ipt 
       .o_ipt_rdy    (w_lyr2_rdy),
-      .i_ipt_vld    (w_lyr1_svld),
-      .i_ipt_din_pck(w_lyr1_sdat),
+      .i_ipt_vld    (w_lyr1_vld),
+      .i_ipt_din_pck(w_lyr1_dat),
       // opt
-      .i_opt_rdy    (w_lyr2_srdy),  // for test
+      .i_opt_rdy    (w_lyr3_rdy),
       .o_opt_vld    (w_lyr2_vld),
       .o_opt_dout   (w_lyr2_dat)
-  );
-  skid_buffer #(
-      .BITS(INPUT_BITS * L2_FILTER_NUM),
-      .LATENCY(2)
-  ) inst_L2_skid_buffer (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      .i_ipt_vld (w_lyr2_vld),
-      .i_ipt_din (w_lyr2_dat),
-      .o_ipt_rdy (w_lyr2_srdy),
-      .i_opt_rdy (w_lyr3_rdy),
-      .o_opt_dout(w_lyr2_sdat),
-      .o_opt_vld (w_lyr2_svld)
   );
   stline_layer #(
       .IMAGE_NUM       (IMAGE_NUM),
@@ -339,8 +305,8 @@ module my_top #(
       .o_wgt_rdn    (w_lyr3_wrdn),
       // ipt 
       .o_ipt_rdy    (w_lyr3_rdy),
-      .i_ipt_vld    (w_lyr2_svld),
-      .i_ipt_din_pck(w_lyr2_sdat),
+      .i_ipt_vld    (w_lyr2_vld),
+      .i_ipt_din_pck(w_lyr2_dat),
       // opt 
 `ifdef DEBUG
       .i_opt_rdy    (w_ctrl_rdy),   // for hand shake test, change i_rdy_test

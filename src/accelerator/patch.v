@@ -38,26 +38,38 @@ module patch #(
   // ====================== wire =========================== 
   wire w_act_in = o_ipt_rdy && i_ipt_vld;
   wire w_act_out = i_opt_rdy && o_opt_vld;
-// ====================== reg ============================
+  // ====================== reg ============================    
   reg signed [INPUT_BITS-1:0] r_ptch_dat[0:PATCH_HEIGHT-1][0:PATCH_WIDTH-1];
-  reg [$clog2(LINE_HEIGHT)-1:0]     r_prow_0, r_prow_1, r_prow_2;   
-
-`ifdef RESOURCE
   //      ____                                    
   //     |  _ \ ___  ___  ___  _   _ _ __ ___ ___ 
   //     | |_) / _ \/ __|/ _ \| | | | '__/ __/ _ \
   //     |  _ <  __/\__ \ (_) | |_| | | | (_|  __/
   //     |_| \_\___||___/\___/ \__,_|_|  \___\___|
   //    
+`ifdef RESOURCE
+  wire signed [INPUT_BITS-1:0] w_ptch_dat_delayed;
   // ====================== reg ============================  
-  reg [$clog2(PATCH_WIDTH)-1:0] r_pcol;
+  reg [$clog2(
+PATCH_WIDTH
+)-1:0] r_pcol;
   reg [$clog2(PATCH_HEIGHT)-1:0] r_prow;
   reg [$clog2(  PATCH_AREA):0] r_fill_cnt;
-  reg [$clog2(LINE_WIDTH):0] r_lcol_cnt; 
+  reg [$clog2(LINE_WIDTH):0] r_lcol_cnt;
   // ====================== hand shake =====================  
   assign o_ipt_rdy = (r_fill_cnt < PATCH_WIDTH);
   assign o_opt_vld = (r_fill_cnt == PATCH_WIDTH);
   // ====================== always =========================   
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_lcol_cnt <= 'd0;
+    end else if (i_clr) begin
+      r_lcol_cnt <= 'd0;
+    end else if (w_act_in) begin
+      if (r_lcol_cnt < LINE_WIDTH) r_lcol_cnt <= r_lcol_cnt + 'd1;
+      else r_lcol_cnt <= 'd1;
+    end
+  end
+
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_fill_cnt <= 'd0;
@@ -83,30 +95,6 @@ module patch #(
       end
     end
   end
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_lcol_cnt <= 'd0;
-      r_prow_0   <= 'd0;
-      r_prow_1   <= 'd1;
-      r_prow_2   <= 'd2;
-    end else begin
-      if (i_clr) begin
-        r_lcol_cnt <= 'd0;
-        r_prow_0   <= 'd0;
-        r_prow_1   <= 'd1;
-        r_prow_2   <= 'd2;
-      end else if (w_act_in) begin
-        if (r_lcol_cnt < LINE_WIDTH) begin
-          r_lcol_cnt <= r_lcol_cnt + 'd1;
-        end else begin
-          r_lcol_cnt <= 'd1;
-          r_prow_0   <= r_prow_2;
-          r_prow_1   <= r_prow_0;
-          r_prow_2   <= r_prow_1;
-        end
-      end
-    end
-  end
 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -122,15 +110,34 @@ module patch #(
             r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
           end
         end
+        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+          r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+        end
+      end else if (w_act_out) begin  // ring shift
+        // firs row
+        for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
+          r_ptch_dat[0][i] <= r_ptch_dat[0][i+1];
+        end
+        r_ptch_dat[0][PATCH_WIDTH-1] <= r_ptch_dat[1][0];
 
-        r_ptch_dat[r_prow_0][PATCH_WIDTH-1] <= i_ipt_din[0*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[r_prow_1][PATCH_WIDTH-1] <= i_ipt_din[1*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[r_prow_2][PATCH_WIDTH-1] <= i_ipt_din[2*INPUT_BITS+:INPUT_BITS];
+        // middle row
+        for (j = 1; j < PATCH_HEIGHT - 1; j = j + 1) begin
+          for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
+            r_ptch_dat[j][i] <= r_ptch_dat[j][i+1];
+          end
+          r_ptch_dat[j][PATCH_WIDTH-1] <= r_ptch_dat[j+1][0];
+        end
+
+        // last row
+        for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
+          r_ptch_dat[PATCH_HEIGHT-1][i] <= r_ptch_dat[PATCH_HEIGHT-1][i+1];
+        end
+        r_ptch_dat[PATCH_HEIGHT-1][PATCH_WIDTH-1] <= r_ptch_dat[0][0];
       end
     end
   end
   // ====================== output =========================  
-  assign o_opt_dout = r_ptch_dat[r_prow][r_pcol]; 
+  assign o_opt_dout = r_ptch_dat[0][0];  // MUX -> shift register
 `elsif BALANCE
   //      ____        _                      
   //     | __ )  __ _| | __ _ _ __   ___ ___ 
@@ -140,13 +147,25 @@ module patch #(
   //    
 
   // ====================== reg ============================   
-  reg [$clog2(PATCH_WIDTH)-1:0] r_pcol;
+  reg [$clog2(
+PATCH_WIDTH
+)-1:0] r_pcol;
   reg [$clog2(  PATCH_WIDTH):0] r_fill_cnt;
-  reg [$clog2(LINE_WIDTH):0] r_lcol_cnt; 
+  reg [$clog2(LINE_WIDTH):0] r_lcol_cnt;
   // ====================== hand shake ===================== 
-  assign o_ipt_rdy = (r_fill_cnt < PATCH_WIDTH);
+  assign o_ipt_rdy = (r_fill_cnt < PATCH_WIDTH || r_pcol == PATCH_WIDTH - 1);
   assign o_opt_vld = (r_fill_cnt == PATCH_WIDTH);
   // ====================== always =========================  
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_lcol_cnt <= 'd0;
+    end else if (i_clr) begin
+      r_lcol_cnt <= 'd0;
+    end else if (w_act_in) begin
+      if (r_lcol_cnt < LINE_WIDTH) r_lcol_cnt <= r_lcol_cnt + 'd1;
+      else r_lcol_cnt <= 'd1;
+    end
+  end
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_fill_cnt <= 'd0;
@@ -155,42 +174,34 @@ module patch #(
       r_fill_cnt <= 'd0;
       r_pcol <= 'd0;
     end else begin
-      if (w_act_in) r_fill_cnt <= r_fill_cnt + 1'b1;
-      else if (w_act_out) begin
-        if (r_pcol < PATCH_WIDTH - 1) begin
-          r_pcol <= r_pcol + 1'b1;
-        end else begin
-          r_pcol <= 'd0;
-          if (r_lcol_cnt == LINE_WIDTH) r_fill_cnt <= 'd0;
-          else r_fill_cnt <= PATCH_WIDTH - 1;
+      case ({
+        w_act_out, w_act_in
+      })
+        2'b01:   r_fill_cnt <= r_fill_cnt + 1'b1;
+        2'b10: begin
+          if (r_pcol < PATCH_WIDTH - 1) begin
+            r_pcol <= r_pcol + 1'b1;
+          end else begin
+            r_pcol <= 'd0;
+            if (r_lcol_cnt == LINE_WIDTH) r_fill_cnt <= 'd0;
+            else r_fill_cnt <= PATCH_WIDTH - 1;
+          end
         end
-      end
+        2'b11: begin
+          if (r_pcol < PATCH_WIDTH - 1) begin
+            r_pcol     <= r_pcol + 1'b1;
+            r_fill_cnt <= r_fill_cnt + 'd1;
+          end else begin
+            r_pcol <= 'd0;
+            if (r_lcol_cnt == LINE_WIDTH) r_fill_cnt <= 'd1;
+            else r_fill_cnt <= PATCH_WIDTH;
+          end
+        end
+        default: ;
+      endcase
     end
   end
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_lcol_cnt <= 'd0;
-      r_prow_0   <= 'd0;
-      r_prow_1   <= 'd1;
-      r_prow_2   <= 'd2;
-    end else begin
-      if (i_clr) begin
-        r_lcol_cnt <= 'd0;
-        r_prow_0   <= 'd0;
-        r_prow_1   <= 'd1;
-        r_prow_2   <= 'd2;
-      end else if (w_act_in) begin
-        if (r_lcol_cnt < LINE_WIDTH) begin
-          r_lcol_cnt <= r_lcol_cnt + 'd1;
-        end else begin 
-          r_lcol_cnt <= 'd1; // 왜 1인가? 처음은 비었지만 다음줄 넘어갈떈이미 하나가 들어와있기 때문
-          r_prow_0   <= r_prow_2;
-          r_prow_1   <= r_prow_0;
-          r_prow_2   <= r_prow_1;
-        end
-      end
-    end
-  end
+  // patch buffer
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
@@ -199,63 +210,75 @@ module patch #(
         end
       end
     end else begin
-      if (w_act_in) begin
-        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
-          for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
-            r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+      case ({
+        w_act_out, w_act_in
+      })
+        2'b01: begin
+          for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+            // shift
+            for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
+              r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+            end
+            // push
+            r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
           end
         end
-        r_ptch_dat[r_prow_0][PATCH_WIDTH-1] <= i_ipt_din[0*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[r_prow_1][PATCH_WIDTH-1] <= i_ipt_din[1*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[r_prow_2][PATCH_WIDTH-1] <= i_ipt_din[2*INPUT_BITS+:INPUT_BITS];
-      end
+        2'b10: begin
+          for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+            // shift
+            for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
+              r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+            end
+            r_ptch_dat[i][PATCH_WIDTH-1] <= r_ptch_dat[i][0];
+          end
+        end
+        2'b11: begin
+          for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+            // TODO : 파라미터화 필요
+            r_ptch_dat[i][0] <= r_ptch_dat[i][PATCH_WIDTH-1];
+            r_ptch_dat[i][1] <= r_ptch_dat[i][0];
+            // push
+            r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+          end
+        end
+        default: ;
+      endcase
     end
   end
   // ====================== output ========================= 
   generate
     for (g = 0; g < PATCH_HEIGHT; g = g + 1) begin
-      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_ptch_dat[g][r_pcol];
+      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_ptch_dat[g][0];
     end
   endgenerate
-`elsif PERFORMANCE
+
   //      ____            __                                           
   //     |  _ \ ___ _ __ / _| ___  _ __ _ __ ___   __ _ _ __   ___ ___ 
   //     | |_) / _ \ '__| |_ / _ \| '__| '_ ` _ \ / _` | '_ \ / __/ _ \
   //     |  __/  __/ |  |  _| (_) | |  | | | | | | (_| | | | | (_|  __/
   //     |_|   \___|_|  |_|  \___/|_|  |_| |_| |_|\__,_|_| |_|\___\___|
-  //        
-// ====================== reg ============================    
-  reg  [$clog2(LINE_WIDTH)-1:0] r_ptch_cnt; 
-  reg                           r_opt_vld;
+  //  
+`elsif PERFORMANCE
+  // ====================== reg ============================    
+  reg [$clog2(LINE_WIDTH)-1:0] r_ptch_cnt;
+  reg                          r_opt_vld;
   // ====================== hand shake =====================    
   assign o_ipt_rdy = i_opt_rdy;
   assign o_opt_vld = r_opt_vld;
-  // ====================== always ========================= 
+  // ====================== always =========================  
+
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_ptch_cnt <= 'd0;
-      r_prow_0   <= 'd0;
-      r_prow_1   <= 'd1;
-      r_prow_2   <= 'd2;
     end else begin
       if (i_clr) begin
         r_ptch_cnt <= 'd0;
-        r_prow_0   <= 'd0;
-        r_prow_1   <= 'd1;
-        r_prow_2   <= 'd2;
       end else if (w_act_in) begin
-        if (r_ptch_cnt < LINE_WIDTH - 1) begin
-          r_ptch_cnt <= r_ptch_cnt + 'd1;
-        end else begin
-          r_ptch_cnt <= 'd0;
-          r_prow_0   <= r_prow_1;
-          r_prow_1   <= r_prow_2;
-          r_prow_2   <= r_prow_0;
-        end
+        if (r_ptch_cnt < LINE_WIDTH - 1) r_ptch_cnt <= r_ptch_cnt + 'd1;
+        else r_ptch_cnt <= 'd0;
       end
     end
   end
-
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_opt_vld <= 1'b0;
@@ -265,8 +288,8 @@ module patch #(
         end
       end
     end else begin
-        if (o_ipt_rdy) begin
-          if (i_ipt_vld) begin
+      if (o_ipt_rdy) begin
+        if (i_ipt_vld) begin
           r_opt_vld <= (r_ptch_cnt >= PATCH_WIDTH - 1);
         end else begin
           r_opt_vld <= 1'b0;
@@ -279,10 +302,9 @@ module patch #(
             r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
           end
         end
-
-        r_ptch_dat[0][PATCH_WIDTH-1] <= i_ipt_din[r_prow_0*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[1][PATCH_WIDTH-1] <= i_ipt_din[r_prow_1*INPUT_BITS+:INPUT_BITS];
-        r_ptch_dat[2][PATCH_WIDTH-1] <= i_ipt_din[r_prow_2*INPUT_BITS+:INPUT_BITS];
+        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
+          r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+        end
       end
     end
   end
