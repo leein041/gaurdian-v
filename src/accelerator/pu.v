@@ -43,20 +43,20 @@ module pu #(
 `endif
     localparam DUMMY = 0
 ) (
-    input                                           i_clk,
-    input                                           i_rstn,
-    input                                           i_clr,
+    input                                         i_clk,
+    input                                         i_rstn,
+    input                                         i_clr,
     // wgt 
-    input                                           i_wgt_vld,
-    input  signed [               WEIGHT_BITS -1:0] i_wgt_din,
+    input                                         i_wgt_vld,
+    input  signed [             WEIGHT_BITS -1:0] i_wgt_din,
     // ipt
-    output                                          o_ipt_rdy,
-    input                                           i_ipt_vld,
-    input  signed [INPUT_BITS * PATCH_HEIGHT - 1:0] i_ipt_din,
+    output                                        o_ipt_rdy,
+    input                                         i_ipt_vld,
+    input         [INPUT_BITS * PATCH_AREA - 1:0] i_ipt_din,
     // opt
-    input                                           i_opt_rdy,
-    output                                          o_opt_vld,
-    output signed [              PU_OUT_BITS - 1:0] o_opt_dout
+    input                                         i_opt_rdy,
+    output                                        o_opt_vld,
+    output signed [            PU_OUT_BITS - 1:0] o_opt_dout
 );
   // ====================== parmeter =======================   
   integer i, j;
@@ -76,7 +76,7 @@ module pu #(
 `ifdef RESOURCE
   // ====================== wire ===========================  
   wire                                 w_ptch_vld;
-  wire signed [        INPUT_BITS-1:0] w_ptch_dat;
+  wire signed [        INPUT_BITS-1:0] w_ipt_dat;
   wire                                 w_pe_act;
   wire        [      PATCH_HEIGHT-1:0] w_pe_vld;
   wire signed [       PE_OUT_BITS-1:0] w_pe_dat   [0:PATCH_HEIGHT-1];
@@ -141,7 +141,7 @@ module pu #(
       // opt
       .i_opt_rdy (i_opt_rdy),
       .o_opt_vld (w_ptch_vld),
-      .o_opt_dout(w_ptch_dat)
+      .o_opt_dout(w_ipt_dat)
   );
   pe #(
       .INPUT_BITS  (INPUT_BITS),
@@ -156,7 +156,7 @@ module pu #(
       .i_wgt_din (r_wgt_dat[0]),
       // ipt  
       .i_ipt_vld (w_ptch_vld),
-      .i_ipt_din (w_ptch_dat),
+      .i_ipt_din (w_ipt_dat),
       // opt  
       .o_opt_vld (o_opt_vld),
       .o_opt_dout(o_opt_dout)
@@ -170,12 +170,12 @@ module pu #(
 `elsif BALANCE
   // ====================== wire =========================== 
   wire                                       w_ptch_vld;
-  wire signed [              INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_HEIGHT-1];
-  wire        [INPUT_BITS *PATCH_HEIGHT-1:0] w_ptch_dat_pck;
+  wire signed [              INPUT_BITS-1:0] w_ipt_dat      [0:PATCH_HEIGHT-1];
+  wire        [INPUT_BITS *PATCH_HEIGHT-1:0] w_ptch_dat_bus;
   wire                                       w_pe_act;
   wire        [            PATCH_HEIGHT-1:0] w_pe_vld;
   wire signed [             PE_OUT_BITS-1:0] w_pe_dat       [0:PATCH_HEIGHT-1];
-  wire        [PE_OUT_BITS*PATCH_HEIGHT-1:0] w_pe_dat_pck;
+  wire        [PE_OUT_BITS*PATCH_HEIGHT-1:0] w_pe_dat_bus;
   wire                                       w_mat_rdy;
   // ====================== reg ============================  
   reg signed  [             WEIGHT_BITS-1:0] r_wgt_dat      [  0:PATCH_AREA-1];
@@ -208,8 +208,8 @@ module pu #(
   // ====================== Unpack / Pack ================== 
   generate
     for (p = 0; p < PATCH_HEIGHT; p = p + 1) begin
-      assign w_ptch_dat[p] = w_ptch_dat_pck[p*INPUT_BITS+:INPUT_BITS];
-      assign w_pe_dat_pck[p*PE_OUT_BITS+:PE_OUT_BITS] = w_pe_dat[p];
+      assign w_ipt_dat[p] = w_ptch_dat_bus[p*INPUT_BITS+:INPUT_BITS];
+      assign w_pe_dat_bus[p*PE_OUT_BITS+:PE_OUT_BITS] = w_pe_dat[p];
     end
   endgenerate
   // ====================== module ========================= 
@@ -230,7 +230,7 @@ module pu #(
       // opt
       .i_opt_rdy (w_mat_rdy),
       .o_opt_vld (w_ptch_vld),
-      .o_opt_dout(w_ptch_dat_pck)
+      .o_opt_dout(w_ptch_dat_bus)
   );
   generate
     for (p = 0; p < PATCH_HEIGHT; p = p + 1) begin : pe_array
@@ -247,7 +247,7 @@ module pu #(
           .i_wgt_din (r_wgt_dat[p*PATCH_WIDTH]),
           // ipt  
           .i_ipt_vld (w_ptch_vld),
-          .i_ipt_din (w_ptch_dat[p]),
+          .i_ipt_din (w_ipt_dat[p]),
           // opt  
           .o_opt_vld (w_pe_vld[p]),
           .o_opt_dout(w_pe_dat[p])
@@ -263,7 +263,7 @@ module pu #(
       // ipt
       .o_ipt_rdy (w_mat_rdy),
       .i_ipt_vld (w_pe_vld),
-      .i_ipt_din (w_pe_dat_pck),
+      .i_ipt_din (w_pe_dat_bus),
       // opt
       .i_opt_rdy (i_opt_rdy),
       .o_opt_vld (o_opt_vld),
@@ -277,95 +277,40 @@ module pu #(
   //     |_|   \___|_|  |_|  \___/|_|  |_| |_| |_|\__,_|_| |_|\___\___|
   //     
 `elsif PERFORMANCE
-  wire                                     w_ptch_vld;
-  wire signed [            INPUT_BITS-1:0] w_ptch_dat     [0:PATCH_AREA-1];
-  wire        [INPUT_BITS *PATCH_AREA-1:0] w_ptch_dat_pck;
-  wire                                     w_pe_act;
-  wire                                     w_pe_rdy;
-  wire signed [           PE_OUT_BITS-1:0] w_pe_dat       [0:PATCH_AREA-1];
-  wire        [PE_OUT_BITS*PATCH_AREA-1:0] w_pe_dat_pck;
-  wire        [            PATCH_AREA-1:0] w_mat_ipt_vld;
-  wire                                     w_mat_rdy;
-  // ====================== reg ============================     
-  reg signed  [           WEIGHT_BITS-1:0] r_wgt_dat      [0:PATCH_AREA-1];
-  reg                                      r_pe_vld;
-  // ====================== hand shake =====================  
-  assign w_pe_rdy      = w_mat_rdy || !r_pe_vld;
-  assign w_pe_act      = w_ptch_vld && w_pe_rdy;
-  // ====================== assign ========================= 
-  assign w_mat_ipt_vld = (r_pe_vld) ? {PATCH_AREA{1'b1}} : 'd0;
-  // ====================== always ========================= 
-  // initialize weight data
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      for (i = 0; i < PATCH_AREA; i = i + 1) begin
-        r_wgt_dat[i] <= 'd0;
-      end
-    end else if (i_wgt_vld) begin
-      for (i = 0; i < PATCH_AREA - 1; i = i + 1) begin
-        r_wgt_dat[i] <= r_wgt_dat[i+1];
-      end
-      r_wgt_dat[PATCH_AREA-1] <= i_wgt_din;
-    end
-  end
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_pe_vld <= 'd0;
-    end else if (w_pe_rdy) begin
-      r_pe_vld <= w_ptch_vld;
-    end
-  end
-  // ====================== Unpack / Pack ================== 
-  generate
-    for (p = 0; p < PATCH_AREA; p = p + 1) begin
-      // patch
-      assign w_ptch_dat[p] = w_ptch_dat_pck[p*INPUT_BITS+:INPUT_BITS];
-      // pe 
-      assign w_pe_dat_pck[p*PE_OUT_BITS+:PE_OUT_BITS] = w_pe_dat[p];
-    end
-  endgenerate
-  // ====================== module ========================= 
-  patch #(
-      .INPUT_BITS  (INPUT_BITS),
-      .PATCH_WIDTH (PATCH_WIDTH),
-      .PATCH_HEIGHT(PATCH_HEIGHT),
-      .LINE_WIDTH  (LINE_WIDTH),
-      .LINE_HEIGHT (LINE_HEIGHT)
-  ) inst_patch_perf (
+  wire                              w_mat_rdy;
+  wire                              w_pe_rdy;
+  wire                              w_pe_vld;
+  wire [            PATCH_AREA-1:0] w_pe_vld_bus;
+  wire [PE_OUT_BITS*PATCH_AREA-1:0] w_pe_dat;
+  // ====================== reg ============================      
+  // ====================== hand shake =====================   
+  // ====================== assign =========================  
+  assign w_pe_vld_bus = (w_pe_vld) ? {PATCH_AREA{1'b1}} : 'd0;
+  // ====================== always =========================  
+  // ====================== Unpack / Pack ==================  
+  // ====================== module =========================  
+  pe_array #(
+      .PE_COUNT   (PATCH_AREA),
+      .WEIGHT_BITS(WEIGHT_BITS),
+      .INPUT_BITS (INPUT_BITS),
+      .OUTPUT_BITS(PE_OUT_BITS),
+      .PATCH_WIDTH(PATCH_WIDTH),
+      .PATCH_HEIGHT(PATCH_HEIGHT)
+  ) inst_pe_array (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
-      .i_clr     (r_ptch_clr),
+      // wgt
+      .i_wgt_din (i_wgt_din),
+      .i_wgt_vld (i_wgt_vld),
       // ipt
       .i_ipt_din (i_ipt_din),
       .i_ipt_vld (i_ipt_vld),
       .o_ipt_rdy (o_ipt_rdy),
       // opt
-      .i_opt_rdy (w_pe_rdy),
-      .o_opt_vld (w_ptch_vld),
-      .o_opt_dout(w_ptch_dat_pck)
+      .i_opt_rdy (w_mat_rdy),
+      .o_opt_vld (w_pe_vld),
+      .o_opt_dout(w_pe_dat)
   );
-  generate
-    for (p = 0; p < PATCH_AREA; p = p + 1) begin : pe_array
-      pe #(
-          .INPUT_BITS  (INPUT_BITS),
-          .WEIGHT_BITS (WEIGHT_BITS),
-          .PATCH_WIDTH (PATCH_WIDTH),
-          .PATCH_HEIGHT(PATCH_HEIGHT)
-      ) inst_pe (
-          .i_clk     (i_clk),
-          .i_rstn    (i_rstn),
-          .i_pe_en   (w_pe_act),
-          // wgt  
-          .i_wgt_din (r_wgt_dat[p]),
-          // ipt  
-          .i_ipt_vld (),
-          .i_ipt_din (w_ptch_dat[p]),
-          // opt  
-          .o_opt_vld (),
-          .o_opt_dout(w_pe_dat[p])
-      );
-    end
-  endgenerate
   adder_tree #(
       .INPUT_BIT(PE_OUT_BITS),
       .INPUT_NUM(PATCH_AREA)
@@ -374,8 +319,8 @@ module pu #(
       .i_rstn    (i_rstn),
       // ipt
       .o_ipt_rdy (w_mat_rdy),
-      .i_ipt_vld (w_mat_ipt_vld),
-      .i_ipt_din (w_pe_dat_pck),
+      .i_ipt_vld (w_pe_vld_bus),
+      .i_ipt_din (w_pe_dat),
       // opt
       .i_opt_rdy (i_opt_rdy),
       .o_opt_vld (o_opt_vld),

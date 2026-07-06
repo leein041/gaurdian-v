@@ -29,56 +29,58 @@ module rcursiv_layer #(
     parameter PATCH_WIDTH         = 3,
     parameter PATCH_HEIGHT        = 3,
     // layer 1
+    parameter L1_FILTER_GROUP_NUM = 2,
     parameter L1_CHANNEL_NUM      = 1,
     parameter L1_FILTER_NUM       = 8,
-    parameter L1_WEIGHT_DEPTH     = 8 * PATCH_WIDTH * PATCH_HEIGHT,
-    parameter L1_WEIGHT_INIT_FILE = "",
+    parameter L1_WEIGHT_DEPTH     = 8 * PATCH_WIDTH * PATCH_HEIGHT, 
     parameter L1_BIAS_INIT_FILE   = "",
     // layer 2
+    parameter L2_FILTER_GROUP_NUM = 2,
     parameter L2_CHANNEL_NUM      = 8,
     parameter L2_FILTER_NUM       = 8,
-    parameter L2_WEIGHT_DEPTH     = 8 * PATCH_WIDTH * PATCH_HEIGHT,
-    parameter L2_WEIGHT_INIT_FILE = "",
+    parameter L2_WEIGHT_DEPTH     = 8 * PATCH_WIDTH * PATCH_HEIGHT, 
     parameter L2_BIAS_INIT_FILE   = "",
     // layer3
+
+    parameter L3_FILTER_GROUP_NUM = 1,
     parameter L3_CHANNEL_NUM      = 8,
     parameter L3_FILTER_NUM       = 1,
-    parameter L3_WEIGHT_DEPTH     = 1 * PATCH_WIDTH * PATCH_HEIGHT,
-    parameter L3_WEIGHT_INIT_FILE = "",
+    parameter L3_WEIGHT_DEPTH     = 1 * PATCH_WIDTH * PATCH_HEIGHT, 
     parameter L3_BIAS_INIT_FILE   = "",
 
-    localparam L1_WEIGHT_ADDR  = $clog2(L1_WEIGHT_DEPTH),
-    localparam L2_WEIGHT_ADDR  = $clog2(L2_WEIGHT_DEPTH),
-    localparam L3_WEIGHT_ADDR  = $clog2(L3_WEIGHT_DEPTH),
-    localparam MAX_FILTER      = `MAX2(L1_FILTER_NUM, `MAX2(L2_FILTER_NUM, L3_FILTER_NUM)),
-    localparam MAX_CHANNEL     = `MAX2(L1_CHANNEL_NUM, `MAX2(L2_CHANNEL_NUM, L3_CHANNEL_NUM)),
-    localparam MAX_WEIGHT_ADDR = `MAX2(L1_WEIGHT_ADDR, `MAX2(L2_WEIGHT_ADDR, L3_WEIGHT_ADDR)),
-    localparam PATCH_AREA      = PATCH_WIDTH * PATCH_HEIGHT,
+ 
+    localparam MAX_FILTER_GROUP_NUM =
+    `MAX2(L1_FILTER_GROUP_NUM, `MAX2(L2_FILTER_GROUP_NUM, L3_FILTER_GROUP_NUM)),
+    localparam L1_REQ = L1_FILTER_NUM / L1_FILTER_GROUP_NUM,
+    localparam L2_REQ = L2_FILTER_NUM / L2_FILTER_GROUP_NUM,
+    localparam L3_REQ = L3_FILTER_NUM / L3_FILTER_GROUP_NUM,
+    localparam MAX_FILTER = `MAX2(L1_REQ, `MAX2(L2_REQ, L3_REQ)),
+    localparam MAX_CHANNEL = `MAX2(L1_CHANNEL_NUM, `MAX2(L2_CHANNEL_NUM, L3_CHANNEL_NUM)), 
+    localparam PATCH_AREA = PATCH_WIDTH * PATCH_HEIGHT,
 
     localparam LINE_WIDTH  = IMAGE_WIDTH + 2 * PADDING_EN,
     localparam LINE_HEIGHT = 3
 ) (
-    input                               i_clk,
-    input                               i_rstn,
-    input                               i_st,
-    input                               i_relu_en,
-    // wgt 
+    input                                     i_clk,
+    input                                     i_rstn,
+    // wgt    
+    input                                     i_wgt_vld,
+    input  [                 WEIGHT_BITS-1:0] i_wgt_din,
     // ipt 
-    output                              o_ipt_rdy,
-    input                               i_ipt_vld,
-    input  [INPUT_BITS*MAX_CHANNEL-1:0] i_ipt_din_pck,
+    output                                    o_ipt_rdy,
+    input                                     i_ipt_vld,
+    input  [      INPUT_BITS*MAX_CHANNEL-1:0] i_ipt_din,
     // opt
-    input                               i_opt_rdy,
-    output                              o_opt_vld,
-    output [ INPUT_BITS*MAX_FILTER-1:0] o_opt_dout,
+    input                                     i_opt_rdy,
+    output                                    o_opt_vld,
+    output [       INPUT_BITS*MAX_FILTER-1:0] o_opt_dout,
     // temp
-    input  [     $clog2(MAX_CHANNEL):0] i_ch_num,
-    input  [      $clog2(MAX_FILTER):0] i_filt_num,
-    input  [           MAX_CHANNEL-1:0] i_lbuf_st,
-    input  [                       2:0] i_wgt_re,
-    input  [       MAX_WEIGHT_ADDR-1:0] i_wgt_raddr,
-    input  [           MAX_CHANNEL-1:0] i_ipt_mask,
-    input  [                       2:0] i_bias_sel
+    input  [                 MAX_CHANNEL-1:0] i_lbuf_st,
+    input                                     i_relu_en,
+    input  [           $clog2(MAX_CHANNEL):0] i_ch_num,
+    input  [            $clog2(MAX_FILTER):0] i_filt_num,
+    input  [                             2:0] i_bias_sel,
+    input  [$clog2(  MAX_FILTER_GROUP_NUM):0] i_grp_sel
 );
   // ------------------- parmeter -------------------    
 `ifdef RESOURCE
@@ -99,27 +101,24 @@ module rcursiv_layer #(
 `endif
   integer i, j;
   genvar c, p;
-  // --------------------- wire ---------------------  
-  // weight
-  wire                                      w_wgt_vld      [              0:2];
-  wire                                      w_wgt_svld;
-  wire signed [            WEIGHT_BITS-1:0] w_wgt_dat      [              0:2];
-  wire signed [            WEIGHT_BITS-1:0] w_wgt_sdat;
+  // --------------------- wire ---------------------   
   // IO port 
   wire signed [             INPUT_BITS-1:0] w_ipt_dat      [  0:MAX_CHANNEL-1];
   // line bufferS  
   wire        [            MAX_CHANNEL-1:0] w_lbuf_rdy;
-  wire        [            MAX_CHANNEL-1:0] w_lbuf_vld;
-  wire        [            MAX_CHANNEL-1:0] w_lbuf_pu_vld  [   0:MAX_FILTER-1];
+  wire        [            MAX_CHANNEL-1:0] w_lbuf_vld; 
   wire        [INPUT_BITS*PATCH_HEIGHT-1:0] w_lbuf_dat     [  0:MAX_CHANNEL-1];
+  // patch
+  wire        [            MAX_CHANNEL-1:0] w_ptch_rdy;
+  wire        [            MAX_CHANNEL-1:0] w_ptch_vld;
+  wire        [  INPUT_BITS*PATCH_AREA-1:0] w_ptch_dat     [  0:MAX_CHANNEL-1];
   // pu
   wire                                      w_pu_rdy       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
-  wire        [             0:MAX_FILTER-1] w_pu_rdy_pck   [  0:MAX_CHANNEL-1];
-  wire                                      w_pu_all_rdy   [  0:MAX_CHANNEL-1];
+  wire        [             0:MAX_FILTER-1] w_pu_rdy_bus   [  0:MAX_CHANNEL-1];
   wire                                      w_pu_vld       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
-  wire        [            MAX_CHANNEL-1:0] w_pu_vld_cpck  [   0:MAX_FILTER-1];
+  wire        [            MAX_CHANNEL-1:0] w_pu_vld_bus   [   0:MAX_FILTER-1];
   wire signed [            PU_OUT_BITS-1:0] w_pu_dat       [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
-  wire        [MAX_CHANNEL*PU_OUT_BITS-1:0] w_pu_dat_cpck  [   0:MAX_FILTER-1];
+  wire        [MAX_CHANNEL*PU_OUT_BITS-1:0] w_pu_dat_bus   [   0:MAX_FILTER-1];
   // channel adder tree 
   wire                                      w_cat_rdy      [   0:MAX_FILTER-1];
   wire                                      w_cat_vld      [   0:MAX_FILTER-1];
@@ -128,20 +127,26 @@ module rcursiv_layer #(
   wire signed [           CAT_OUT_BITS-1:0] w_bias_exdat   [   0:MAX_FILTER-1];
 
   // adder
-  wire                                      w_add_rdy;
-  wire signed [         ADDER_OUT_BITS-1:0] w_add_dat      [   0:MAX_FILTER-1];
-  wire        [  MAX_FILTER*INPUT_BITS-1:0] w_relu_dat_pck;
-
-  // slice
-  wire                                      w_88_rdy;
+  wire                                      w_adder_rdy1   [   0:MAX_FILTER-1];
+  wire                                      w_adder_rdy2   [   0:MAX_FILTER-1];
+  wire                                      w_adder_vld    [   0:MAX_FILTER-1];
+  wire signed [         ADDER_OUT_BITS-1:0] w_adder_dat    [   0:MAX_FILTER-1];
+  // slicer
+  wire                                      w_slicer_rdy   [   0:MAX_FILTER-1];
+  wire                                      w_slicer_vld   [   0:MAX_FILTER-1];
+  wire        [            OUTPUT_BITS-1:0] w_slicer_dat   [   0:MAX_FILTER-1];
   // relu
-  wire                                      w_relu_rdy;
+  wire                                      w_relu_rdy     [   0:MAX_FILTER-1];
+  wire                                      w_relu_vld     [   0:MAX_FILTER-1];
+  wire        [            OUTPUT_BITS-1:0] w_relu_dat     [   0:MAX_FILTER-1];
+  wire        [  MAX_FILTER*INPUT_BITS-1:0] w_relu_dat_bus;
+
 
   // ====================== reg ============================ 
   // interenal counter
-  reg         [       $clog2(MAX_FILTER):0] r_pu_cnt;
-  reg         [      $clog2(MAX_CHANNEL):0] r_ch_cnt;
-  reg         [       $clog2(PATCH_AREA):0] r_ptch_cnt;
+  reg         [       $clog2(MAX_FILTER):0] r_pu_idx;
+  reg         [      $clog2(MAX_CHANNEL):0] r_ch_idx;
+  reg         [       $clog2(PATCH_AREA):0] r_pe_idx;
   // pu
   reg signed  [            WEIGHT_BITS-1:0] r_pu_wdat;
   reg                                       r_pu_wvld      [   0:MAX_FILTER-1] [0:MAX_CHANNEL-1];
@@ -177,215 +182,104 @@ module rcursiv_layer #(
     end
   endgenerate
 
-  // ====================== function ======================= 
-  // 16.16 -> 8.8 saturation cliping function
-  function signed [INPUT_BITS-1:0] sat_q16_16_to_q8_8;
-    input signed [ADDER_OUT_BITS-1:0] din;
-    begin
-      if (!din[23] && |din[ADDER_OUT_BITS-1:24]) begin  // 양수 최댓값
-        sat_q16_16_to_q8_8 = 16'sh7FFF;
-      end else if (din[23] && !(&din[ADDER_OUT_BITS-1:24])) begin  // 음수 최솟값
-        sat_q16_16_to_q8_8 = 16'sh8000;
-      end else begin  // 8.8 비트슬라이싱
-        sat_q16_16_to_q8_8 = din[23:8];
+  // ====================== hand shake ===================== 
+
+  // ====================== assign =========================  
+  assign o_ipt_rdy = w_lbuf_rdy[0];  
+  // ====================== always ========================= 
+
+  // count internal index
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_pe_idx <= 'd0;
+      r_pu_idx <= 'd0;
+      r_ch_idx <= 'd0;
+    end else if (i_wgt_vld) begin
+      if (r_pe_idx < PATCH_AREA - 1) r_pe_idx <= r_pe_idx + 'd1;
+      else begin
+        r_pe_idx <= 'd0;
+        if (r_ch_idx < i_ch_num - 1) r_ch_idx <= r_ch_idx + 'd1;
+        else begin
+          r_ch_idx <= 'd0;
+          if (r_pu_idx < i_filt_num - 1) r_pu_idx <= r_pu_idx + 'd1;
+          else r_pu_idx <= 'd0;
+        end
       end
     end
-  endfunction
+  end
 
-  // ====================== hand shake ===================== 
-  assign o_ipt_rdy = w_lbuf_rdy[0];
-
-  assign w_add_rdy = w_88_rdy || !r_add_vld[0];
-  assign w_88_rdy = w_relu_rdy || !r_88_vld;
-  assign w_relu_rdy = i_opt_rdy || !r_relu_vld;
-
-  // ====================== assign ========================= 
-  // weight select
-  assign w_wgt_sdat = (w_wgt_vld[0]) ? w_wgt_dat[0] : 
-                      (w_wgt_vld[1]) ? w_wgt_dat[1] : 
-                      (w_wgt_vld[2]) ? w_wgt_dat[2] : 'd0;
-  assign w_wgt_svld = (w_wgt_vld[0] || w_wgt_vld[1] || w_wgt_vld[2]) ? 'b1 : 'b0;
-  // line buffer
-  generate
-    for (p = 0; p < MAX_FILTER; p = p + 1) begin
-      assign w_lbuf_pu_vld[p] = (p < i_filt_num) ? w_lbuf_vld : 'd0;
-    end
-  endgenerate
-
-  // ====================== always ========================= 
   // select PU for initializing weight data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_pu_wdat <= 'd0;
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        for (j = 0; j < MAX_CHANNEL; j = j + 1) begin
-          r_pu_wvld[i][j] <= 1'b0;
-        end
-      end
+      for (i = 0; i < MAX_FILTER; i = i + 1)
+      for (j = 0; j < MAX_CHANNEL; j = j + 1) r_pu_wvld[i][j] <= 'b0;
+
     end else begin
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        for (j = 0; j < MAX_CHANNEL; j = j + 1) begin
-          r_pu_wvld[i][j] <= 1'b0;
-        end
+      for (i = 0; i < MAX_FILTER; i = i + 1)
+      for (j = 0; j < MAX_CHANNEL; j = j + 1) begin
+        if (i_wgt_vld && (r_pu_idx == i) && (r_ch_idx == j)) begin
+          r_pu_wvld[i][j] <= 1'b1;
+          r_pu_wdat       <= i_wgt_din;
+        end else r_pu_wvld[i][j] <= 1'b0;
       end
-      if (w_wgt_svld && (r_pu_cnt < MAX_FILTER) && (r_ch_cnt < MAX_CHANNEL)) begin
-        r_pu_wvld[r_pu_cnt][r_ch_cnt] <= 1'b1;
-      end
-      if (w_wgt_svld) r_pu_wdat <= w_wgt_sdat;
     end
   end
 
-  // update interenal counter
+
+  // select bias 
+  // TODO : 바이어스가 커지면 메모리에 넣고 MUX->Shift 수정
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_pu_cnt   <= 'd0;
-      r_ch_cnt   <= 'd0;
-      r_ptch_cnt <= 'd0;
-    end else if (w_wgt_svld) begin
-      if (r_ptch_cnt < PATCH_AREA - 1) begin
-        r_ptch_cnt <= r_ptch_cnt + 'd1;
-      end else begin
-        r_ptch_cnt <= 'd0;
-        if (r_ch_cnt < i_ch_num - 1) begin
-          r_ch_cnt <= r_ch_cnt + 'd1;
-        end else begin
-          r_ch_cnt <= 'd0;
-          if (r_pu_cnt < i_filt_num - 1) begin
-            r_pu_cnt <= r_pu_cnt + 'd1;
-          end else begin
-            r_pu_cnt <= 'd0;
+      r_bias_vld <= 'd0;
+      for (i = 0; i < MAX_FILTER; i = i + 1) r_bias_dat[i] <= 'd0;
+    end else begin
+      r_bias_vld <= 'd0;
+      case (i_bias_sel)
+        3'b001: begin
+          for (i = 0; i < L1_FILTER_NUM / L1_FILTER_GROUP_NUM; i = i + 1) begin
+            r_bias_dat[i] <= r_bias1_dat[i+(i_grp_sel*(L1_FILTER_NUM/L1_FILTER_GROUP_NUM))];
+            r_bias_vld[i] <= 1'b1;
           end
         end
-      end
-    end
-  end
-
-  // select bias
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_bias_vld <= 'd0;
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        r_bias_dat[i] <= 'd0;
-      end
-    end else begin
-      r_bias_vld <= 'd0;
-      if (i_bias_sel[0]) begin
-        for (i = 0; i < L1_FILTER_NUM; i = i + 1) begin
-          r_bias_dat[i] <= r_bias1_dat[i];
-          r_bias_vld[i] <= 'b1;
+        3'b010: begin
+          for (i = 0; i < L2_FILTER_NUM / L2_FILTER_GROUP_NUM; i = i + 1) begin
+            r_bias_dat[i] <= r_bias2_dat[i+(i_grp_sel*(L2_FILTER_NUM/L2_FILTER_GROUP_NUM))];
+            r_bias_vld[i] <= 1'b1;
+          end
         end
-      end else if (i_bias_sel[1]) begin
-        for (i = 0; i < L2_FILTER_NUM; i = i + 1) begin
-          r_bias_dat[i] <= r_bias2_dat[i];
-          r_bias_vld[i] <= 'b1;
+        3'b100: begin
+          for (i = 0; i < L3_FILTER_NUM / L3_FILTER_GROUP_NUM; i = i + 1) begin
+            r_bias_dat[i] <= r_bias3_dat[i+(i_grp_sel*(L3_FILTER_NUM/L3_FILTER_GROUP_NUM))];
+            r_bias_vld[i] <= 1'b1;
+          end
         end
-      end else if (i_bias_sel[2]) begin
-        for (i = 0; i < L3_FILTER_NUM; i = i + 1) begin
-          r_bias_dat[i] <= r_bias3_dat[i];
-          r_bias_vld[i] <= 'b1;
-        end
-      end
-    end
-  end
-
-  // adder 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_add_vld <= 'd0;
-    end else if (w_add_rdy) begin
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        r_add_vld[i] <= w_cat_vld[i] && r_bias_vld[i];  // 유효한 바이어스만
-      end
-    end
-  end
-
-  // pipeline :  slice and relu 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_88_vld   <= 1'b0;
-      r_relu_vld <= 1'b0;
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        r_88_dat[i]   <= 'd0;
-        r_relu_dat[i] <= 'd0;
-      end
-    end else begin
-      if (w_88_rdy) r_88_vld <= r_add_vld[0];
-      if (w_relu_rdy) r_relu_vld <= r_88_vld;
-
-      for (i = 0; i < MAX_FILTER; i = i + 1) begin
-        if (w_88_rdy) r_88_dat[i] <= sat_q16_16_to_q8_8(w_add_dat[i]);
-        if (w_relu_rdy) r_relu_dat[i] <= (i_relu_en && r_88_dat[i][15]) ? 16'd0 : r_88_dat[i];
-      end
+        default: ;
+      endcase
     end
   end
 
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
-      assign w_pu_all_rdy[c] = w_pu_rdy_pck[c][0]; // 동시에 작업되므로 0번 필터만 -> LUT 최소화
-      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
       for (p = 0; p < MAX_FILTER; p = p + 1) begin
-        assign w_pu_rdy_pck[c][p]                           = w_pu_rdy[p][c];
-        assign w_pu_vld_cpck[p][c]                          = w_pu_vld[p][c];
-        assign w_pu_dat_cpck[p][c*PU_OUT_BITS+:PU_OUT_BITS] = w_pu_dat[p][c];
+        assign w_pu_rdy_bus[c][p]                          = w_pu_rdy[p][c];
+        assign w_pu_vld_bus[p][c]                          = w_pu_vld[p][c];
+        assign w_pu_dat_bus[p][c*PU_OUT_BITS+:PU_OUT_BITS] = w_pu_dat[p][c];
       end
     end
+
+    for (c = 0; c < MAX_CHANNEL; c = c + 1) begin
+      assign w_ipt_dat[c] = i_ipt_din[c*INPUT_BITS+:INPUT_BITS];
+    end
+
     for (p = 0; p < MAX_FILTER; p = p + 1) begin
       assign w_bias_exdat[p] = $signed(r_bias_dat[p]) << 8;
-      assign w_relu_dat_pck[p*INPUT_BITS+:INPUT_BITS] = r_relu_dat[p];
+      assign w_relu_dat_bus[p*INPUT_BITS+:INPUT_BITS] = w_relu_dat[p];
     end
   endgenerate
 
   // ====================== module ========================= 
-  // weight buffer
-  simple_dual_port_ram #(
-      .WIDTH    (WEIGHT_BITS),
-      .DEPTH    (L1_WEIGHT_DEPTH),
-      .INIT_FILE(L1_WEIGHT_INIT_FILE)
-  ) wgt_mem1 (
-      .i_clk  (i_clk),
-      .i_rstn (i_rstn),
-      .i_re   (i_wgt_re[0]),
-      .i_raddr(i_wgt_raddr[L1_WEIGHT_ADDR-1:0]),
-      .i_we   (),
-      .i_waddr(),
-      .i_wdin (),
-      .o_vld  (w_wgt_vld[0]),
-      .o_dout (w_wgt_dat[0])
-  );
 
-  simple_dual_port_ram #(
-      .WIDTH    (WEIGHT_BITS),
-      .DEPTH    (L2_WEIGHT_DEPTH),
-      .INIT_FILE(L2_WEIGHT_INIT_FILE)
-  ) wgt_mem2 (
-      .i_clk  (i_clk),
-      .i_rstn (i_rstn),
-      .i_re   (i_wgt_re[1]),
-      .i_raddr(i_wgt_raddr[L2_WEIGHT_ADDR-1:0]),
-      .i_we   (),
-      .i_waddr(),
-      .i_wdin (),
-      .o_vld  (w_wgt_vld[1]),
-      .o_dout (w_wgt_dat[1])
-  );
-
-  simple_dual_port_ram #(
-      .WIDTH    (WEIGHT_BITS),
-      .DEPTH    (L3_WEIGHT_DEPTH),
-      .INIT_FILE(L3_WEIGHT_INIT_FILE)
-  ) wgt_mem3 (
-      .i_clk  (i_clk),
-      .i_rstn (i_rstn),
-      .i_re   (i_wgt_re[2]),
-      .i_raddr(i_wgt_raddr[L3_WEIGHT_ADDR-1:0]),
-      .i_we   (),
-      .i_waddr(),
-      .i_wdin (),
-      .o_vld  (w_wgt_vld[2]),
-      .o_dout (w_wgt_dat[2])
-  );
-
- 
   // line buffer
   generate
     for (c = 0; c < MAX_CHANNEL; c = c + 1) begin : LINE_BUFFER_ARRAY
@@ -403,10 +297,30 @@ module rcursiv_layer #(
           .i_st      (i_lbuf_st[c]),
           .o_ipt_rdy (w_lbuf_rdy[c]),
           .i_ipt_din (w_ipt_dat[c]),
-          .i_ipt_vld (i_ipt_mask[c] && i_ipt_vld),
-          .i_opt_rdy (w_pu_rdy[0][c]),
+          .i_ipt_vld (i_ipt_vld),
+          .i_opt_rdy (w_ptch_rdy[c]),
           .o_opt_vld (w_lbuf_vld[c]),
           .o_opt_dout(w_lbuf_dat[c])
+      );
+
+      patch #(
+          .INPUT_BITS  (INPUT_BITS),
+          .PATCH_WIDTH (PATCH_WIDTH),
+          .PATCH_HEIGHT(PATCH_HEIGHT),
+          .LINE_WIDTH  (LINE_WIDTH),
+          .LINE_HEIGHT (LINE_HEIGHT)
+      ) inst_patch_perf (
+          .i_clk     (i_clk),
+          .i_rstn    (i_rstn),
+          .i_clr     (i_lbuf_st[c]),
+          // ipt
+          .i_ipt_din (w_lbuf_dat[c]),
+          .i_ipt_vld (w_lbuf_vld[c]),
+          .o_ipt_rdy (w_ptch_rdy[c]),
+          // opt
+          .i_opt_rdy (w_pu_rdy[0][c]),
+          .o_opt_vld (w_ptch_vld[c]),
+          .o_opt_dout(w_ptch_dat[c])
       );
     end
   endgenerate
@@ -428,8 +342,8 @@ module rcursiv_layer #(
             .i_wgt_vld (r_pu_wvld[p][c]),
             .i_wgt_din (r_pu_wdat),
             .o_ipt_rdy (w_pu_rdy[p][c]),
-            .i_ipt_vld (w_lbuf_vld[c]),
-            .i_ipt_din (w_lbuf_dat[c]),
+            .i_ipt_vld (w_ptch_vld[c]),
+            .i_ipt_din (w_ptch_dat[c]),
             .i_opt_rdy (w_cat_rdy[p]),
             .o_opt_vld (w_pu_vld[p][c]),
             .o_opt_dout(w_pu_dat[p][c])
@@ -443,28 +357,63 @@ module rcursiv_layer #(
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
           .o_ipt_rdy (w_cat_rdy[p]),
-          .i_ipt_vld (w_pu_vld_cpck[p]),
-          .i_ipt_din (w_pu_dat_cpck[p]),
-          .i_opt_rdy (w_add_rdy),
+          .i_ipt_vld (w_pu_vld_bus[p]),
+          .i_ipt_din (w_pu_dat_bus[p]),
+          .i_opt_rdy (w_adder_rdy1[p]),
           .o_opt_vld (w_cat_vld[p]),
           .o_opt_dout(w_cat_dat[p])
       );
 
       adder #(
           .BITS(CAT_OUT_BITS)
-      ) inst_adder (
+      ) inst_bias_adder (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
-          .i_add_en  (w_add_rdy && w_cat_vld[p]),
+          .o_ipt1_rdy(w_adder_rdy1[p]),
+          .i_ipt1_vld(w_cat_vld[p]),
           .i_ipt1_din(w_cat_dat[p]),
+          .o_ipt2_rdy(w_adder_rdy2[p]),
+          .i_ipt2_vld('b1),
           .i_ipt2_din(w_bias_exdat[p]),
-          .o_opt_dout(w_add_dat[p])
+          .i_opt_rdy (w_slicer_rdy[p]),
+          .o_opt_vld (w_adder_vld[p]),
+          .o_opt_dout(w_adder_dat[p])
       );
+
+      bit_slicer #(
+          .INPUT_BITS (ADDER_OUT_BITS),
+          .OUTPUT_BITS(OUTPUT_BITS)
+      ) inst_bit_slicer (
+          .i_clk     (i_clk),
+          .i_rstn    (i_rstn),
+          .i_ipt_din (w_adder_dat[p]),
+          .i_ipt_vld (w_adder_vld[p]),
+          .o_ipt_rdy (w_slicer_rdy[p]),
+          .i_opt_rdy (w_relu_rdy[p]),
+          .o_opt_vld (w_slicer_vld[p]),
+          .o_opt_dout(w_slicer_dat[p])
+      );
+      relu #(
+          .BITS(OUTPUT_BITS)
+      ) inst_relu (
+          .i_clk     (i_clk),
+          .i_rstn    (i_rstn),
+          .i_relu_en (i_relu_en),
+          // ipt
+          .i_ipt_din (w_slicer_dat[p]),
+          .i_ipt_vld (w_slicer_vld[p]),
+          .o_ipt_rdy (w_relu_rdy[p]),
+          // opt
+          .i_opt_rdy (i_opt_rdy),
+          .o_opt_vld (w_relu_vld[p]),
+          .o_opt_dout(w_relu_dat[p])
+      );
+
     end
   endgenerate
 
   // ====================== output ========================= 
-  assign o_opt_vld  = r_relu_vld;
-  assign o_opt_dout = w_relu_dat_pck;
+  assign o_opt_vld  = w_relu_vld[0];
+  assign o_opt_dout = w_relu_dat_bus;
 
 endmodule

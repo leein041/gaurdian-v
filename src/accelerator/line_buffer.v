@@ -52,105 +52,107 @@ module line_buffer #(
   // ====================== parmeter ======================= 
   // FSM
   localparam LB_IDLE = 3'd0;
-  localparam LB_ENTER_LINE = 31'b1;
+  localparam LB_ENTER_LINE = 3'd1;
   localparam LB_DONE = 3'd2;
-  // delay
-  localparam PATCH_EN_DLY = 3;
-  localparam PROW_DLY = 3;
 
   integer i, j;
   genvar g, h;
   // ====================== hand shake ===================== 
   // ====================== wire ===========================
-  // hand shake 
-  wire                                      w_act;
+  // hand shake  
+  wire                                      w_act_in;
+  wire                                      w_act_out;
   // ipt
+  wire                                      w_pad_vld;
   wire signed [             INPUT_BITS-1:0] w_ipt_dat;
-  // feature map
-  wire                                      w_pad_en;
   // line buffer
-  wire                                      w_lbuf_we    [ 0:LINE_HEIGHT-1];
-  wire                                      w_lbuf_vld   [ 0:LINE_HEIGHT-1];
-  wire signed [             INPUT_BITS-1:0] w_lbuf_dat   [ 0:LINE_HEIGHT-1];
+  wire                                      w_lbuf_we      [ 0:LINE_HEIGHT-1];
+  wire                                      w_lbuf_vld     [ 0:LINE_HEIGHT-1];
+  wire signed [             INPUT_BITS-1:0] w_lbuf_dat     [ 0:LINE_HEIGHT-1];
   // skid buffer
   wire        [            LINE_HEIGHT-1:0] w_sbuf_rdy;
   wire        [            LINE_HEIGHT-1:0] w_sbuf_vld;
-  wire signed [             INPUT_BITS-1:0] w_sbuf_dat   [ 0:LINE_HEIGHT-1];
+  wire signed [             INPUT_BITS-1:0] w_sbuf_dat     [ 0:LINE_HEIGHT-1];
   // patch 
   // opt 
   // ====================== reg ============================ 
+  //ipt data
+  reg signed  [             INPUT_BITS-1:0] r_ipt_dat;
+  // line buffer
   reg         [                        1:0] r_lbuf_cstat;
   reg         [                        1:0] r_lbuf_nstat;
-  // feature map 
-  reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_frow;
-  reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_fcol;
+  // 
+  reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_wpos_row;
+  reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_wpos_row_idx;
+  reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_wpos_col;
+  reg         [$clog2(FMAP_HEIGHT) - 1 : 0] r_rpos_row;
+  reg         [ $clog2(FMAP_WIDTH) - 1 : 0] r_rpos_col;
   // line buffer   
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_raddr [ 0:LINE_HEIGHT-1];
+
+  // read
   reg                                       r_lbuf_re;
-  reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lbuf_sel;
-  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr [ 0:LINE_HEIGHT-1];
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_raddr;
+  reg         [ $clog2(FMAP_DEPTH) - 1 : 0] r_lbuf_rcnt;
+  // write
+  reg                                       r_lbuf_we;
+  reg         [    $clog2(LINE_HEIGHT) : 0] r_lbuf_widx;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr;
+  reg         [ $clog2(FMAP_DEPTH) - 1 : 0] r_lbuf_wcnt;
+
   //  
-  reg         [     $clog2(FMAP_WIDTH)-1:0] r_ptch_cnt;
-  reg         [   $clog2(PATCH_HEIGHT)-1:0] r_ptch_row;
-  reg         [             INPUT_BITS-1:0] r_ptch_align [0:PATCH_HEIGHT-1];
-  reg         [           PATCH_HEIGHT-1:0] r_ptch_vld;
+  reg         [     $clog2(FMAP_WIDTH)-1:0] r_opt_cnt;
+  reg         [   $clog2(PATCH_HEIGHT)-1:0] r_ptch_row_idx;
+  reg         [             INPUT_BITS-1:0] r_opt_dat      [0:PATCH_HEIGHT-1];
+  reg         [           PATCH_HEIGHT-1:0] r_opt_vld;
   // ====================== hand shake ===================== 
-  assign o_ipt_rdy = w_sbuf_rdy[0] && !w_pad_en;
-  assign w_act = w_sbuf_rdy[0] && (i_ipt_vld || w_pad_en);
-  // ====================== assign =========================
-  // ipt
-  assign w_ipt_dat = (w_pad_en) ? 'd0 : i_ipt_din;
-  // feature map    
-  assign w_pad_en = (PADDING_EN) 
-                 && (r_frow == 0 || (r_frow == FMAP_HEIGHT - 1)   
-                 || r_fcol == 0 ||  (r_fcol == FMAP_WIDTH - 1));
-  // ====================== always =========================  
-  // 패치 정렬 카운터 (ptch_cnt 변수명 모호함)
+  assign o_ipt_rdy = w_sbuf_rdy[0] && !w_pad_vld;
+
+  assign w_act_in = w_pad_vld || (o_ipt_rdy && i_ipt_vld);
+  assign w_act_out = w_sbuf_rdy[0];
+  // ====================== assign ========================= 
+  assign w_pad_vld =(r_wpos_row == 0 || (r_wpos_row == FMAP_HEIGHT - 1)   
+                  || r_wpos_col == 0 ||  (r_wpos_col == FMAP_WIDTH - 1));
+  assign w_ipt_dat = (w_pad_vld) ? 'd0 : i_ipt_din;
+  // ====================== always =========================
+  // count output index
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_ptch_cnt <= 'd0;
-      r_ptch_row <= 'd0;
+      r_opt_cnt      <= 'd0;
+      r_ptch_row_idx <= 'd0;
     end else if (i_st) begin
-      r_ptch_cnt <= 'd0;
-      r_ptch_row <= 'd0;
-    end else if (i_opt_rdy && w_sbuf_vld[0]) begin
-      if (r_ptch_cnt < FMAP_WIDTH - 1) r_ptch_cnt <= r_ptch_cnt + 'd1;
+      r_opt_cnt      <= 'd0;
+      r_ptch_row_idx <= 'd0;
+    end else if (w_sbuf_vld[0] && i_opt_rdy) begin
+      if (r_opt_cnt < LINE_WIDTH - 1) r_opt_cnt <= r_opt_cnt + 'd1;
       else begin
-        r_ptch_cnt <= 'd0;
-        if (r_ptch_row < PATCH_HEIGHT - 1) r_ptch_row <= r_ptch_row + 'd1;
-        else r_ptch_row <= 'd0;
+        r_opt_cnt <= 'd0;
+        // circulate patch row index ( 012 -> 120 -> 201 -> 012 -> ..)
+        if (r_ptch_row_idx < PATCH_HEIGHT - 1) r_ptch_row_idx <= r_ptch_row_idx + 'd1;
+        else r_ptch_row_idx <= 'd0;
       end
     end
   end
-
-  // 패치 데이터 재정렬 / TODO : 파라미터화 필요
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_ptch_vld    <= 1'b0;
-      r_ptch_align[0] <= 'd0;
-      r_ptch_align[1] <= 'd0;
-      r_ptch_align[2] <= 'd0;
-    end else begin
-      if (i_opt_rdy) r_ptch_vld <= w_sbuf_vld;
-      if (i_opt_rdy && w_sbuf_vld[0])
-        case (r_ptch_row)
-          'd0: begin
-            r_ptch_align[0] <= w_sbuf_dat[0];
-            r_ptch_align[1] <= w_sbuf_dat[1];
-            r_ptch_align[2] <= w_sbuf_dat[2];
-          end
-          'd1: begin
-            r_ptch_align[0] <= w_sbuf_dat[1];
-            r_ptch_align[1] <= w_sbuf_dat[2];
-            r_ptch_align[2] <= w_sbuf_dat[0];
-          end
-          default: begin
-            r_ptch_align[0] <= w_sbuf_dat[2];
-            r_ptch_align[1] <= w_sbuf_dat[0];
-            r_ptch_align[2] <= w_sbuf_dat[1];
-          end
-        endcase
-    end
+  // align data for patch
+  always @(*) begin
+    if (i_opt_rdy) r_opt_vld = w_sbuf_vld;
+    if (i_opt_rdy && w_sbuf_vld[0])
+      case (r_ptch_row_idx)
+        'd0: begin
+          r_opt_dat[0] = w_sbuf_dat[0];
+          r_opt_dat[1] = w_sbuf_dat[1];
+          r_opt_dat[2] = w_sbuf_dat[2];
+        end
+        'd1: begin
+          r_opt_dat[0] = w_sbuf_dat[1];
+          r_opt_dat[1] = w_sbuf_dat[2];
+          r_opt_dat[2] = w_sbuf_dat[0];
+        end
+        default: begin
+          r_opt_dat[0] = w_sbuf_dat[2];
+          r_opt_dat[1] = w_sbuf_dat[0];
+          r_opt_dat[2] = w_sbuf_dat[1];
+        end
+      endcase
   end
   // ====================== FSM ============================    
 
@@ -168,8 +170,7 @@ module line_buffer #(
     case (r_lbuf_cstat)
       LB_IDLE: if (i_st) r_lbuf_nstat = LB_ENTER_LINE;
 
-      LB_ENTER_LINE:
-      if (w_act && r_frow == FMAP_HEIGHT - 1 && r_fcol == FMAP_WIDTH - 1) r_lbuf_nstat = LB_DONE;
+      LB_ENTER_LINE: if (r_lbuf_rcnt == FMAP_DEPTH) r_lbuf_nstat = LB_DONE;
 
       LB_DONE: r_lbuf_nstat = LB_IDLE;
 
@@ -180,63 +181,109 @@ module line_buffer #(
   // TODO : 현재 쓰기 신호 wire -> reg 변경필요, 주소 카운터 추가 필요
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_frow    <= 'd0;
-      r_fcol    <= 'd0;
-      r_lbuf_re <= 'd0;
-      r_lbuf_sel    <= 'd0;
-      for (i = 0; i < LINE_HEIGHT; i = i + 1) begin
-        r_lbuf_waddr[i] <= 'd0;
-        r_lbuf_raddr[i] <= 'd0;
-      end
+      r_ipt_dat      <= 'd0;
+      r_rpos_row     <= 'd0;
+      r_rpos_col     <= 'd0;
+      r_wpos_row     <= 'd0;
+      r_wpos_row_idx <= 'd0;
+      r_wpos_col     <= 'd0;
+      r_lbuf_we      <= 'd0;
+      r_lbuf_widx    <= 'd1;
+      r_lbuf_waddr   <= 'd0;
+      r_lbuf_wcnt    <= 'd0;
+      r_lbuf_re      <= 'd0;
+      r_lbuf_raddr   <= 'd0;
+      r_lbuf_rcnt    <= 2 * LINE_WIDTH;
+      r_ptch_row_idx <= 'd0;
     end else begin
       case (r_lbuf_cstat)
         LB_IDLE: begin
-          r_frow    <= 'd0;
-          r_fcol    <= 'd0;
-          r_lbuf_sel    <= 'd0;
-          for (i = 0; i < LINE_HEIGHT; i = i + 1) begin
-            r_lbuf_waddr[i] <= 'd0;
-            r_lbuf_raddr[i] <= 'd0;
-          end
+          r_ipt_dat      <= 'd0;
+          r_rpos_row     <= 'd0;
+          r_rpos_col     <= 'd0;
+          r_wpos_row     <= 'd0;
+          r_wpos_row_idx <= 'd0;
+          r_wpos_col     <= 'd0;
+          r_lbuf_we      <= 'd0;
+          r_lbuf_widx    <= 'd1;
+          r_lbuf_waddr   <= 'd0;
+          r_lbuf_wcnt    <= 'd0;
+          r_lbuf_re      <= 'd0;
+          r_lbuf_raddr   <= 'd0;
+          r_lbuf_rcnt    <= 2 * LINE_WIDTH;
+          r_ptch_row_idx <= 'd0;
         end
         LB_ENTER_LINE: begin
-          if (w_act) begin
-            // 특징맵 카운트
-            if (r_fcol < FMAP_WIDTH - 1) r_fcol <= r_fcol + 1'b1;
-            else begin
-              r_fcol <= 'd0;
-              if (r_frow < FMAP_HEIGHT - 1) r_frow <= r_frow + 1'b1;
-              else r_frow <= 'd0;
-            end
-            // LINE BUFFER 읽기/쓰기 주소 카운트
-            if (r_lbuf_waddr[0] < LINE_WIDTH - 1) begin
-              for (i = 0; i < LINE_HEIGHT; i = i + 1) begin
-                r_lbuf_waddr[i] <= r_lbuf_waddr[i] + 'd1;
-              end
-            end else begin
-              for (i = 0; i < LINE_HEIGHT; i = i + 1) begin
-                r_lbuf_waddr[i] <= 'd0;
-              end
-              if (r_lbuf_sel < LINE_HEIGHT - 1) r_lbuf_sel <= r_lbuf_sel + 1'b1;
-              else r_lbuf_sel <= 'd0;
-            end
-            if ('d2 <= r_frow) r_lbuf_re <= 1'b1;
-            for (i = 0; i < LINE_HEIGHT; i = i + 1) r_lbuf_raddr[i] <= r_lbuf_waddr[i];
 
-          end else r_lbuf_re <= 'b0;  // w_act = 0일때 읽기 신호 내림(중복읽기 방지)
+          // act in
+          if (w_act_in) begin
+            r_ipt_dat    <= w_ipt_dat;
+            r_lbuf_we    <= 'b1;
+            r_lbuf_waddr <= r_wpos_col;
+            r_lbuf_widx  <= r_wpos_row_idx;
+
+            // counting write position
+            if (r_lbuf_wcnt < FMAP_DEPTH) begin
+              r_lbuf_wcnt <= r_lbuf_wcnt + 'd1;
+
+              // update write col position
+              if (r_wpos_col < FMAP_WIDTH - 1) r_wpos_col <= r_wpos_col + 1'b1;
+              else begin
+                // update write row position
+                if (r_wpos_row < FMAP_HEIGHT - 1) begin
+                  r_wpos_col <= 'd0;
+                  r_wpos_row <= r_wpos_row + 1'b1;
+                end
+
+                // update write position row index
+                if (r_wpos_row_idx < LINE_HEIGHT - 1) r_wpos_row_idx <= r_wpos_row_idx + 1'b1;
+                else r_wpos_row_idx <= 'd0;
+              end
+            end
+          end else r_lbuf_we <= 'b0;
+
+          // act out
+          if (w_act_out) begin
+            // counting line buffer read address  
+            if (r_lbuf_rcnt < r_lbuf_wcnt) begin
+              r_lbuf_re    <= 1'b1;
+              r_lbuf_raddr <= r_rpos_col;
+
+              // counting read position
+              if (r_lbuf_rcnt < FMAP_DEPTH) begin
+                r_lbuf_rcnt <= r_lbuf_rcnt + 'd1;
+
+                // update read col position
+                if (r_rpos_col < FMAP_WIDTH - 1) r_rpos_col <= r_rpos_col + 1'b1;
+                else begin
+                  // update read row position
+                  if (r_rpos_row < FMAP_HEIGHT - 1) begin
+                    r_rpos_col <= 'd0;
+                    r_rpos_row <= r_rpos_row + 1'b1;
+                  end
+
+                end
+              end
+
+            end else r_lbuf_re <= 1'b0;
+
+          end else r_lbuf_re <= 1'b0;
         end
-        LB_DONE: begin
-          r_lbuf_re <= 'b0;
-        end
-        default: ;
       endcase
     end
   end
-  // ====================== Unpack / Pack ==================
+
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+
+    end else begin
+
+    end
+  end 
   // ====================== module ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
-      assign w_lbuf_we[g] = (w_act && (g == r_lbuf_sel));
+      assign w_lbuf_we[g] = (r_lbuf_we && (g == r_lbuf_widx));
       simple_dual_port_ram #(
           .WIDTH   (INPUT_BITS),
           .DEPTH   (LINE_WIDTH),
@@ -245,10 +292,10 @@ module line_buffer #(
           .i_clk  (i_clk),
           .i_rstn (i_rstn),
           .i_re   (r_lbuf_re),
-          .i_raddr(r_lbuf_raddr[g]),
+          .i_raddr(r_lbuf_raddr),
           .i_we   (w_lbuf_we[g]),
-          .i_waddr(r_lbuf_waddr[g]), // 주소 0부터 
-          .i_wdin (w_ipt_dat),
+          .i_waddr(r_lbuf_waddr), // 주소 0부터 
+          .i_wdin (r_ipt_dat),
           .o_vld  (w_lbuf_vld[g]),
           .o_dout (w_lbuf_dat[g])
       );
@@ -271,8 +318,8 @@ module line_buffer #(
   // ====================== output ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin
-      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_ptch_align[g];
+      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_opt_dat[g];
     end
   endgenerate
-  assign o_opt_vld = r_ptch_vld[0];  // 동시 작업이므로 LUT 최소화
+  assign o_opt_vld = r_opt_vld[0];  // 동시 작업이므로 LUT 최소화
 endmodule

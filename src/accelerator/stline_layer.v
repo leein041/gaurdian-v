@@ -49,7 +49,7 @@ module stline_layer #(
     // ipt 
     output                                     o_ipt_rdy,
     input                                      i_ipt_vld,
-    input         [INPUT_BITS*CHANNEL_NUM-1:0] i_ipt_din_pck,
+    input         [INPUT_BITS*CHANNEL_NUM-1:0] i_ipt_din_bus,
     // opt
     input                                      i_opt_rdy,
     output                                     o_opt_vld,
@@ -80,7 +80,7 @@ module stline_layer #(
   // pu
   wire                                        w_pu_wvld      [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
   wire                                        w_pu_rdy       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
-  wire        [               0:FILTER_NUM-1] w_pu_rdy_pck   [0:CHANNEL_NUM-1];
+  wire        [               0:FILTER_NUM-1] w_pu_rdy_bus   [0:CHANNEL_NUM-1];
   wire                                        w_pu_vld       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
   wire        [              CHANNEL_NUM-1:0] w_pu_vld_cpck  [ 0:FILTER_NUM-1];
   wire signed [            PU_OUT_BITS - 1:0] w_pu_dat       [ 0:FILTER_NUM-1] [0:CHANNEL_NUM-1];
@@ -94,7 +94,7 @@ module stline_layer #(
   // bias adder
   wire                                        w_add_rdy;
   wire signed [         ADDER_OUT_BITS - 1:0] w_add_dat      [ 0:FILTER_NUM-1];
-  wire        [  FILTER_NUM*INPUT_BITS - 1:0] w_relu_dat_pck;
+  wire        [  FILTER_NUM*INPUT_BITS - 1:0] w_relu_dat_bus;
 
   // slice
   wire                                        w_88_rdy;
@@ -283,16 +283,16 @@ module stline_layer #(
   generate
     for (c = 0; c < CHANNEL_NUM; c = c + 1) begin
       // ipt
-      assign w_ipt_dat[c] = i_ipt_din_pck[c*INPUT_BITS+:INPUT_BITS];
+      assign w_ipt_dat[c] = i_ipt_din_bus[c*INPUT_BITS+:INPUT_BITS];
       for (p = 0; p < FILTER_NUM; p = p + 1) begin
-        assign w_pu_rdy_pck[c][p] = w_pu_rdy[p][c];
+        assign w_pu_rdy_bus[c][p] = w_pu_rdy[p][c];
         assign w_pu_vld_cpck[p][c] = w_pu_vld[p][c];
         assign w_pu_dat_cpck[p][c*PU_OUT_BITS+:PU_OUT_BITS] = w_pu_dat[p][c];
       end
     end
     for (p = 0; p < FILTER_NUM; p = p + 1) begin
       assign w_bias_exdat[p] = $signed(r_bias_dat[p]) << 8;
-      assign w_relu_dat_pck[p*INPUT_BITS+:INPUT_BITS] = r_relu_dat[p];
+      assign w_relu_dat_bus[p*INPUT_BITS+:INPUT_BITS] = r_relu_dat[p];
     end
   endgenerate
 
@@ -395,6 +395,6 @@ module stline_layer #(
 
   // ====================== output ========================= 
   assign o_opt_vld  = r_relu_vld;
-  assign o_opt_dout = w_relu_dat_pck;
+  assign o_opt_dout = w_relu_dat_bus;
 
 endmodule

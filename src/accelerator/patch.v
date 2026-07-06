@@ -39,7 +39,7 @@ module patch #(
   wire w_act_in = o_ipt_rdy && i_ipt_vld;
   wire w_act_out = i_opt_rdy && o_opt_vld;
   // ====================== reg ============================    
-  reg signed [INPUT_BITS-1:0] r_ptch_dat[0:PATCH_HEIGHT-1][0:PATCH_WIDTH-1];
+  reg signed [INPUT_BITS-1:0] r_opt_dat[0:PATCH_HEIGHT-1][0:PATCH_WIDTH-1];
   //      ____                                    
   //     |  _ \ ___  ___  ___  _   _ _ __ ___ ___ 
   //     | |_) / _ \/ __|/ _ \| | | | '__/ __/ _ \
@@ -100,44 +100,44 @@ PATCH_WIDTH
     if (~i_rstn) begin
       for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
         for (j = 0; j < PATCH_WIDTH; j = j + 1) begin
-          r_ptch_dat[i][j] <= 'd0;
+          r_opt_dat[i][j] <= 'd0;
         end
       end
     end else begin
       if (w_act_in) begin
         for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
           for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
-            r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+            r_opt_dat[i][j] <= r_opt_dat[i][j+1];
           end
         end
         for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
-          r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+          r_opt_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
         end
       end else if (w_act_out) begin  // ring shift
         // firs row
         for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
-          r_ptch_dat[0][i] <= r_ptch_dat[0][i+1];
+          r_opt_dat[0][i] <= r_opt_dat[0][i+1];
         end
-        r_ptch_dat[0][PATCH_WIDTH-1] <= r_ptch_dat[1][0];
+        r_opt_dat[0][PATCH_WIDTH-1] <= r_opt_dat[1][0];
 
         // middle row
         for (j = 1; j < PATCH_HEIGHT - 1; j = j + 1) begin
           for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
-            r_ptch_dat[j][i] <= r_ptch_dat[j][i+1];
+            r_opt_dat[j][i] <= r_opt_dat[j][i+1];
           end
-          r_ptch_dat[j][PATCH_WIDTH-1] <= r_ptch_dat[j+1][0];
+          r_opt_dat[j][PATCH_WIDTH-1] <= r_opt_dat[j+1][0];
         end
 
         // last row
         for (i = 0; i < PATCH_WIDTH - 1; i = i + 1) begin
-          r_ptch_dat[PATCH_HEIGHT-1][i] <= r_ptch_dat[PATCH_HEIGHT-1][i+1];
+          r_opt_dat[PATCH_HEIGHT-1][i] <= r_opt_dat[PATCH_HEIGHT-1][i+1];
         end
-        r_ptch_dat[PATCH_HEIGHT-1][PATCH_WIDTH-1] <= r_ptch_dat[0][0];
+        r_opt_dat[PATCH_HEIGHT-1][PATCH_WIDTH-1] <= r_opt_dat[0][0];
       end
     end
   end
   // ====================== output =========================  
-  assign o_opt_dout = r_ptch_dat[0][0];  // MUX -> shift register
+  assign o_opt_dout = r_opt_dat[0][0];  // MUX -> shift register
 `elsif BALANCE
   //      ____        _                      
   //     | __ )  __ _| | __ _ _ __   ___ ___ 
@@ -206,7 +206,7 @@ PATCH_WIDTH
     if (~i_rstn) begin
       for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
         for (j = 0; j < PATCH_WIDTH; j = j + 1) begin
-          r_ptch_dat[i][j] <= 'd0;
+          r_opt_dat[i][j] <= 'd0;
         end
       end
     end else begin
@@ -217,28 +217,28 @@ PATCH_WIDTH
           for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
             // shift
             for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
-              r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+              r_opt_dat[i][j] <= r_opt_dat[i][j+1];
             end
             // push
-            r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+            r_opt_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
           end
         end
         2'b10: begin
           for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
             // shift
             for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
-              r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
+              r_opt_dat[i][j] <= r_opt_dat[i][j+1];
             end
-            r_ptch_dat[i][PATCH_WIDTH-1] <= r_ptch_dat[i][0];
+            r_opt_dat[i][PATCH_WIDTH-1] <= r_opt_dat[i][0];
           end
         end
         2'b11: begin
           for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
             // TODO : 파라미터화 필요
-            r_ptch_dat[i][0] <= r_ptch_dat[i][PATCH_WIDTH-1];
-            r_ptch_dat[i][1] <= r_ptch_dat[i][0];
+            r_opt_dat[i][0] <= r_opt_dat[i][PATCH_WIDTH-1];
+            r_opt_dat[i][1] <= r_opt_dat[i][0];
             // push
-            r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+            r_opt_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
           end
         end
         default: ;
@@ -248,7 +248,7 @@ PATCH_WIDTH
   // ====================== output ========================= 
   generate
     for (g = 0; g < PATCH_HEIGHT; g = g + 1) begin
-      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_ptch_dat[g][0];
+      assign o_opt_dout[g*INPUT_BITS+:INPUT_BITS] = r_opt_dat[g][0];
     end
   endgenerate
 
@@ -259,53 +259,54 @@ PATCH_WIDTH
   //     |_|   \___|_|  |_|  \___/|_|  |_| |_| |_|\__,_|_| |_|\___\___|
   //  
 `elsif PERFORMANCE
+  // ====================== wire =========================== 
   // ====================== reg ============================    
-  reg [$clog2(LINE_WIDTH)-1:0] r_ptch_cnt;
-  reg                          r_opt_vld;
-  // ====================== hand shake =====================    
-  assign o_ipt_rdy = i_opt_rdy;
+  reg  [$clog2(LINE_WIDTH)-1:0] r_ipt_cnt;
+  reg                           r_opt_vld;
+  // ====================== hand shake =====================     
+  assign o_ipt_rdy = w_act_out || !r_opt_vld;
   assign o_opt_vld = r_opt_vld;
   // ====================== always =========================  
-
+  // count about inserting data
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_ptch_cnt <= 'd0;
+      r_ipt_cnt <= 'd0;
     end else begin
-      if (i_clr) begin
-        r_ptch_cnt <= 'd0;
-      end else if (w_act_in) begin
-        if (r_ptch_cnt < LINE_WIDTH - 1) r_ptch_cnt <= r_ptch_cnt + 'd1;
-        else r_ptch_cnt <= 'd0;
-      end
+      if (i_clr) r_ipt_cnt <= 'd0;
+      else if (w_act_in)
+        if (r_ipt_cnt < LINE_WIDTH - 1) r_ipt_cnt <= r_ipt_cnt + 'd1;
+        else r_ipt_cnt <= 'd0;
     end
   end
+
+  // output valid
   always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
+    if (!i_rstn) begin
       r_opt_vld <= 1'b0;
-      for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
-        for (j = 0; j < PATCH_WIDTH; j = j + 1) begin
-          r_ptch_dat[i][j] <= 'd0;
-        end
-      end
+    end else if (i_clr) begin
+      r_opt_vld <= 1'b0;
     end else begin
-      if (o_ipt_rdy) begin
-        if (i_ipt_vld) begin
-          r_opt_vld <= (r_ptch_cnt >= PATCH_WIDTH - 1);
-        end else begin
+      case ({
+        w_act_in, w_act_out
+      })
+        2'b10, 2'b11: begin
+          // 새 데이터 들어옴
+          r_opt_vld <= (2 <=  r_ipt_cnt) ? 'b1 : 'b0;
+
+          for (i = 0; i < PATCH_HEIGHT; i = i + 1)
+          for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) r_opt_dat[i][j] <= r_opt_dat[i][j+1];
+
+          for (i = 0; i < PATCH_HEIGHT; i = i + 1)
+          r_opt_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
+        end
+        2'b01: begin
+          // 기존 데이터만 나감
           r_opt_vld <= 1'b0;
         end
-      end
-
-      if (w_act_in) begin
-        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
-          for (j = 0; j < PATCH_WIDTH - 1; j = j + 1) begin
-            r_ptch_dat[i][j] <= r_ptch_dat[i][j+1];
-          end
+        default: begin
+          // 아무 일 없음
         end
-        for (i = 0; i < PATCH_HEIGHT; i = i + 1) begin
-          r_ptch_dat[i][PATCH_WIDTH-1] <= i_ipt_din[i*INPUT_BITS+:INPUT_BITS];
-        end
-      end
+      endcase
     end
   end
 
@@ -314,7 +315,7 @@ PATCH_WIDTH
   generate
     for (g = 0; g < PATCH_HEIGHT; g = g + 1) begin
       for (h = 0; h < PATCH_WIDTH; h = h + 1) begin
-        assign o_opt_dout[(g*PATCH_WIDTH+h)*INPUT_BITS+:INPUT_BITS] = r_ptch_dat[g][h];
+        assign o_opt_dout[(g*PATCH_WIDTH+h)*INPUT_BITS+:INPUT_BITS] = r_opt_dat[g][h];
       end
     end
   endgenerate
