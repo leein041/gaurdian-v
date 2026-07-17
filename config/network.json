@@ -1,0 +1,46 @@
+{
+    "bitwidth": {
+        "ipt": 16,
+        "wgt": 16,
+        "opt": 16
+    },
+
+    "input": {
+        "channel": 1,
+        "side": 8
+    },
+
+    "layers": [
+
+        {
+            "type": "conv",
+            "channel": 1,
+            "filter": 4,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": true
+        },
+
+        {
+            "type": "conv",
+            "channel": 4,
+            "filter": 4,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": true
+        },
+
+        {
+            "type": "conv",
+            "channel": 4,
+            "filter": 1,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": false
+        }
+
+    ]
+}

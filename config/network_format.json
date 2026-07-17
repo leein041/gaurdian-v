@@ -1,0 +1,18 @@
+
+
+        {
+            "type": "conv",
+            "channel": 1,
+            "filter": 4,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": true
+        },
+
+        {
+            "type": "maxpool",
+            "channel": 4,
+            "kernel": 2,
+            "stride": 2
+        }
