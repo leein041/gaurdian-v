@@ -87,10 +87,8 @@ def generate_golden():
 
     side=cfg["input"]["side"]
 
-    inp=np.random.uniform(
-        0,1,
-        size=(1,side,side)
-    ) 
+    inp = (np.arange(side * side) / 256.0).reshape(1, side, side)
+    #inp=np.random.uniform(0,1,size=(1,side,side)) 
     inp=float_to_q88(inp)
 
     x=inp

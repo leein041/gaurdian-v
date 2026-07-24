@@ -55,7 +55,7 @@ module memory_stage #(
       .mem_data_o    (mem_data),
       .mem_ready_o   (mem_ready_o),
 
-      .tohost_addr_i(val_ex_i),     // 원본 byte 주소 전달
+      .tohoreq_addr_i(val_ex_i),     // 원본 byte 주소 전달
       .tohost_o     (tohost_o),
       .tohost_wen_o (tohost_wen_o)
   );

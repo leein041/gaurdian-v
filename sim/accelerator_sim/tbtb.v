@@ -35,7 +35,7 @@ module tbtb ();
   parameter L3_CHANNEL_NUM = 8;
   parameter L3_FILTER_NUM = 1;
 
-  parameter IPT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/input.txt";
+  parameter IMG_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/input.txt";
   parameter L1_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer1_weight.txt";
   parameter L1_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer1_bias.txt";
   parameter L2_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_weight.txt";
@@ -105,7 +105,7 @@ module tbtb ();
 
   my_top #(
 `ifdef DEBUG
-      .IPT_INIT_FILE    (IPT_INIT_FILE),
+      .IMG_INIT_FILE    (IMG_INIT_FILE),
       // layer 1  
       .L1_WGT_INIT_FILE (L1_WGT_INIT_FILE),
       .L1_BIAS_INIT_FILE(L1_BIAS_INIT_FILE),

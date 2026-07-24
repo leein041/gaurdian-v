@@ -24,6 +24,7 @@ module pe #(
       // wgt
       .i_wgt_din (i_wgt_din),
       // ipt  
+      .i_ipt_vld (),
       .i_ipt_din (i_ipt_din),
       // opt  
       .o_opt_dout(o_opt_dout)

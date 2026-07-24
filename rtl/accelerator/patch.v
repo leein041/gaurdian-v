@@ -2,9 +2,9 @@
 `include "defines.vh"
 `include "network_config.vh"
 module patch #(
-    parameter STRIDE        = 1,
-    parameter PATCH_SIDE    = `CONV_3X3_SIDE,
-    parameter MAX_TILE_SIDE = `MAX_TILE_SIDE + 2
+    parameter STRIDE     = 0,
+    parameter PATCH_SIDE = 0,
+    parameter LINE_WIDTH = 0
 ) (
     input                                                  i_clk,
     input                                                  i_rstn,
@@ -18,7 +18,7 @@ module patch #(
     output                                                 o_opt_vld,
     output signed [`IPT_BIT * PATCH_SIDE * PATCH_SIDE-1:0] o_opt_dout,
     // 
-    input         [               $clog2(MAX_TILE_SIDE):0] i_line_side
+    input         [                  $clog2(LINE_WIDTH):0] i_line_width
 );
   // ====================== parmeter =======================   
   genvar g, h;
@@ -29,7 +29,7 @@ module patch #(
   wire w_act_out = i_opt_rdy && o_opt_vld;
   // ====================== reg ============================    
   reg signed [`IPT_BIT-1:0] r_opt_dat[0:PATCH_SIDE-1][0:PATCH_SIDE-1];
-  reg [$clog2(MAX_TILE_SIDE):0] r_lbuf_col_cnt;
+  reg [$clog2(LINE_WIDTH):0] r_lbuf_col_cnt;
   reg [$clog2(STRIDE):0] r_stride_col_cnt;
   reg [$clog2(STRIDE):0] r_stride_row_cnt;
   reg r_opt_vld;
@@ -55,7 +55,7 @@ module patch #(
       })
         2'b10, 2'b11: begin
           // count linebuffer position 
-          if (r_lbuf_col_cnt < i_line_side) begin
+          if (r_lbuf_col_cnt < i_line_width) begin
             r_lbuf_col_cnt <= r_lbuf_col_cnt + 'd1;
             if (r_stride_col_cnt < STRIDE - 1) r_stride_col_cnt <= r_stride_col_cnt + 'd1;
             else r_stride_col_cnt <= 'd0;
@@ -65,7 +65,7 @@ module patch #(
             else r_stride_row_cnt <= 'd0;
           end
           //  TODO
-          if ((PATCH_SIDE - 1 <= r_lbuf_col_cnt) && (r_lbuf_col_cnt < i_line_side)
+          if ((PATCH_SIDE - 1 <= r_lbuf_col_cnt) && (r_lbuf_col_cnt < i_line_width)
               //  && (STRIDE - 1 == r_stride_col_cnt) && (0 == r_stride_row_cnt)
               ) begin
             r_opt_vld <= 'b1;

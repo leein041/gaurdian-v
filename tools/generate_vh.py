@@ -6,10 +6,9 @@ def emit_define(f, name, value, width=20):
     f.write(f"`define {name.ljust(width)} {value}\n")
 
 generate_golden()
+
 cfg = json.load(open("config/network.json"))
-
 layers = cfg["layers"] 
-
 TYPE = {
     "conv":0,
     "maxpool":1,
@@ -21,7 +20,7 @@ TYPE = {
 
 max_group_filter    = 2
 max_group_channel   = 2
-max_tile_side       = 4
+max_tile_side       = 2
  
 text=[]
 
@@ -32,6 +31,7 @@ text.append("")
 text.append(f"`define IPT_BIT   { cfg["bitwidth"]["ipt"]}")
 text.append(f"`define WGT_BIT   { cfg["bitwidth"]["wgt"]}")
 text.append(f"`define OPT_BIT   { cfg["bitwidth"]["opt"]}")
+text.append(f"`define PSUM_BIT  { 48}")
 text.append("") 
 text.append(f"`define LAYER_NUM {int(len(layers))}") 
 text.append("") 
@@ -48,7 +48,11 @@ for i,l in enumerate(layers):
     if l["type"]=="conv":
    
         text.append(f"`define L{idx}_IPT_SIDE           {ipt_side}")
+        text.append(f"`define L{idx}_IPT_AREA           {ipt_side*ipt_side}")
         text.append(f"`define L{idx}_OPT_SIDE           {ipt_side}")
+        text.append(f"`define L{idx}_OPT_AREA           {ipt_side*ipt_side}")
+        text.append(f"`define L{idx}_TILE_OPT_SIDE      {max_tile_side}")
+        text.append(f"`define L{idx}_TILE_OPT_AREA      {max_tile_side*max_tile_side}")
         text.append(f"`define L{idx}_CHANNEL            {l['channel']}")
         text.append(f"`define L{idx}_FILTER             {l['filter']}")
         text.append(f"`define L{idx}_KERNEL             {l['kernel']}")
@@ -61,27 +65,32 @@ for i,l in enumerate(layers):
         text.append(f"`define L{idx}_FILTER_GROUP_NUM   { math.ceil(l['filter'] / max_group_filter)}")
     else:
 
-        text.append(f"`define L{idx}_IPT_SIDE   {ipt_side}")
-        ipt_side//=l["stride"]
-        text.append(f"`define L{idx}_OPT_SIDE   {ipt_side}")
-        text.append(f"`define L{idx}_CHANNEL    {l['channel']}")
-        text.append(f"`define L{idx}_FILTER     {int(0)}")
-        text.append(f"`define L{idx}_KERNEL     {l['kernel']}")
-        text.append(f"`define L{idx}_STRIDE     {l['stride']}") 
-        text.append(f"`define L{idx}_PAD        {int(0)}")
-        text.append(f"`define L{idx}_RELU       {int(0)}") 
-        text.append(f"`define L{idx}_WGT_DEPTH  {int(0)}") 
-        text.append(f"`define L{idx}_BIAS_DEPTH {int(0)}") 
+        text.append(f"`define L{idx}_IPT_SIDE        {ipt_side}")
+        text.append(f"`define L{idx}_IPT_AREA        {ipt_side*ipt_side}")
+        ipt_side//=l["stride"]              
+        text.append(f"`define L{idx}_OPT_SIDE        {ipt_side}")
+        text.append(f"`define L{idx}_OPT_AREA        {ipt_side*ipt_side}")
+        text.append(f"`define L{idx}_TILE_OPT_SIDE   {max_tile_side // l["stride"]}")
+        text.append(f"`define L{idx}_TILE_OPT_AREA   {(max_tile_side // l["stride"])*(max_tile_side // l["stride"])}")
+        text.append(f"`define L{idx}_CHANNEL         {l['channel']}")
+        text.append(f"`define L{idx}_FILTER          {int(0)}")
+        text.append(f"`define L{idx}_KERNEL          {l['kernel']}")
+        text.append(f"`define L{idx}_STRIDE          {l['stride']}") 
+        text.append(f"`define L{idx}_PAD             {int(0)}")
+        text.append(f"`define L{idx}_RELU            {int(0)}") 
+        text.append(f"`define L{idx}_WGT_DEPTH       {int(0)}") 
+        text.append(f"`define L{idx}_BIAS_DEPTH      {int(0)}") 
 
     text.append("")
 
 # create MAX DATA
-max_ipt_side      = 0
-max_channel       = 0
-max_filter        = 0
-max_act_depth     = 0
-max_wgt_depth     = 0
-max_bias_depth    = 0
+max_ipt_side            = 0
+max_channel             = 0
+max_channel_group_num   = 0
+max_filter              = 0
+max_filter_group_num    = 0 
+max_wgt_depth           = 0
+max_bias_depth          = 0
 
 for layer in layers: 
     if layer["type"] == "conv":
@@ -104,8 +113,7 @@ for layer in cfg["layers"]:
     layer["input_side"] = cur_side
     layer["input_channel"] = cur_channel
     
-    max_ipt_side = max(max_ipt_side, cur_side)
-    max_act_depth = max(max_act_depth, cur_side*cur_side*max_group_channel)
+    max_ipt_side = max(max_ipt_side, cur_side) 
 
 
     if layer["type"] == "conv":
@@ -124,17 +132,22 @@ for layer in cfg["layers"]:
         cur_side = out_side
         
         
-text.append(f"`define MAX_IPT_SIDE       {int(max_ipt_side)}")
-text.append(f"`define MAX_IPT_AREA       {int(max_ipt_side*max_ipt_side)}") 
-text.append(f"`define MAX_TILE_SIDE      {int(max_tile_side)}")
-text.append(f"`define MAX_TILE_AREA      {int(max_tile_side*max_tile_side)}") 
-text.append(f"`define MAX_ACT_DPETH      {int(max_act_depth)}")
-text.append(f"`define MAX_CHANNEL        {int(max_channel)}")
-text.append(f"`define MAX_FILTER         {int(max_filter)}")
-text.append(f"`define MAX_WGT_DEPTH      {int(max_wgt_depth)}")
-text.append(f"`define MAX_BIAS_DEPTH     {int(max_bias_depth)}")
-text.append(f"`define MAX_GROUP_FILTER   {int(max_group_filter)}")
-text.append(f"`define MAX_GROUP_CHANNEL  {int(max_group_channel)}")
+text.append(f"`define MAX_IPT_SIDE           {int(max_ipt_side)}")
+text.append(f"`define MAX_IPT_AREA           {int(max_ipt_side*max_ipt_side)}") 
+text.append(f"`define MAX_OPT_SIDE           {int(max_ipt_side)}")
+text.append(f"`define MAX_OPT_AREA           {int(max_ipt_side*max_ipt_side)}") 
+text.append(f"`define MAX_TILE_SIDE          {int(max_tile_side)}")
+text.append(f"`define MAX_TILE_AREA          {int(max_tile_side*max_tile_side)}") 
+text.append(f"`define MAX_PAD_TILE_SIDE      {int(max_tile_side+2)}")
+text.append(f"`define MAX_PAD_TILE_AREA      {int((max_tile_side+2)*(max_tile_side+2))}")  
+text.append(f"`define MAX_CHANNEL            {int(max_channel)}")
+text.append(f"`define MAX_FILTER             {int(max_filter)}")
+text.append(f"`define MAX_WGT_DEPTH          {int(max_wgt_depth)}")
+text.append(f"`define MAX_BIAS_DEPTH         {int(max_bias_depth)}")
+text.append(f"`define MAX_GROUP_FILTER       {int(max_group_filter)}")
+text.append(f"`define MAX_GROUP_CHANNEL      {int(max_group_channel)}")
+text.append(f"`define MAX_CHANNEL_GROUP_NUM  {int(max_channel/max_group_channel)}")
+text.append(f"`define MAX_FILTER_GROUP_NUM   {int(max_filter/max_group_filter)}")
 
 text.append("")
 

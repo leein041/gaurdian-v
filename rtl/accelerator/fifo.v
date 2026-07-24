@@ -43,7 +43,7 @@ module fifo #(
   // ipt
   // why substract 1?
   // : read enable signal is register, so -1
-  assign o_ipt_rdy = (r_cnt < (DEPTH - 1)) && w_sbuf_rdy;
+  assign o_ipt_rdy = (r_cnt < (DEPTH - 1));
   assign wr_en     = i_ipt_vld && o_ipt_rdy;
   assign rd_en     = (0 < r_cnt) && w_sbuf_rdy;
   // ====================== always ========================= 
@@ -116,7 +116,7 @@ module fifo #(
   );
   skid_buffer #(
       .WIDTH   (WIDTH),
-      .LATENCY (1),
+      .LATENCY (3),
       .MEM_SKID(1)
   ) inst_skid (
       .i_clk     (i_clk),

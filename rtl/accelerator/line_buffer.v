@@ -1,31 +1,11 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 2026/04/23 15:44:47
-// Design Name: 
-// Module Name: LINE_BUFFER
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 `include "defines.vh"
 `include "network_config.vh"
 module line_buffer #(
     parameter  LINE_BIT    = 16,
     parameter  LINE_HEIGHT = `CONV_3X3_SIDE,
-    parameter  LINE_SIDE    = `MAX_TILE_SIDE + 2,  // padded
-    localparam LINE_AREA    = LINE_SIDE * LINE_SIDE
+    parameter  LINE_WIDTH  = `MAX_PAD_TILE_SIDE,      // padded
+    localparam LINE_AREA   = LINE_WIDTH * LINE_WIDTH
 ) (
     input                                         i_clk,
     input                                         i_rstn,
@@ -39,14 +19,9 @@ module line_buffer #(
     output                                        o_opt_vld,
     output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout,
     // 
-    input                                         i_line_side,
-    input                                         i_line_area
+    input                                         i_line_width
 );
-  // ====================== parmeter ======================= 
-  // FSM
-  localparam LB_IDLE = 3'd0;
-  localparam LB_ENTER_LINE = 3'd1;
-  localparam LB_DONE = 3'd2;
+  // ====================== parmeter =======================  
 
   integer i, j;
   genvar g, h;
@@ -73,25 +48,25 @@ module line_buffer #(
   reg         [                        1:0] r_lbuf_cstat;
   reg         [                        1:0] r_lbuf_nstat;
   // 
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_wpos_row;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_wpos_row;
   reg         [$clog2(LINE_HEIGHT) - 1 : 0] r_lbuf_row_idx;
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_lbuf_col;
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_rpos_row;
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_lbuf_rptr;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_col;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_rpos_row;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_rptr;
   // line buffer   
 
   // read
   reg                                       r_lbuf_re;
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_lbuf_raddr;
-  reg         [  $clog2(LINE_AREA) - 1 : 0] r_lbuf_rcnt;
+  reg         [     $clog2(LINE_WIDTH)-1:0] r_lbuf_raddr;
+  reg         [      $clog2(LINE_AREA) : 0] r_lbuf_rcnt;
   // write
   reg                                       r_lbuf_we;
   reg         [    $clog2(LINE_HEIGHT) : 0] r_lbuf_widx;
-  reg         [ $clog2(LINE_SIDE) - 1 : 0] r_lbuf_waddr;
-  reg         [  $clog2(LINE_AREA) - 1 : 0] r_lbuf_wcnt;
+  reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr;
+  reg         [      $clog2(LINE_AREA) : 0] r_lbuf_wcnt;
 
   //  
-  reg         [     $clog2(LINE_SIDE)-1:0] r_opt_cnt;
+  reg         [     $clog2(LINE_WIDTH)-1:0] r_opt_cnt;
   reg         [    $clog2(LINE_HEIGHT)-1:0] r_ptch_row_idx;
   reg         [               LINE_BIT-1:0] r_opt_dat      [0:LINE_HEIGHT-1];
   reg         [            LINE_HEIGHT-1:0] r_opt_vld;
@@ -138,25 +113,13 @@ module line_buffer #(
       r_lbuf_wcnt    <= 'd0;
       r_lbuf_re      <= 'd0;
       r_lbuf_raddr   <= 'd0;
-      r_lbuf_rcnt    <= 2 * LINE_SIDE;
+      r_lbuf_rcnt    <= 2 * LINE_WIDTH;
       r_ptch_row_idx <= 'd0;
       r_opt_cnt      <= 'd0;
     end else if (i_clr) begin
-      r_lbuf_dat     <= 'd0;
-      r_rpos_row     <= 'd0;
-      r_lbuf_rptr    <= 'd0;
-      r_wpos_row     <= 'd0;
-      r_lbuf_row_idx <= 'd0;
-      r_lbuf_col     <= 'd0;
-      r_lbuf_we      <= 'd0;
-      r_lbuf_widx    <= 'd1;
-      r_lbuf_waddr   <= 'd0;
       r_lbuf_wcnt    <= 'd0;
-      r_lbuf_re      <= 'd0;
-      r_lbuf_raddr   <= 'd0;
-      r_lbuf_rcnt    <= 2 * LINE_SIDE;
+      r_lbuf_rcnt    <= 2 * LINE_WIDTH;
       r_ptch_row_idx <= 'd0;
-      r_opt_cnt      <= 'd0;
     end else begin
 
       // act in
@@ -165,23 +128,24 @@ module line_buffer #(
         r_lbuf_we    <= 'b1;
         r_lbuf_waddr <= r_lbuf_col;
         r_lbuf_widx  <= r_lbuf_row_idx;
+        r_lbuf_wcnt  <= r_lbuf_wcnt + 'd1;
 
-        // counting write position
-        if (r_lbuf_wcnt < LINE_AREA) begin
-          r_lbuf_wcnt <= r_lbuf_wcnt + 'd1;
+        // update write col position
+        if (r_lbuf_col < LINE_WIDTH - 1) r_lbuf_col <= r_lbuf_col + 1'b1;
+        else begin
+          r_lbuf_col <= 'd0;
+          // update write row position
+          if (r_wpos_row < LINE_WIDTH - 1) begin
+            r_wpos_row <= r_wpos_row + 1'b1;
+          end else begin
+            r_wpos_row <= 'd0;
+          end
 
-          // update write col position
-          if (r_lbuf_col < LINE_SIDE - 1) r_lbuf_col <= r_lbuf_col + 1'b1;
-          else begin
-            // update write row position
-            if (r_wpos_row < LINE_SIDE - 1) begin
-              r_lbuf_col <= 'd0;
-              r_wpos_row <= r_wpos_row + 1'b1;
-            end
-
-            // update write position row index
-            if (r_lbuf_row_idx < LINE_HEIGHT - 1) r_lbuf_row_idx <= r_lbuf_row_idx + 1'b1;
-            else r_lbuf_row_idx <= 'd0;
+          // update write position row index
+          if (r_lbuf_row_idx < LINE_HEIGHT - 1) begin
+            r_lbuf_row_idx <= r_lbuf_row_idx + 1'b1;
+          end else begin
+            r_lbuf_row_idx <= 'd0;
           end
         end
       end else r_lbuf_we <= 'b0;
@@ -192,27 +156,27 @@ module line_buffer #(
         if (r_lbuf_rcnt < r_lbuf_wcnt) begin
           r_lbuf_re    <= 1'b1;
           r_lbuf_raddr <= r_lbuf_rptr;
+          r_lbuf_rcnt  <= r_lbuf_rcnt + 'd1;
 
-          // counting read position
-          if (r_lbuf_rcnt < LINE_AREA) begin
-            r_lbuf_rcnt <= r_lbuf_rcnt + 'd1;
-
-            // update read col position
-            if (r_lbuf_rptr < LINE_SIDE - 1) r_lbuf_rptr <= r_lbuf_rptr + 1'b1;
-            else begin
-              // update read row position
-              if (r_rpos_row < LINE_SIDE - 1) begin
-                r_lbuf_rptr <= 'd0;
-                r_rpos_row  <= r_rpos_row + 1'b1;
-              end
+          // update read col position
+          if (r_lbuf_rptr < LINE_WIDTH - 1) begin
+            r_lbuf_rptr <= r_lbuf_rptr + 1'b1;
+          end else begin
+            r_lbuf_rptr <= 'd0;
+            // update read row position
+            if (r_rpos_row < LINE_WIDTH - 1) begin
+              r_rpos_row <= r_rpos_row + 1'b1;
+            end else begin
+              r_rpos_row <= 'd0;
             end
           end
         end else r_lbuf_re <= 1'b0;
       end else r_lbuf_re <= 1'b0;
 
       if (w_sbuf_vld) begin
-        if (r_opt_cnt < LINE_SIDE - 1) r_opt_cnt <= r_opt_cnt + 'd1;
-        else begin
+        if (r_opt_cnt < LINE_WIDTH - 1) begin
+          r_opt_cnt <= r_opt_cnt + 'd1;
+        end else begin
           r_opt_cnt <= 'd0;
           // circulate patch row index ( 012 -> 120 -> 201 -> 012 -> ..)
           if (r_ptch_row_idx < LINE_HEIGHT - 1) r_ptch_row_idx <= r_ptch_row_idx + 'd1;
@@ -222,20 +186,13 @@ module line_buffer #(
     end
   end
 
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-
-    end else begin
-
-    end
-  end
   // ====================== module ========================= 
   generate
     for (g = 0; g < LINE_HEIGHT; g = g + 1) begin : line_buf
       assign w_lbuf_we[g] = (r_lbuf_we && (g == r_lbuf_widx));
       simple_dual_port_ram #(
           .WIDTH   (LINE_BIT),
-          .DEPTH   (LINE_SIDE),
+          .DEPTH   (LINE_WIDTH),
           .MEM_TYPE(`LUT_TYPE)
       ) inst_line_buf (
           .i_clk  (i_clk),
@@ -249,7 +206,7 @@ module line_buffer #(
           .o_dout (w_lbuf_dat[g])
       );
       skid_buffer #(
-          .BITS   (LINE_BIT),
+          .WIDTH   (LINE_BIT),
           .LATENCY(3),
           .MEM_SKID(1)
       ) inst_skid_buffer (

@@ -24,5 +24,7 @@
 `define BRAM_TYPE 0
 `define URAM_TYPE 1
 `define LUT_TYPE 2
+ 
+`define CLOG2_SAFE(x) (((x) <= 1) ? 1 : $clog2(x))
 
 `endif // DEFINES_VH

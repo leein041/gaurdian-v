@@ -20,7 +20,7 @@ module data_memory #(
     output reg        mem_ready_o,
 
     // debug
-    input      [31:0] tohost_addr_i,
+    input      [31:0] tohoreq_addr_i,
     output reg [31:0] tohost_o,
     output reg        tohost_wen_o
 );
@@ -136,8 +136,8 @@ module data_memory #(
       tohost_wen_o <= 1'b0;
       if (mem_rw_i && mem_en_i && delay_cnt == 2'd2) begin
         // debug
-        $display("STORE addr=0x%08h data=0x%08h", tohost_addr_i, mem_data_i);
-        if (tohost_addr_i == 32'h80001000) begin
+        $display("STORE addr=0x%08h data=0x%08h", tohoreq_addr_i, mem_data_i);
+        if (tohoreq_addr_i == 32'h80001000) begin
           tohost_o     <= mem_data_i;
           tohost_wen_o <= 1'b1;
         end

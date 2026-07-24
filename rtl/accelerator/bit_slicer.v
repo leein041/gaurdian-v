@@ -16,11 +16,11 @@ module bit_slicer #(
     output signed [OPT_BIT-1:0] o_opt_dout
 );
   // ====================== wire =========================== 
-  wire                     w_act_in = o_ipt_rdy && i_ipt_vld;
-  wire                     w_act_out = i_opt_rdy && o_opt_vld;
+  wire                      w_act_in = o_ipt_rdy && i_ipt_vld;
+  wire                      w_act_out = i_opt_rdy && o_opt_vld;
   // ====================== reg ============================
-  reg                      r_opt_vld;
-  reg signed [OPT_BIT : 0] r_opt_dat;
+  reg                       r_opt_vld;
+  reg signed [OPT_BIT -1:0] r_opt_dat;
   // ====================== assign =========================  
   assign o_ipt_rdy = w_act_out || !r_opt_vld;
   // ====================== always ========================= 
