@@ -1,6 +1,6 @@
 `include "defines.vh"
 `include "network_config.vh"
-module buffer #(
+module bank_buffer #(
     parameter WIDTH      = 0,
     parameter BANK_DEPTH = 0,
     parameter MEM_TYPE   = `BRAM_TYPE,
@@ -11,16 +11,16 @@ module buffer #(
     //
     input                                  i_re,
     input  [`CLOG2_SAFE(BANK_DEPTH)-1 : 0] i_raddr,
+    output                                 o_rvld,
+    output [         WIDTH * BANK_NUM-1:0] o_rdout,
     //
     input  [    `CLOG2_SAFE(BANK_NUM)-1:0] i_bank_idx,
     input                                  i_we,
     input  [`CLOG2_SAFE(BANK_DEPTH)-1 : 0] i_waddr,
-    input  [                    WIDTH-1:0] i_wdat,
+    input  [                    WIDTH-1:0] i_wdin,
     // opt
     output                                 o_ipt_rdy,
-    input                                  i_opt_rdy,
-    output                                 o_opt_vld,
-    output [         WIDTH * BANK_NUM-1:0] o_opt_dout
+    input                                  i_opt_rdy
 );
   genvar g;
   // ====================== wire ===========================
@@ -47,9 +47,9 @@ module buffer #(
           .i_raddr(i_raddr),
           .i_we   (i_we && i_bank_idx == g),
           .i_waddr(i_waddr),
-          .i_wdin (i_wdat),
-          .o_vld  (mem_skid_vld[g]),
-          .o_dout (mem_skid_dat[g])
+          .i_wdin (i_wdin),
+          .o_rvld (mem_skid_vld[g]),
+          .o_rdout(mem_skid_dat[g])
       );
 
       skid_buffer #(
@@ -73,9 +73,9 @@ module buffer #(
   // ====================== output ========================= 
   generate
     for (g = 0; g < BANK_NUM; g = g + 1) begin
-      assign o_opt_dout[g*WIDTH+:WIDTH] = w_skid_dat[g];
+      assign o_rdout[g*WIDTH+:WIDTH] = w_skid_dat[g];
     end
   endgenerate
-  assign o_opt_vld = w_skid_vld[0];  // 동시 작업이므로 LUT 최소화
+  assign o_rvld = w_skid_vld[0];  // 동시 작업이므로 LUT 최소화
 
 endmodule

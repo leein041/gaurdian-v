@@ -11,13 +11,12 @@ module double_buffer #(
     //
     input                             i_re,
     input  [`CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
+    output                            o_rvld,
+    output [               WIDTH-1:0] o_rdout,
     //
     input                             i_we,
     input  [`CLOG2_SAFE(DEPTH)-1 : 0] i_waddr,
-    input  [               WIDTH-1:0] i_wdat,
-    // opt       
-    output                            o_opt_vld,
-    output [               WIDTH-1:0] o_opt_dout
+    input  [               WIDTH-1:0] i_wdin
 );
   genvar g;
   // ====================== wire ===========================
@@ -55,9 +54,9 @@ module double_buffer #(
       .i_raddr(i_raddr),
       .i_we   (i_we && r_read_buf == 1),
       .i_waddr(i_waddr),
-      .i_wdin (i_wdat),
-      .o_vld  (w_buf_vld[0]),
-      .o_dout (w_buf_dat[0])
+      .i_wdin (i_wdin),
+      .o_rvld (w_buf_vld[0]),
+      .o_rdout(w_buf_dat[0])
   );
 
   simple_dual_port_ram #(
@@ -71,12 +70,12 @@ module double_buffer #(
       .i_raddr(i_raddr),
       .i_we   (i_we && r_read_buf == 0),
       .i_waddr(i_waddr),
-      .i_wdin (i_wdat),
-      .o_vld  (w_buf_vld[1]),
-      .o_dout (w_buf_dat[1])
+      .i_wdin (i_wdin),
+      .o_rvld (w_buf_vld[1]),
+      .o_rdout(w_buf_dat[1])
   );
 
   // ====================== output =========================  
-  assign o_opt_vld  = w_buf_sel_vld;
-  assign o_opt_dout = w_buf_sel_dat;
+  assign o_rvld  = w_buf_sel_vld;
+  assign o_rdout = w_buf_sel_dat;
 endmodule

@@ -18,9 +18,19 @@ TYPE = {
     "yolo":5
 }
 
-max_group_filter    = 2
-max_group_channel   = 2
-max_tile_side       = 2
+# user define
+max_group_filter        = 2
+max_group_channel       = 2
+max_tile_side           = 8
+# 
+max_ipt_side            = 0
+max_channel             = 0
+max_channel_group_num   = 0
+max_filter              = 0
+max_filter_group_num    = 0 
+max_wgt_depth           = 0
+max_bias_depth          = 0
+
  
 text=[]
 
@@ -37,11 +47,10 @@ text.append(f"`define LAYER_NUM {int(len(layers))}")
 text.append("") 
     
 # layer config
-ipt_side = cfg["input"]["side"]   
-
+ipt_side = cfg["input"]["side"]    
 for i,l in enumerate(layers):
 
-    idx=i+1
+    idx=i
 
     text.append(f"`define L{idx}_TYPE       {TYPE[l['type']]}")
 
@@ -84,14 +93,6 @@ for i,l in enumerate(layers):
     text.append("")
 
 # create MAX DATA
-max_ipt_side            = 0
-max_channel             = 0
-max_channel_group_num   = 0
-max_filter              = 0
-max_filter_group_num    = 0 
-max_wgt_depth           = 0
-max_bias_depth          = 0
-
 for layer in layers: 
     if layer["type"] == "conv":
         max_channel = max(max_channel, layer["channel"])

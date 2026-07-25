@@ -2,35 +2,35 @@
 `include "defines.vh"
 `include "network_config.vh"
 module conv_layer (
-    input                                     i_clk,
-    input                                     i_rstn,
-    input                                     i_clr,
-    output                                    o_dn,
+    input                                      i_clk,
+    input                                      i_rstn,
+    input                                      i_clr,
+    output                                     o_dn,
     // wgt    
-    input                                     i_wgt_vld,
-    input  [`WGT_BIT * `MAX_GROUP_FILTER-1:0] i_wgt_din,
+    input                                      i_wgt_vld,
+    input  [ `WGT_BIT * `MAX_GROUP_FILTER-1:0] i_wgt_din,
     // ipt 
-    output                                    o_ipt_rdy,
-    input                                     i_ipt_vld,
-    input  [ `IPT_BIT*`MAX_GROUP_CHANNEL-1:0] i_ipt_din,
+    output                                     o_ipt_rdy,
+    input                                      i_ipt_vld,
+    input  [  `IPT_BIT*`MAX_GROUP_CHANNEL-1:0] i_ipt_din,
     // opt
-    input                                     i_opt_rdy,
-    output                                    o_opt_vld,
-    output [ `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
+    input                                      i_opt_rdy,
+    output                                     o_opt_vld,
+    output [  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
     // temp
-    input  [        $clog2(`MAX_TILE_AREA):0] i_opt_area,
-    input                                     i_relu_en,
-    input  [    $clog2(`MAX_PAD_TILE_SIDE):0] i_line_width,
-    input  [          $clog2(`MAX_CHANNEL):0] i_ch_num,
-    input  [           $clog2(`MAX_FILTER):0] i_pu_num,
-    input  [          `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
-    input  [           `MAX_GROUP_FILTER-1:0] i_pu_mask
+    input  [    `CLOG2_SAFE(`MAX_TILE_AREA):0] i_opt_num,
+    input                                      i_relu_en,
+    input  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] i_line_width,
+    input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch,
+    input  [       `CLOG2_SAFE(`MAX_FILTER):0] i_out_ch,
+    input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
+    input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
 );
   // ====================== parmeter =======================   
   localparam LINE_HEIGHT = `CONV_3X3_SIDE;
   localparam PE_OPT_BIT = `IPT_BIT + `WGT_BIT;
-  localparam PU_OPT_BIT = PE_OPT_BIT + $clog2(`CONV_3X3_AREA);
-  localparam AT_OPT_BIT = PU_OPT_BIT + $clog2(`MAX_GROUP_FILTER);
+  localparam PU_OPT_BIT = PE_OPT_BIT + `CLOG2_SAFE(`CONV_3X3_AREA);
+  localparam AT_OPT_BIT = PU_OPT_BIT + `CLOG2_SAFE(`MAX_GROUP_FILTER);
   localparam AD_OPT_BIT = AT_OPT_BIT + 1;
 
 
@@ -79,8 +79,8 @@ module conv_layer (
 
   // ====================== reg ============================ 
   // interenal counter 
-  reg [$clog2(`MAX_GROUP_FILTER):0] r_ch_idx;
-  reg [$clog2(`CONV_3X3_AREA):0] r_pe_idx;
+  reg [`CLOG2_SAFE(`MAX_GROUP_FILTER):0] r_ch_idx;
+  reg [`CLOG2_SAFE(`CONV_3X3_AREA):0] r_pe_idx;
   // line buffer    
   reg [`MAX_GROUP_FILTER-1:0] r_lbuf_st;
   // pu
@@ -97,7 +97,7 @@ module conv_layer (
   reg r_relu_vld;
   reg signed [`IPT_BIT-1:0] r_relu_dat[0:`MAX_GROUP_FILTER-1];
   // done
-  reg [$clog2(`MAX_TILE_AREA):0] r_opt_cnt;
+  reg [`CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
   reg r_dn;
 
   // ====================== hand shake ===================== 
@@ -135,7 +135,7 @@ module conv_layer (
       r_dn <= 'b0;
 
       if (o_opt_vld && i_opt_rdy) begin
-        if (r_opt_cnt == i_opt_area - 1) begin
+        if (r_opt_cnt == i_opt_num - 1) begin
           r_dn      <= 'b1;
           r_opt_cnt <= 'd0;
         end else begin
@@ -154,7 +154,7 @@ module conv_layer (
         r_pe_idx <= r_pe_idx + 'd1;
       end else begin
         r_pe_idx <= 'd0;
-        if (r_ch_idx < i_ch_num - 1) begin
+        if (r_ch_idx < i_in_ch - 1) begin
           r_ch_idx <= r_ch_idx + 'd1;
         end else begin
           r_ch_idx <= 'd0;
@@ -246,7 +246,7 @@ module conv_layer (
             .i_wgt_vld (r_pu_wvld[c]),
             .i_wgt_din (r_pu_wdat[p]),
             .o_ipt_rdy (w_pu_rdy[p][c]),
-            .i_ipt_vld (w_ptch_vld[c] && i_ch_mask[c] && i_pu_mask[p]),
+            .i_ipt_vld (w_ptch_vld[c] && i_ch_mask[c] && i_filt_mask[p]),
             .i_ipt_din (w_ptch_dat[c]),
             .i_opt_rdy (w_cat_rdy[p]),
             .o_opt_vld (w_pu_vld[p][c]),

@@ -4,34 +4,35 @@
 
 module tile_loader #(
     parameter  TILE_SIDE        = `MAX_TILE_SIDE,
+    parameter  FBUF_DEPTH       = 0,
     parameter  HALO             = 1,
     // 
     localparam PADDED_TILE_SIDE = TILE_SIDE + 2,
     localparam PADDED_TILE_AREA = PADDED_TILE_SIDE * PADDED_TILE_SIDE,
-    localparam PADDED_TILE_ADDR = $clog2(PADDED_TILE_AREA)
+    localparam PADDED_TILE_ADDR = `CLOG2_SAFE(PADDED_TILE_AREA)
 ) (
-    input                                      i_clk,
-    input                                      i_rstn,
-    input                                      i_st,
-    output                                     o_dn,
+    input                                        i_clk,
+    input                                        i_rstn,
+    input                                        i_st,
+    output                                       o_dn,
     // GC
-    input  [        $clog2(`MAX_IPT_SIDE) : 0] i_img_side,
-    input  [        $clog2(`MAX_IPT_SIDE) : 0] i_img_org_x,
-    input  [        $clog2(`MAX_IPT_SIDE) : 0] i_img_org_y,
-    input  [        $clog2(`MAX_IPT_AREA)-1:0] i_tile_base_addr,
+    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_side,
+    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_x,
+    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_y,
+    input  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tile_base_addr,
     // RC
-    output [        $clog2(`MAX_IPT_AREA) : 0] o_req_len,
-    output                                     o_req,
-    output [        $clog2(`MAX_IPT_AREA)-1:0] o_req_addr,
-    input                                      i_req_dn,
+    output [        `CLOG2_SAFE(FBUF_DEPTH) : 0] o_req_len,
+    output                                       o_req,
+    output [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] o_req_addr,
+    input                                        i_req_dn,
     // ipt (FIFO)
-    output                                     o_ipt_rdy,
-    input                                      i_ipt_vld,
-    input  [`IPT_BIT * `MAX_GROUP_CHANNEL-1:0] i_ipt_din,
+    output                                       o_ipt_rdy,
+    input                                        i_ipt_vld,
+    input  [  `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] i_ipt_din,
     // write    
-    output                                     o_we,
-    output [   $clog2(`MAX_PAD_TILE_AREA)-1:0] o_waddr,
-    output [`IPT_BIT * `MAX_GROUP_CHANNEL-1:0] o_wdat
+    output                                       o_we,
+    output [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] o_waddr,
+    output [  `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] o_wdat
 );
   // ====================== parmeter =======================  
   localparam REQ_IDLE = 0;
@@ -47,41 +48,40 @@ module tile_loader #(
 
   // ====================== wire ===========================    
   //
-  wire                                     w_req_pad_bottom;
-  wire                                     w_req_pad_top;
-  wire                                     w_req_pad_row;
-  wire                                     w_req_pad_left;
-  wire                                     w_req_pad_right;
+  wire                                       w_req_pad_bottom;
+  wire                                       w_req_pad_top;
+  wire                                       w_req_pad_row;
+  wire                                       w_req_pad_left;
+  wire                                       w_req_pad_right;
   //
-  wire                                     w_out_pad_u;
-  wire                                     w_out_pad_d;
-  wire                                     w_out_pad_l;
-  wire                                     w_out_pad_r;
-  wire                                     w_act_pad;
+  wire                                       w_out_pad_u;
+  wire                                       w_out_pad_d;
+  wire                                       w_out_pad_l;
+  wire                                       w_out_pad_r;
+  wire                                       w_act_pad;
   // 
-  wire                                     w_act_in = (i_ipt_vld && o_ipt_rdy);
+  wire                                       w_act_in = (i_ipt_vld && o_ipt_rdy);
   // ====================== reg ============================
-  reg  [              $clog2(REQ_END)-1:0] r_req_cstat;
-  reg  [              $clog2(REQ_END)-1:0] r_req_nstat;
-  reg  [              $clog2(OUT_END)-1:0] r_out_cstat;
-  reg  [              $clog2(OUT_END)-1:0] r_out_nstat;
+  reg  [           `CLOG2_SAFE(REQ_END)-1:0] r_req_cstat;
+  reg  [           `CLOG2_SAFE(REQ_END)-1:0] r_req_nstat;
+  reg  [           `CLOG2_SAFE(OUT_END)-1:0] r_out_cstat;
+  reg  [           `CLOG2_SAFE(OUT_END)-1:0] r_out_nstat;
   //
-  reg                                      r_dn;
+  reg                                        r_dn;
   // RC
-  reg  [     $clog2(PADDED_TILE_SIDE) : 0] r_row_cnt;
-  reg  [        $clog2(`MAX_IPT_AREA) : 0] r_req_len;
-  reg                                      r_req;
-  reg  [        $clog2(`MAX_IPT_AREA)-1:0] r_raddr;
-  reg  [        $clog2(`MAX_IPT_AREA) : 0] r_row_stride;
+  reg  [  `CLOG2_SAFE(PADDED_TILE_SIDE) : 0] r_row_cnt;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_req_len;
+  reg                                        r_req;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_raddr;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_row_base_addr;
   // output
-  reg  [   $clog2(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_x;
-  reg  [   $clog2(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_y;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_x;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_y;
   // 
-  reg                                      r_we;
-  reg  [   $clog2(`MAX_PAD_TILE_AREA) : 0] r_wcnt;
-  reg  [   $clog2(`MAX_PAD_TILE_AREA)-1:0] r_wptr;
-  reg  [   $clog2(`MAX_PAD_TILE_AREA)-1:0] r_waddr;
-  reg  [`IPT_BIT * `MAX_GROUP_CHANNEL-1:0] r_wdat;
+  reg                                        r_we;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] r_wptr;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] r_waddr;
+  reg  [  `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] r_wdat;
   // ====================== assign =========================     
   assign o_ipt_rdy = !w_act_pad;
 
@@ -91,7 +91,6 @@ module tile_loader #(
 
   assign w_req_pad_left   = (cur_x < 0);
 
-  assign w_req_pad_right  = (cur_x >= i_img_side);
   // req
   assign w_req_pad_top    = (cur_y < 0);
   assign w_req_pad_bottom = (cur_y >= i_img_side);
@@ -157,7 +156,7 @@ module tile_loader #(
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_row_cnt    <= 'd0;
-      r_row_stride <= 'd0;
+      r_row_base_addr <= 'd0;
       r_req_len    <= 0;
       r_req        <= 0;
       r_raddr      <= 0;
@@ -167,9 +166,9 @@ module tile_loader #(
         REQ_IDLE: begin
           if (i_st) begin
             if (i_img_org_y < HALO) begin
-              r_row_stride <= i_tile_base_addr;
+              r_row_base_addr <= i_tile_base_addr;
             end else begin
-              r_row_stride <= i_tile_base_addr - i_img_side;
+              r_row_base_addr <= i_tile_base_addr - i_img_side;
             end
           end
         end
@@ -196,14 +195,14 @@ module tile_loader #(
 
           // request address
           if (w_req_pad_left) begin
-            r_raddr <= r_row_stride + i_img_org_x;
+            r_raddr <= r_row_base_addr + i_img_org_x;
           end else begin
-            r_raddr <= r_row_stride + i_img_org_x - 'd1;
+            r_raddr <= r_row_base_addr + i_img_org_x - 'd1;
           end
 
           // update request address 
           if (!w_req_pad_row) begin
-            r_row_stride <= r_row_stride + i_img_side;
+            r_row_base_addr <= r_row_base_addr + i_img_side;
           end
         end
 
@@ -244,7 +243,7 @@ module tile_loader #(
       end
 
       OUT_RUN: begin
-        if (r_wcnt == `MAX_PAD_TILE_AREA) begin
+        if (r_wptr == `MAX_PAD_TILE_AREA - 1) begin
           r_out_nstat = OUT_DONE;
         end
       end
@@ -264,7 +263,6 @@ module tile_loader #(
       r_out_tile_y <= 'd0;
       //
       r_we         <= 'b0;
-      r_wcnt       <= 'd0;
       r_wptr       <= 'd0;
       r_waddr      <= 'd0;
       r_wdat       <= 'd0;
@@ -290,7 +288,6 @@ module tile_loader #(
 
             // output
             r_we    <= 'b1;
-            r_wcnt  <= r_wcnt + 'd1;
             r_wptr  <= r_wptr + 'd1;
             r_waddr <= r_wptr;
             if (w_act_pad) begin
@@ -305,7 +302,6 @@ module tile_loader #(
         OUT_DONE: begin
           r_dn         <= 'b1;
           r_we         <= 'b0;
-          r_wcnt       <= 'd0;
           r_wptr       <= 'd0;
           r_out_tile_x <= 'd0;
           r_out_tile_y <= 'd0;

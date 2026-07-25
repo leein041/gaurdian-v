@@ -3,68 +3,25 @@
 `include "../../rtl/accelerator/network_config.vh"
 module tbtb ();
 
-  //-------------------------------------------------------------------------------
-  // parameter
-  //-------------------------------------------------------------------------------   
-  // MODEL SIZE  
-  parameter IPT_BITS = 16;
-  parameter WGT_BITS = 16;
-  parameter OUTPUT_BITS = 16;
-
-  parameter PATCH_WIDTH = 3;
-  parameter PATCH_HEIGHT = 3;
-  parameter OUTPUT_WIDTH = 5;
-  parameter OUTPUT_HEIGHT = 5;
-
-  // layer 1
-  parameter L1_RELU_EN = 1;
-  parameter L1_INPUT_WIDTH = 5;
-  parameter L1_INPUT_HEIGHT = 5;
-  parameter L1_CHANNEL_NUM = 1;
-  parameter L1_FILTER_NUM = 4;
-  // layer 2
-  parameter L2_RELU_EN = 1;
-  parameter L2_INPUT_WIDTH = 5;
-  parameter L2_INPUT_HEIGHT = 5;
-  parameter L2_CHANNEL_NUM = 4;
-  parameter L2_FILTER_NUM = 8;
-  // layer 3 
-  parameter L3_RELU_EN = 0;
-  parameter L3_INPUT_WIDTH = 5;
-  parameter L3_INPUT_HEIGHT = 5;
-  parameter L3_CHANNEL_NUM = 8;
-  parameter L3_FILTER_NUM = 1;
-
   parameter IMG_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/input.txt";
+  parameter L0_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer0_weight.txt";
+  parameter L0_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer0_bias.txt";
   parameter L1_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer1_weight.txt";
   parameter L1_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer1_bias.txt";
   parameter L2_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_weight.txt";
-  parameter L2_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_bias.txt";
-  parameter L3_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer3_weight.txt";
-  parameter L3_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer3_bias.txt";
-
-  localparam LAYER_NUM = 3;
-
+  parameter L2_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_bias.txt"; 
   //-------------------------------------------------------------------------------
   // internal signal
   //-------------------------------------------------------------------------------
 
-  reg                               i_clk;
-  reg                               i_rstn;
-  reg                               i_st;
-  // layer
-  wire        [$clog2(LAYER_NUM):0] w_lyr_num;
-  wire                              w_lyr_vld;
-  wire signed [       IPT_BITS-1:0] w_lyr_dat;
-
+  reg i_clk;
+  reg i_rstn;
+  reg i_st;
+  reg i_rdy_test;
 
   initial i_clk = 1'b0;
-
   always #5 i_clk = !i_clk;
-
-  // debug
-
-  reg i_rdy_test;
+ 
 
   initial begin
     i_rstn     = 1'b0;
@@ -76,26 +33,6 @@ module tbtb ();
     #10;
     i_st = 1'b0;
     i_rdy_test = 1'b1;
-    #1000;
-    // #1000;
-    // i_rdy_test = 1'b0;
-    // #1000;
-    // i_rdy_test = 1'b1;
-    // #1000;
-    // i_rdy_test = 1'b0;
-    // #1000;
-    // i_rdy_test = 1'b1;
-    // #50;
-    // i_rdy_test = 1'b0;
-    // #50;
-    // i_rdy_test = 1'b0;
-    // #50;
-    // i_rdy_test = 1'b1;
-    // #50;
-    // i_rdy_test = 1'b0;
-    // #50;
-    // i_rdy_test = 1'b1;
-    // #50;
   end
 
 
@@ -107,14 +44,14 @@ module tbtb ();
 `ifdef DEBUG
       .IMG_INIT_FILE    (IMG_INIT_FILE),
       // layer 1  
+      .L0_WGT_INIT_FILE (L0_WGT_INIT_FILE),
+      .L0_BIAS_INIT_FILE(L0_BIAS_INIT_FILE),
+      // layer 2 
       .L1_WGT_INIT_FILE (L1_WGT_INIT_FILE),
       .L1_BIAS_INIT_FILE(L1_BIAS_INIT_FILE),
-      // layer 2 
-      .L2_WGT_INIT_FILE (L2_WGT_INIT_FILE),
-      .L2_BIAS_INIT_FILE(L2_BIAS_INIT_FILE),
       // layer 3 
-      .L3_WGT_INIT_FILE (L3_WGT_INIT_FILE),
-      .L3_BIAS_INIT_FILE(L3_BIAS_INIT_FILE)
+      .L2_WGT_INIT_FILE (L2_WGT_INIT_FILE),
+      .L2_BIAS_INIT_FILE(L2_BIAS_INIT_FILE)
 `endif
   ) top_inst (
 `ifdef DEBUG
@@ -126,57 +63,128 @@ module tbtb ();
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
       .i_start   (i_st),
-      .o_done    ()
+      .o_dn      (w_dn)
   );
 
   //-------------------------------------------------------------------------------
   // SYSTEM
   //-------------------------------------------------------------------------------
+ //-------------------------------------------------------------------------------
+// Output Buffer Compare
+//-------------------------------------------------------------------------------
 
-  localparam OUTPUT_DEPTH = 64;
+localparam OUTPUT_DEPTH = `L2_OPT_AREA;
 
-  integer i;
+reg tb_obuf_re;
+reg [`CLOG2_SAFE(`MAX_OPT_AREA)-1:0] tb_obuf_raddr;
 
-  integer idx = 0;
-  integer error = 0;
-  integer log_fp;
-  reg signed [15:0] golden[0:OUTPUT_DEPTH-1];
+wire tb_obuf_rvld;
+wire signed [15:0] tb_obuf_rdout;
 
-  // set init
-  initial begin
-    log_fp = $fopen("C:/seop_workspace/seop_verilog/log/accelerator/debug.log", "w");
-    if (log_fp == 0) begin
-      $display("Cannot open debug.log");
-      $finish;
+reg compare_start;
+
+integer idx;
+integer error;
+integer log_fp;
+
+reg signed [15:0] golden [0:OUTPUT_DEPTH-1];
+
+//------------------------------------------------------------
+// Golden Init
+//------------------------------------------------------------
+
+initial begin
+
+    idx   = 0;
+    error = 0;
+
+    compare_start = 0;
+
+    tb_obuf_re    = 0;
+    tb_obuf_raddr = 0;
+
+    log_fp = $fopen(
+        "C:/seop_workspace/seop_verilog/log/accelerator/debug.log",
+        "w"
+    );
+
+    if(log_fp == 0) begin
+        $display("Cannot open debug.log");
+        $finish;
     end
 
-    $readmemh("C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/result.txt",
-              golden);
-  end
+    $readmemh(
+        "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/result.txt",
+        golden
+    );
 
-  // saved
-  always @(posedge i_clk) begin
-    if (w_lyr_vld && w_lyr_num == LAYER_NUM) begin
-      if (w_lyr_dat !== golden[idx]) begin
-        $fdisplay(log_fp, "=====================");
-        $fdisplay(log_fp, "Mismatch!");
-        $fdisplay(log_fp, "Index    : %d", idx);
-        $fdisplay(log_fp, "Expected : %h", golden[idx]);
-        $fdisplay(log_fp, "Actual   : %h", w_lyr_dat);
-        $fdisplay(log_fp, "=====================");
-        error = error + 1;
-      end else $fdisplay(log_fp, "Expected : %h, Actual : %h", golden[idx], w_lyr_dat);
-      idx = idx + 1;
+end
+
+//------------------------------------------------------------
+// Read Output Buffer
+//------------------------------------------------------------
+
+always @(posedge i_clk) begin
+    if(!i_rstn) begin 
+        compare_start <= 0;  
+    end
+    else begin
+        //----------------------------------------------------
+        // Start Compare
+        //----------------------------------------------------
+        if(w_dn && !compare_start) begin
+            compare_start <= 1;
+        end 
+    end
+end
+
+//------------------------------------------------------------
+// Compare
+//------------------------------------------------------------
+
+always @(posedge i_clk) begin
+    if(compare_start) begin
+        if(top_inst.inst_fbuf.opt_buf.BRAM_TYPE.r_mem[idx] !== golden[idx]) begin
+            $fdisplay(log_fp,"=====================");
+            $fdisplay(log_fp,"Mismatch!");
+            $fdisplay(log_fp,"Index    : %d",idx);
+            $fdisplay(log_fp,"Expected : %h",golden[idx]);
+            $fdisplay(log_fp,"Actual   : %h",tb_obuf_rdout);
+            $fdisplay(log_fp,"=====================");
+
+            error = error + 1;
+
+        end
+        else begin
+
+            $fdisplay(
+                log_fp,
+                "Expected : %h, Actual : %h",
+                golden[idx],
+                tb_obuf_rdout
+            );
+
+        end
+
+        idx = idx + 1;
+
+        //----------------------------------------------------
+        // Finish
+        //----------------------------------------------------
+
+        if(idx == OUTPUT_DEPTH) begin
+
+            if(error)
+                $display("========== FAIL : %0d errors ==========",error);
+            else
+                $display("========== PASS ==========");
+
+            $fclose(log_fp);
+            $finish;
+
+        end
+
     end
 
-    // finish 
-    if (idx >= `L3_OPT_SIDE * `L3_OPT_SIDE) begin
-      if (error > 0) $display("========== FAIL : %d errors ==========", error);
-      else $display("========== PASS ==========");
-
-      $fclose(log_fp);
-      $finish;
-    end
-  end
-
+end
 endmodule

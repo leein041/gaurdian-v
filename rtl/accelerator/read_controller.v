@@ -33,11 +33,11 @@ module read_controller #(
   reg [$clog2(STATE_END)-1:0] r_cstat;
   reg [$clog2(STATE_END)-1:0] r_nstat;
   //
-  reg [    $clog2(DEPTH)-1:0] r_req_len;
+  reg [      $clog2(DEPTH):0] r_req_len;
   reg                         r_re;
-  reg [    $clog2(DEPTH)-1:0] r_rptr;
+  reg [      $clog2(DEPTH):0] r_rptr;
+  reg [      $clog2(DEPTH):0] r_rcnt;
   reg [    $clog2(DEPTH)-1:0] r_raddr;
-  reg [    $clog2(DEPTH)-1:0] r_rcnt;
   //
   reg                         r_rdn;
   // ====================== assign =========================    
@@ -65,12 +65,12 @@ module read_controller #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_rdn    <= 'b0;
-      r_re    <= 'b0;
-      r_rptr  <= 'd0;
-      r_raddr <= 'd0;
-      r_req_len  <= 'd0;
-      r_rcnt  <= 'd0;
+      r_rdn     <= 'b0;
+      r_re      <= 'b0;
+      r_rptr    <= 'd0;
+      r_raddr   <= 'd0;
+      r_req_len <= 'd0;
+      r_rcnt    <= 'd0;
     end else begin
       case (r_cstat)
 
@@ -84,10 +84,9 @@ module read_controller #(
 
         READ: begin
           if (r_rcnt < r_req_len) begin
-
-            if (r_rptr < DEPTH) r_rptr <= r_rptr + 'd1;
-            r_rcnt <= r_rcnt + 'd1;
+            r_rcnt  <= r_rcnt + 'd1;
             r_re    <= 'b1;
+            r_rptr  <= r_rptr + 'd1;
             r_raddr <= r_rptr;
 
           end else begin

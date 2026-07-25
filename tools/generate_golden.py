@@ -18,6 +18,9 @@ def random_bias(ch):
     b = np.random.uniform(-1.0, 1.0, size=ch)
     return float_to_q88(b)
 
+def saturate_int16(x):
+    return np.clip(x,-32768,32767)
+
 def conv2d(inp,w,b):
 
     cin,h,wid=inp.shape
@@ -43,20 +46,19 @@ def conv2d(inp,w,b):
 
                 s>>=8              #Q8.8 x Q8.8
                 s+=int(b[oc])
-                out[oc,y,x]=s
+                out[oc, y, x] = saturate_int16(s) 
     return out
   
 def relu(x):
   x=np.maximum(x,0)
-  x=np.clip(x,-32768,32767)
-  return x.astype(np.int16)
+  return x
 
 def save_tensor(fname,t): 
     with open(fname,"w") as f: 
         for v in t.flatten(): 
             f.write(q88_to_hex(v)+"\n")
             
-def maxpool2d(inp):
+def maxpooL1d(inp):
     cin, h, w = inp.shape
 
     out_h = h // 2
@@ -87,8 +89,8 @@ def generate_golden():
 
     side=cfg["input"]["side"]
 
-    inp = (np.arange(side * side) / 256.0).reshape(1, side, side)
-    #inp=np.random.uniform(0,1,size=(1,side,side)) 
+    #inp = (np.arange(side * side) / 16.0).reshape(1, side, side)
+    inp=np.random.uniform(0,1,size=(1,side,side)) 
     inp=float_to_q88(inp)
 
     x=inp
@@ -124,7 +126,7 @@ def generate_golden():
 
         elif layer["type"]=="maxpool":
 
-            x=maxpool2d(x)
+            x=maxpooL1d(x)
             print("after pool", x.shape)
 
 
@@ -135,29 +137,29 @@ def generate_golden():
     print(conv_output[1].shape)
 
     conv_num = len(weights)
-    conv_idx=1
+    conv_idx=0
 
     for layer in layers:
 
         if layer["type"] == "conv": 
             save_tensor(
                 f"sim/accelerator_sim/golden/layer{conv_idx}_weight.txt",
-                weights[conv_idx-1]
+                weights[conv_idx]
             )
 
             save_tensor(
                 f"sim/accelerator_sim/golden/layer{conv_idx}_bias.txt",
-                bias[conv_idx-1]
+                bias[conv_idx]
             )
 
-            if conv_num == conv_idx:
+            if conv_num - 1 == conv_idx:
                 save_tensor(
                     f"sim/accelerator_sim/golden/result.txt",
-                    conv_output[conv_idx-1]
+                    conv_output[conv_idx]
                 )
             else:
                 save_tensor(
                     f"sim/accelerator_sim/golden/layer{conv_idx}_output.txt",
-                    conv_output[conv_idx-1]
+                    conv_output[conv_idx]
                 )
             conv_idx+=1 

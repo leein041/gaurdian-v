@@ -10,6 +10,7 @@ module partialsum_controller #(
     input                                             i_st,
     output                                            o_dn,
     input         [           `CLOG2_SAFE(SUM_CNT):0] i_sum_cnt,
+    input                                             i_relu,
     //
     input                                             i_bias_vld,
     input         [  `IPT_BIT* `MAX_GROUP_FILTER-1:0] i_bias_din,
@@ -22,7 +23,6 @@ module partialsum_controller #(
     output                                            o_psb_we,
     output        [  `CLOG2_SAFE(`MAX_TILE_AREA)-1:0] o_psb_waddr,
     output        [ `PSUM_BIT* `MAX_GROUP_FILTER-1:0] o_psb_wdout,
-    //
     output                                            o_psc_rdy,
     // ipt (layer)
     input  signed [ `PSUM_BIT* `MAX_GROUP_FILTER-1:0] i_ipt_din,
@@ -91,14 +91,16 @@ module partialsum_controller #(
   assign o_psb_we    = r_we;
   assign o_psb_waddr = r_waddr;
   assign o_psb_wdout = r_wdat;
-  assign o_psc_rdy   = i_ipt_vld || (r_cstat == POST_PROC);
+  assign o_psc_rdy   = (i_ipt_vld && (r_cstat == SUM)) || (r_cstat == POST_PROC);
   assign o_ipt_rdy   = 'd1;  // TODO
   generate
     for (p = 0; p < `MAX_GROUP_FILTER; p = p + 1) begin
       assign w_relu_dat_bus[p*`OPT_BIT+:`OPT_BIT] = w_relu_dat[p];
-      assign w_sum[p*`PSUM_BIT +: `PSUM_BIT] =
-        i_ipt_din[p*`PSUM_BIT +: `PSUM_BIT] +
-        i_psb_rdin[p*`PSUM_BIT +: `PSUM_BIT];
+      assign w_sum[p*`PSUM_BIT+:`PSUM_BIT] = $signed(
+          i_ipt_din[p*`PSUM_BIT+:`PSUM_BIT]
+      ) + $signed(
+          i_psb_rdin[p*`PSUM_BIT+:`PSUM_BIT]
+      );
     end
   endgenerate
 
@@ -246,6 +248,7 @@ module partialsum_controller #(
         end
 
         DONE: begin
+          r_sum_idx <= 'd0;
           r_dn      <= 'd1;
           r_rptr    <= 'd0;
           r_wptr    <= 'd0;
@@ -321,7 +324,7 @@ module partialsum_controller #(
     ) inst_relu (
         .i_clk     (i_clk),
         .i_rstn    (i_rstn),
-        .i_relu_en ('b1),              // TODO
+        .i_relu_en (i_relu),              // TODO
         // ipt
         .i_ipt_din (w_slicer_dat[p]),
         .i_ipt_vld (w_slicer_vld[p]),

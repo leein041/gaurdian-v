@@ -7,7 +7,7 @@
 
     "input": {
         "channel": 1,
-        "side": 4
+        "side": 64
     },
 
     "layers": [
@@ -15,7 +15,7 @@
         {
             "type": "conv",
             "channel": 1,
-            "filter": 4,
+            "filter": 8,
             "kernel": 3,
             "stride": 1,
             "pad": true,
@@ -24,7 +24,7 @@
 
         {
             "type": "conv",
-            "channel": 4,
+            "channel": 8,
             "filter": 4,
             "kernel": 3,
             "stride": 1,

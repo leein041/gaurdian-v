@@ -107,12 +107,12 @@ module fifo #(
       //
       .i_re   (r_re),
       .i_raddr(r_raddr),
+      .o_rvld (w_fbuf_vld),
+      .o_rdout(w_fbuf_dat),
       //
       .i_we   (r_we),
       .i_waddr(r_waddr),
-      .i_wdin (r_wdat),
-      .o_vld  (w_fbuf_vld),
-      .o_dout (w_fbuf_dat)
+      .i_wdin (r_wdat)
   );
   skid_buffer #(
       .WIDTH   (WIDTH),
