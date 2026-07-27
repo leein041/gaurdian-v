@@ -56,7 +56,7 @@ module global_ctrl #(
     output [                   `CLOG2_SAFE(`MAX_LAYER_TYPE):0] o_lyr_type,
     output                                                     o_lyr_relu_en,
     output                                                     o_lyr_pad_en,
-    output [                       `CLOG2_SAFE( `LAYER_NUM):0] o_lyr_idx,
+    output [                     `CLOG2_SAFE( `LAYER_NUM)-1:0] o_lyr_idx,
     output [                    `CLOG2_SAFE(`MAX_TILE_AREA):0] o_lyr_opt_num,
     // PSC
     output                                                     o_psc_st,
@@ -172,7 +172,7 @@ module global_ctrl #(
   reg     [                     `CLOG2_SAFE(`MAX_OPT_AREA):0] r_opt_area;
   // layer
   reg     [                   `CLOG2_SAFE(`MAX_LAYER_TYPE):0] r_lyr_type;
-  reg     [                        `CLOG2_SAFE(`LAYER_NUM):0] r_lyr_idx;
+  reg     [                      `CLOG2_SAFE(`LAYER_NUM)-1:0] r_lyr_idx;
   reg                                                         r_lyr_clr;
   reg                                                         r_pad;
   reg                                                         r_relu;

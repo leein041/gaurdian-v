@@ -195,19 +195,17 @@ module conv_layer (
       .LINE_HEIGHT(LINE_HEIGHT),
       .LINE_WIDTH (`MAX_PAD_TILE_SIDE)              // padded
   ) inst_line_buffer (
-      .i_clk       (i_clk),
-      .i_rstn      (i_rstn),
-      .i_clr       (i_clr),
+      .i_clk     (i_clk),
+      .i_rstn    (i_rstn),
+      .i_clr     (i_clr),
       // ipt
-      .o_ipt_rdy   (o_ipt_rdy),
-      .i_ipt_din   (i_ipt_din),
-      .i_ipt_vld   (i_ipt_vld),
+      .o_ipt_rdy (o_ipt_rdy),
+      .i_ipt_din (i_ipt_din),
+      .i_ipt_vld (i_ipt_vld),
       // opt
-      .i_opt_rdy   (w_ptch_rdy[0]),
-      .o_opt_vld   (w_lbuf_vld),
-      .o_opt_dout  (w_lbuf_dat_bus),
-      // 
-      .i_line_width(i_line_width)
+      .i_opt_rdy (w_ptch_rdy[0]),
+      .o_opt_vld (w_lbuf_vld),
+      .o_opt_dout(w_lbuf_dat_bus)
   );
   generate
     for (c = 0; c < `MAX_GROUP_CHANNEL; c = c + 1) begin : LINE_BUFFER_ARRAY

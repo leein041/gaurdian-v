@@ -252,7 +252,9 @@ module partialsum_controller #(
           r_dn      <= 'd1;
           r_rptr    <= 'd0;
           r_wptr    <= 'd0;
+          r_re      <= 'b0;
           r_opt_cnt <= 'd0;
+          r_rvld    <= 'b0;
         end
 
         default: ;
@@ -324,7 +326,7 @@ module partialsum_controller #(
     ) inst_relu (
         .i_clk     (i_clk),
         .i_rstn    (i_rstn),
-        .i_relu_en (i_relu),              // TODO
+        .i_relu_en (i_relu),           // TODO
         // ipt
         .i_ipt_din (w_slicer_dat[p]),
         .i_ipt_vld (w_slicer_vld[p]),

@@ -17,9 +17,7 @@ module line_buffer #(
     // opt
     input                                         i_opt_rdy,
     output                                        o_opt_vld,
-    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout,
-    // 
-    input                                         i_line_width
+    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout
 );
   // ====================== parmeter =======================  
 
@@ -34,7 +32,7 @@ module line_buffer #(
   // line buffer
   wire                                      w_lbuf_we;
   wire                                      w_lbuf_rvld;
-  wire signed [   LINE_BIT*LINE_HEIGHT-1:0] w_lbuf_rdat;
+  wire        [   LINE_BIT*LINE_HEIGHT-1:0] w_lbuf_rdat;
   // skid buffer
   wire        [            LINE_HEIGHT-1:0] w_sbuf_rdy;
   wire signed [               LINE_BIT-1:0] w_sbuf_dat     [0:LINE_HEIGHT-1];
@@ -59,14 +57,14 @@ module line_buffer #(
   reg         [      $clog2(LINE_AREA) : 0] r_lbuf_rcnt;
   // write
   reg                                       r_lbuf_we;
-  reg         [    $clog2(LINE_HEIGHT) : 0] r_lbuf_widx;
+  reg         [    $clog2(LINE_HEIGHT)-1:0] r_lbuf_widx;
   reg         [ $clog2(LINE_WIDTH) - 1 : 0] r_lbuf_waddr;
   reg         [      $clog2(LINE_AREA) : 0] r_lbuf_wcnt;
 
   //  
   reg         [     $clog2(LINE_WIDTH)-1:0] r_opt_col_idx;
   reg         [    $clog2(LINE_HEIGHT)-1:0] r_ptch_row_idx;
-  reg signed  [   LINE_BIT*LINE_HEIGHT-1:0] r_opt_dat;
+  reg         [   LINE_BIT*LINE_HEIGHT-1:0] r_opt_dat;
   reg         [            LINE_HEIGHT-1:0] r_opt_vld;
   // ====================== hand shake ===================== 
   assign o_ipt_rdy = 'b1;  // TODO

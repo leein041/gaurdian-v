@@ -33,7 +33,7 @@ module skid_buffer #(
   assign o_ipt_rdy  = (r_cnt < (DEPTH - LATENCY - 1));
   // opt
   assign o_opt_dout = r_buf[r_rd_ptr];
-  assign o_opt_vld  = (r_cnt > 0);
+  assign o_opt_vld  = (r_cnt != 0);
   generate
     // 전단이 메모리(BRAM,URAM) 읽기 지연을 읽기 위한 조건
     if (MEM_SKID) assign wr_en = i_ipt_vld;
@@ -71,9 +71,6 @@ module skid_buffer #(
         end
       endcase
     end
-  end
-
-  // ====================== Unpack / Pack ================== 
-  // ====================== module ========================= 
+  end 
 
 endmodule

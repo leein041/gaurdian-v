@@ -1,9 +1,10 @@
 
 `include "defines.vh"
 `include "network_config.vh"
-module fifo #(
-    parameter WIDTH = `IPT_BIT * `MAX_GROUP_CHANNEL,
-    parameter DEPTH = 0
+module fifo_mem #(
+    parameter WIDTH    = 0,
+    parameter DEPTH    = 0,
+    parameter MEM_TYPE = `BRAM_TYPE
 ) (
     input               i_clk,
     input               i_rstn,
@@ -17,33 +18,30 @@ module fifo #(
     output [WIDTH -1:0] o_opt_dout
 );
   // ====================== parmeter =======================      
-  integer                      i;
-  // ====================== wire =========================== 
-  wire                         wr_en;
-  wire                         rd_en;
-  // fifo buffer 
-  wire                         w_fbuf_vld;
-  wire       [     WIDTH -1:0] w_fbuf_dat;
-  // skid buffer
-  wire                         w_sbuf_rdy;
-  wire                         w_sbuf_vld;
-  wire       [     WIDTH -1:0] w_sbuf_dat;
+  integer                        i;
   // ====================== reg ============================  
-  reg        [$clog2(DEPTH):0] r_cnt;
+  reg        [  $clog2(DEPTH):0] r_cnt;
   // write
-  reg                          r_we;
-  reg signed [     WIDTH -1:0] r_wdat;
-  reg        [$clog2(DEPTH):0] r_wptr;
-  reg        [$clog2(DEPTH):0] r_waddr;
+  reg                            r_we;
+  reg signed [       WIDTH -1:0] r_wdat;
+  reg        [$clog2(DEPTH) : 0] r_wptr;
+  reg        [$clog2(DEPTH)-1:0] r_waddr;
   // read
-  reg                          r_re;
-  reg        [$clog2(DEPTH):0] r_rptr;
-  reg        [$clog2(DEPTH):0] r_raddr;
-  // ====================== assign ========================= 
-  // ipt
-  // why substract 1?
-  // : read enable signal is register, so -1
-  assign o_ipt_rdy = (r_cnt < (DEPTH - 1));
+  reg                            r_re;
+  reg        [$clog2(DEPTH) : 0] r_rptr;
+  reg        [$clog2(DEPTH)-1:0] r_raddr;
+  // ====================== wire =========================== 
+  wire                           wr_en;
+  wire                           rd_en;
+  // fifo buffer 
+  wire                           w_fbuf_vld;
+  wire       [       WIDTH -1:0] w_fbuf_dat;
+  // skid buffer
+  wire                           w_sbuf_rdy;
+  wire                           w_sbuf_vld;
+  wire       [       WIDTH -1:0] w_sbuf_dat;
+  // ====================== assign =========================  
+  assign o_ipt_rdy = (r_cnt != DEPTH);
   assign wr_en     = i_ipt_vld && o_ipt_rdy;
   assign rd_en     = (0 < r_cnt) && w_sbuf_rdy;
   // ====================== always ========================= 
@@ -97,9 +95,9 @@ module fifo #(
   // ====================== Unpack / Pack ================== 
   // ====================== module ========================= 
   simple_dual_port_ram #(
-      .WIDTH(WIDTH),
-      .DEPTH(DEPTH),
-      .MEM_TYPE(`BRAM_TYPE),
+      .WIDTH    (WIDTH),
+      .DEPTH    (DEPTH),
+      .MEM_TYPE (MEM_TYPE),
       .INIT_FILE()
   ) inst_fifo_buffer (
       .i_clk  (i_clk),

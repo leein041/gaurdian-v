@@ -8,18 +8,17 @@ module featuremap_buffer #(
 ) (
     input                              i_clk,
     input                              i_rstn,
-    input  [`CLOG2_SAFE(`LAYER_NUM):0] i_lyr_idx,
+    input  [`CLOG2_SAFE(`LAYER_NUM)-1:0] i_lyr_idx,
     input                              i_switch,
     //
     input                              i_re,
     input  [ `CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
+    output                             o_rvld,
+    output [                WIDTH-1:0] o_rdout,
     //
     input                              i_we,
     input  [ `CLOG2_SAFE(DEPTH)-1 : 0] i_waddr,
-    input  [                WIDTH-1:0] i_wdin,
-    // opt 
-    output                             o_opt_vld,
-    output [                WIDTH-1:0] o_opt_dout
+    input  [                WIDTH-1:0] i_wdin
 );
   genvar g;
   // ====================== wire =========================== 
@@ -92,6 +91,6 @@ module featuremap_buffer #(
       .o_rdout()
   );
   // ====================== output =========================
-  assign o_opt_vld  = is_first_layer ? w_ibuf_rvld : w_dbuf_rvld;
-  assign o_opt_dout = is_first_layer ? w_ibuf_rdat : w_dbuf_rdat;
+  assign o_rvld  = is_first_layer ? w_ibuf_rvld : w_dbuf_rvld;
+  assign o_rdout = is_first_layer ? w_ibuf_rdat : w_dbuf_rdat;
 endmodule

@@ -50,14 +50,14 @@ module pool_layer (
   // comput line buffer size   
   always @(posedge i_clk or negedge i_rstn) begin
     if (!i_rstn) begin
-      r_lbuf_st   <= 'd0;
+      r_lbuf_st <= 'd0;
       r_line_width <= 'd0;
       r_lbuf_area <= 'd0;
     end else begin
       r_lbuf_st <= i_lbuf_st;
       if (i_lbuf_st[0]) begin
         r_line_width <= i_img_side;
-        r_lbuf_area <= i_img_side * i_img_side;
+        r_lbuf_area  <= i_img_side * i_img_side;
       end
     end
   end
@@ -81,36 +81,34 @@ module pool_layer (
           .LINE_HEIGHT(`POOL_2X2_SIDE),
           .LINE_WIDTH (`MAX_TILE_SIDE)
       ) inst_maxpool_linebuffer (
-          .i_clk      (i_clk),
-          .i_rstn     (i_rstn),
-          .i_clr      (r_lbuf_st[c]),
+          .i_clk     (i_clk),
+          .i_rstn    (i_rstn),
+          .i_clr     (r_lbuf_st[c]),
           // ipt
-          .o_ipt_rdy  (w_lbuf_rdy[c]),
-          .i_ipt_din  (w_ipt_dat[c]),
-          .i_ipt_vld  (i_ipt_vld),
+          .o_ipt_rdy (w_lbuf_rdy[c]),
+          .i_ipt_din (w_ipt_dat[c]),
+          .i_ipt_vld (i_ipt_vld),
           // opt
-          .i_opt_rdy  (w_ptch_rdy[c]),
-          .o_opt_vld  (w_lbuf_vld[c]),
-          .o_opt_dout (w_lbuf_dat[c]),
-          // 
-          .i_line_width(r_line_width) 
+          .i_opt_rdy (w_ptch_rdy[c]),
+          .o_opt_vld (w_lbuf_vld[c]),
+          .o_opt_dout(w_lbuf_dat[c])
       );
 
       patch #(
           .STRIDE(`POOL_2X2_STRIDE),
           .PATCH_SIDE(`POOL_2X2_SIDE)
       ) inst_maxpool_patch_buffer (
-          .i_clk      (i_clk),
-          .i_rstn     (i_rstn),
-          .i_clr      (r_lbuf_st[c]),
+          .i_clk       (i_clk),
+          .i_rstn      (i_rstn),
+          .i_clr       (r_lbuf_st[c]),
           // ipt
-          .i_ipt_din  (w_lbuf_dat[c]),
-          .i_ipt_vld  (w_lbuf_vld[c]),
-          .o_ipt_rdy  (w_ptch_rdy[c]),
+          .i_ipt_din   (w_lbuf_dat[c]),
+          .i_ipt_vld   (w_lbuf_vld[c]),
+          .o_ipt_rdy   (w_ptch_rdy[c]),
           // opt
-          .i_opt_rdy  (w_maxpool_rdy[c]),
-          .o_opt_vld  (w_ptch_vld[c]),
-          .o_opt_dout (w_ptch_dat[c]),
+          .i_opt_rdy   (w_maxpool_rdy[c]),
+          .o_opt_vld   (w_ptch_vld[c]),
+          .o_opt_dout  (w_ptch_dat[c]),
           //
           .i_line_width(r_line_width)
       );

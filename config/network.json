@@ -7,7 +7,7 @@
 
     "input": {
         "channel": 1,
-        "side": 64
+        "side": 16
     },
 
     "layers": [

@@ -40,7 +40,7 @@ module my_top #(
   wire [                   `CLOG2_SAFE(`MAX_LAYER_TYPE):0] w_lyr_type;
   wire                                                     gc_dn;
   wire                                                     gc_lyr_rdy;
-  wire [                        `CLOG2_SAFE(`LAYER_NUM):0] gc_lyr_idx;
+  wire [                      `CLOG2_SAFE(`LAYER_NUM)-1:0] gc_lyr_idx;
   wire                                                     gc_fbuf_switch;
   wire                                                     gc_bl_st;
   wire                                                     gc_bl_bank_depth;
@@ -79,13 +79,13 @@ module my_top #(
   wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] gc_fbuf_wdat;
   wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] gc_fbuf_waddr;
   // bias mem (DDR)
-  reg                                                      bbuf_brc_vld;
-  reg  [                                     `IPT_BIT-1:0] bbuf_brc_dat;
+  wire                                                     storage_brc_vld;
+  wire [                                     `IPT_BIT-1:0] storage_brc_dat;
   wire                                                     brc_fifo_vld;
   wire [                                     `IPT_BIT-1:0] brc_fifo_dat;
   // bias read controller (BRC)
-  wire                                                     brc_bbuf_re;
-  wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH)-1:0] brc_bbuf_raddr;
+  wire                                                     brc_storage_re;
+  wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH)-1:0] brc_storage_raddr;
   wire                                                     brc_bl_req_dn;
   // FIFO 
   wire                                                     fifo_bl_vld;
@@ -112,15 +112,15 @@ module my_top #(
   wire                                                     br_psc_vld;
   wire [                   `IPT_BIT*`MAX_GROUP_FILTER-1:0] br_psc_dat;
   // weight (DDR)
-  reg                                                      wbuf_wrc_vld;
-  reg  [                                     `WGT_BIT-1:0] wbuf_wrc_dat;
+  wire                                                     storage_wrc_vld;
+  wire [                                     `WGT_BIT-1:0] storage_wrc_dat;
   // weight read controller (WRC)
-  wire                                                     wrc_wbuf_re;
-  wire [                  `CLOG2_SAFE(`MAX_WGT_DEPTH)-1:0] wrc_wbuf_raddr;
+  wire                                                     wrc_storage_re;
+  wire [                  `CLOG2_SAFE(`MAX_WGT_DEPTH)-1:0] wrc_storage_raddr;
   wire                                                     wrc_wl_req_dn;
   wire                                                     wrc_fifo_vld;
   wire [                                     `WGT_BIT-1:0] wrc_fifo_dat;
-  // weight fifo (FIFO)
+  // weight   (FIFO)
   wire                                                     fifo_wl_vld;
   wire [                                     `WGT_BIT-1:0] fifo_wl_dat;
   // weight loader (WL) 
@@ -131,7 +131,7 @@ module my_top #(
   wire                                                     wl_fifo_rdy;
   wire [               `CLOG2_SAFE(`MAX_GROUP_FILTER)-1:0] wl_wb_bank_idx;
   wire                                                     wl_wb_we;
-  wire [                `CLOG2_SAFE(MAX_WGT_BANK_DEPTH):0] wl_wb_waddr;
+  wire [              `CLOG2_SAFE(MAX_WGT_BANK_DEPTH)-1:0] wl_wb_waddr;
   wire [                                     `WGT_BIT-1:0] wl_wb_wdat;
   // weight buffer (WB) 
   wire                                                     wb_wr_vld;
@@ -139,7 +139,7 @@ module my_top #(
   // weight reader (WR) 
   wire                                                     wr_gc_dn;
   wire                                                     wr_wb_re;
-  wire [                `CLOG2_SAFE(MAX_WGT_BANK_DEPTH):0] wr_wb_raddr;
+  wire [              `CLOG2_SAFE(MAX_WGT_BANK_DEPTH)-1:0] wr_wb_raddr;
   wire                                                     wr_lyr_vld;
   wire [                 `WGT_BIT * `MAX_GROUP_FILTER-1:0] wr_lyr_dat;
   // input mem (DDR)
@@ -161,7 +161,7 @@ module my_top #(
   wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] tl_trc_req_addr;
   wire                                                     tl_fifo_rdy;
   wire                                                     tl_tb_we;
-  wire [                `CLOG2_SAFE(`MAX_PAD_TILE_AREA):0] tl_tb_waddr;
+  wire [              `CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] tl_tb_waddr;
   wire [                `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] tl_tb_wdat;
   // tile buffer (TB) 
   wire                                                     tb_tr_vld;
@@ -190,98 +190,61 @@ module my_top #(
   wire                                                     psc_gc_vld;
   wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] psc_gc_dat;
   wire                                                     psc_gc_dn;
-
+  //
+  wire                                                     fifo_psb_rdy;
+  wire                                                     psb_psc_vld;
+  wire [                  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] psb_psc_dat;
+  //
   wire                                                     psb_psc_rdy;
-  wire                                                     psb_psc_rvld;
-  wire [                  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] psb_psc_rdat;
-  // ====================== reg ============================  
-  // ====================== assign =========================     
-`ifdef DEBUG
-  assign o_lyr_vld = clyr_psc_vld;
-  assign o_lyr_dat = clyr_psc_dat;
-  assign o_lyr_num = gc_lyr_idx;
-`endif
-  // ====================== always =========================  
-  // select WGT data
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      wbuf_wrc_vld <= 'b0;
-      wbuf_wrc_dat <= 'd0;
-    end else begin
-      if (|w_wbuf_vld) begin
-        wbuf_wrc_vld <= 'b1;
-        for (i = 0; i < `LAYER_NUM; i = i + 1) begin
-          if (w_wbuf_vld[i]) begin
-            wbuf_wrc_dat <= w_wbuf_dat[i];
-          end
-        end
-      end else wbuf_wrc_vld <= 'b0;
-    end
-  end
-  // select bias data
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      bbuf_brc_vld <= 'b0;
-      bbuf_brc_dat <= 'd0;
-    end else begin
-      if (|w_bias_vld) begin
-        bbuf_brc_vld <= 'b1;
-        for (i = 0; i < `LAYER_NUM; i = i + 1) begin
-          if (w_bias_vld[i]) begin
-            bbuf_brc_dat <= w_bias_dat[i];
-          end
-        end
-      end else bbuf_brc_vld <= 'b0;
-    end
-  end
+  wire                                                     psb_fifo_rvld;
+  wire [                  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] psb_fifo_rdat;
+  wire                                                     psb_fifo_rdy;
+  // ====================== reg ============================   
+  // bias storage
+  storage #(
+      .WIDTH     (`IPT_BIT),
+      .DEPTH     (`MAX_BIAS_DEPTH),
+      .INIT_FILE0(L0_BIAS_INIT_FILE),
+      .INIT_FILE1(L1_BIAS_INIT_FILE),
+      .INIT_FILE2(L2_BIAS_INIT_FILE)
+  ) isnt_bias_storage (
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
+      //
+      .i_re     (brc_storage_re),
+      .i_raddr  (brc_storage_raddr),
+      .o_rvld   (storage_brc_vld),
+      .o_rdout  (storage_brc_dat),
+      //
+      .i_we     (),
+      .i_waddr  (),
+      .i_wdin   (),
+      //
+      .i_lyr_idx(gc_lyr_idx)
+  );
 
-  // WGT buffer
-  generate
-    for (g = 0; g < `LAYER_NUM; g = g + 1) begin : WGT_BUFFER
-      localparam TEMP_WGT_INIT =  (g == 0) ? L0_WGT_INIT_FILE :
-                                     (g == 1) ? L1_WGT_INIT_FILE : 
-                                     (g == 2) ? L2_WGT_INIT_FILE : "";
-      simple_dual_port_ram #(
-          .WIDTH    (`WGT_BIT),
-          .DEPTH    (`MAX_WGT_DEPTH),
-          .INIT_FILE(TEMP_WGT_INIT)
-      ) wgt_buf (
-          .i_clk  (i_clk),
-          .i_rstn (i_rstn),
-          .i_re   (wrc_wbuf_re && (gc_lyr_idx == g)),
-          .i_raddr(wrc_wbuf_raddr),
-          .i_we   (),
-          .i_waddr(),
-          .i_wdin (),
-          .o_rvld  (w_wbuf_vld[g]),
-          .o_rdout (w_wbuf_dat[g])
-      );
-    end
-  endgenerate
-  // bias buffer
-  generate
-    for (g = 0; g < `LAYER_NUM; g = g + 1) begin : BIAS_BUFFER
-
-      localparam TEMP_BIAS_INIT = (g == 0) ?  L0_BIAS_INIT_FILE :
-                                    (g == 1)  ? L1_BIAS_INIT_FILE : 
-                                    (g == 2)  ? L2_BIAS_INIT_FILE : "";
-      simple_dual_port_ram #(
-          .WIDTH    (`IPT_BIT),
-          .DEPTH    (`MAX_BIAS_DEPTH),
-          .INIT_FILE(TEMP_BIAS_INIT)
-      ) bias_buf (
-          .i_clk  (i_clk),
-          .i_rstn (i_rstn),
-          .i_re   (brc_bbuf_re && (gc_lyr_idx == g)),
-          .i_raddr(brc_bbuf_raddr),
-          .i_we   (),
-          .i_waddr(),
-          .i_wdin (),
-          .o_rvld  (w_bias_vld[g]),
-          .o_rdout (w_bias_dat[g])
-      );
-    end
-  endgenerate
+  // weight storage
+  storage #(
+      .WIDTH     (`WGT_BIT),
+      .DEPTH     (`MAX_WGT_DEPTH),
+      .INIT_FILE0(L0_WGT_INIT_FILE),
+      .INIT_FILE1(L1_WGT_INIT_FILE),
+      .INIT_FILE2(L2_WGT_INIT_FILE)
+  ) isnt_weight_storage (
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
+      //
+      .i_re     (wrc_storage_re),
+      .i_raddr  (wrc_storage_raddr),
+      .o_rvld   (storage_wrc_vld),
+      .o_rdout  (storage_wrc_dat),
+      //
+      .i_we     (),
+      .i_waddr  (),
+      .i_wdin   (),
+      //
+      .i_lyr_idx(gc_lyr_idx)
+  );
 
   featuremap_buffer #(
       .WIDTH        (`OPT_BIT * `MAX_GROUP_FILTER),
@@ -289,41 +252,40 @@ module my_top #(
       .MEM_TYPE     (`BRAM_TYPE),
       .IMG_INIT_FILE(IMG_INIT_FILE)
   ) inst_fbuf (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      .i_lyr_idx (gc_lyr_idx),
-      .i_switch  (gc_fbuf_switch),
-      .i_re      (trc_fbuf_re),
-      .i_raddr   (trc_fbuf_raddr),
-      .i_we      (gc_fbuf_we),
-      .i_waddr   (gc_fbuf_waddr),
-      .i_wdin    (gc_fbuf_wdat),
-      .o_opt_vld (fbuf_trc_vld),
-      .o_opt_dout(fbuf_trc_dat)
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
+      //
+      .i_re     (trc_fbuf_re),
+      .i_raddr  (trc_fbuf_raddr),
+      .o_rvld   (fbuf_trc_vld),
+      .o_rdout  (fbuf_trc_dat),
+      //        
+      .i_we     (gc_fbuf_we),
+      .i_waddr  (gc_fbuf_waddr),
+      .i_wdin   (gc_fbuf_wdat),
+      //
+      .i_lyr_idx(gc_lyr_idx),
+      .i_switch (gc_fbuf_switch)
   );
-
-  // partial sum buffer (on-chip)
-  bank_buffer #(
-      .WIDTH     (`PSUM_BIT * `MAX_GROUP_FILTER),
-      .BANK_DEPTH(`MAX_TILE_AREA),
-      .MEM_TYPE  (`BRAM_TYPE),
-      .BANK_NUM  (1)
-  ) inst_partialsum_buf (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
+  partialsum_buffer #(
+      .WIDTH   (`PSUM_BIT * `MAX_GROUP_FILTER),
+      .DEPTH   (`MAX_TILE_AREA),
+      .MEM_TYPE(`BRAM_TYPE)
+  ) inst_partialsum_buffer (
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
       //
-      .i_re      (psc_psb_re),
-      .i_raddr   (psc_psb_raddr),
-      .o_rvld    (psb_psc_rvld),
-      .o_rdout   (psb_psc_rdat),
+      .i_re     (psc_psb_re),
+      .i_raddr  (psc_psb_raddr),
+      .o_rvld   (psb_psc_vld),
+      .o_rdout  (psb_psc_dat),
       //
-      .i_bank_idx(0),
-      .i_we      (psc_psb_we),
-      .i_waddr   (psc_psb_waddr),
-      .i_wdin    (psc_psb_wdat),
+      .i_we     (psc_psb_we),
+      .i_waddr  (psc_psb_waddr),
+      .i_wdin   (psc_psb_wdat),
       //
-      .o_ipt_rdy (psb_psc_rdy),
-      .i_opt_rdy (psc_psb_rdy)
+      .o_ipt_rdy(psb_psc_rdy),
+      .i_opt_rdy(psc_psb_rdy)
   );
   // ====================== module =========================   
   //       ____ _       _           _    ____            _             _ _           
@@ -424,18 +386,19 @@ module my_top #(
       .i_req_addr(bl_rc_req_addr),
       .o_req_dn  (brc_bl_req_dn),
       // DDR
-      .o_re      (brc_bbuf_re),
-      .o_raddr   (brc_bbuf_raddr),
-      .i_rvld    (bbuf_brc_vld),
-      .i_rdin    (bbuf_brc_dat),
+      .o_re      (brc_storage_re),
+      .o_raddr   (brc_storage_raddr),
+      .i_rvld    (storage_brc_vld),
+      .i_rdin    (storage_brc_dat),
       // opt
       .o_opt_vld (brc_fifo_vld),
       .o_opt_dout(brc_fifo_dat)
   );
-  // fifo
-  fifo #(
-      .WIDTH(`IPT_BIT),
-      .DEPTH(`MAX_BIAS_DEPTH)
+  //  bias
+  fifo_buffer #(
+      .WIDTH   (`IPT_BIT),
+      .DEPTH   (`MAX_BIAS_DEPTH),
+      .MEM_TYPE(`BRAM_TYPE)
   ) inst_bias_fifo (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -544,18 +507,19 @@ module my_top #(
       .i_req_addr(wl_rc_req_addr),
       .o_req_dn  (wrc_wl_req_dn),
       // DDR
-      .o_re      (wrc_wbuf_re),
-      .o_raddr   (wrc_wbuf_raddr),
-      .i_rvld    (wbuf_wrc_vld),
-      .i_rdin    (wbuf_wrc_dat),
+      .o_re      (wrc_storage_re),
+      .o_raddr   (wrc_storage_raddr),
+      .i_rvld    (storage_wrc_vld),
+      .i_rdin    (storage_wrc_dat),
       // opt
       .o_opt_vld (wrc_fifo_vld),
       .o_opt_dout(wrc_fifo_dat)
   );
   // weight fifo (FIFO)
-  fifo #(
-      .WIDTH(`WGT_BIT),
-      .DEPTH(`MAX_WGT_DEPTH)
+  fifo_buffer #(
+      .WIDTH   (`WGT_BIT),
+      .DEPTH   (`MAX_WGT_DEPTH),
+      .MEM_TYPE(`BRAM_TYPE)
   ) inst_wgt_fifo (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -673,10 +637,11 @@ module my_top #(
       .o_opt_dout(trc_fifo_dat)
   );
 
-  // image fifo (FIFO)
-  fifo #(
-      .WIDTH(`IPT_BIT * `MAX_GROUP_CHANNEL),
-      .DEPTH(`MAX_PAD_TILE_AREA)
+  // image   (FIFO)
+  fifo_buffer #(
+      .WIDTH   (`IPT_BIT * `MAX_GROUP_CHANNEL),
+      .DEPTH   (`MAX_PAD_TILE_AREA),
+      .MEM_TYPE(`BRAM_TYPE)
   ) inst_img_fifo (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -802,21 +767,21 @@ module my_top #(
   //     | |  | | (_| |>  <  |  __/ (_) | (_) | | | |__| (_| | |_| |  __/ |   
   //     |_|  |_|\__,_/_/\_\ |_|   \___/ \___/|_| |_____\__,_|\__, |\___|_|   
   //                                                          |___/           
-  pool_layer inst_pool_layer (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      // ipt
-      .o_ipt_rdy (plyr_rdy),
-      .i_ipt_vld (),
-      .i_ipt_din (),
-      // opt
-      .i_opt_rdy (gc_lyr_rdy),
-      .o_opt_vld (plyr_vld),
-      .o_opt_dout(plyr_dat),
-      //    
-      .i_img_side(gc_lyr_line_width),
-      .i_lbuf_st ((gc_lyr_clr & {`MAX_GROUP_FILTER{w_lyr_type == `LAYER_TYPE_MAXPOOL}}))
-  );
+  //   pool_layer inst_pool_layer (
+  //       .i_clk     (i_clk),
+  //       .i_rstn    (i_rstn),
+  //       // ipt
+  //       .o_ipt_rdy (plyr_rdy),
+  //       .i_ipt_vld (),
+  //       .i_ipt_din (),
+  //       // opt
+  //       .i_opt_rdy (gc_lyr_rdy),
+  //       .o_opt_vld (plyr_vld),
+  //       .o_opt_dout(plyr_dat),
+  //       //    
+  //       .i_img_side(gc_lyr_line_width),
+  //       .i_lbuf_st ((gc_lyr_clr & {`MAX_GROUP_FILTER{w_lyr_type == `LAYER_TYPE_MAXPOOL}}))
+  //   );
   //      ____            _   _       _   ____                  
   //     |  _ \ __ _ _ __| |_(_) __ _| | / ___| _   _ _ __ ___  
   //     | |_) / _` | '__| __| |/ _` | | \___ \| | | | '_ ` _ \ 
@@ -837,8 +802,8 @@ module my_top #(
       .i_psb_rdy  (psb_psc_rdy),
       .o_psb_re   (psc_psb_re),
       .o_psb_raddr(psc_psb_raddr),
-      .i_psb_rvld (psb_psc_rvld),
-      .i_psb_rdin (psb_psc_rdat),
+      .i_psb_rvld (psb_psc_vld),
+      .i_psb_rdin (psb_psc_dat),
       .o_psb_we   (psc_psb_we),
       .o_psb_waddr(psc_psb_waddr),
       .o_psb_wdout(psc_psb_wdat),
