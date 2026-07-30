@@ -364,7 +364,7 @@ module stline_layer #(
       );
 
       adder #(
-          .BITS(CAT_OUT_BITS)
+          .BIT(CAT_OUT_BITS)
       ) inst_adder (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),

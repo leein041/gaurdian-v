@@ -17,7 +17,9 @@ module line_buffer #(
     // opt
     input                                         i_opt_rdy,
     output                                        o_opt_vld,
-    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout
+    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout,
+    //
+    output                                        o_window_vld
 );
   // ====================== parmeter =======================  
 
@@ -65,12 +67,13 @@ module line_buffer #(
   reg         [     $clog2(LINE_WIDTH)-1:0] r_opt_col_idx;
   reg         [    $clog2(LINE_HEIGHT)-1:0] r_ptch_row_idx;
   reg         [   LINE_BIT*LINE_HEIGHT-1:0] r_opt_dat;
-  reg         [            LINE_HEIGHT-1:0] r_opt_vld;
+  reg         [            LINE_HEIGHT-1:0] r_opt_vld; 
   // ====================== hand shake ===================== 
-  assign o_ipt_rdy = 'b1;  // TODO
+  assign o_ipt_rdy  = 'b1;  // TODO
+  assign o_window_vld = (2 <= r_opt_col_idx);
 
-  assign w_act_in  = (o_ipt_rdy && i_ipt_vld);
-  assign w_act_out = 'b1;  // TODO
+  assign w_act_in   = (o_ipt_rdy && i_ipt_vld);
+  assign w_act_out  = 'b1;  // TODO
   // ====================== assign =========================   
   // ====================== always =========================    
   always @(posedge i_clk or negedge i_rstn) begin
@@ -88,7 +91,7 @@ module line_buffer #(
       r_lbuf_raddr   <= 'd0;
       r_lbuf_rcnt    <= 2 * LINE_WIDTH;
       r_ptch_row_idx <= 'd0;
-      r_opt_col_idx  <= 'd0;
+      r_opt_col_idx  <= 'd0; 
     end else if (i_clr) begin
       r_lbuf_wcnt    <= 'd0;
       r_lbuf_rcnt    <= 2 * LINE_WIDTH;
@@ -141,7 +144,7 @@ module line_buffer #(
         end else r_lbuf_re <= 1'b0;
       end else r_lbuf_re <= 1'b0;
 
-      // skid -> output
+      // lbuf -> output
       if (w_lbuf_rvld) begin
         if (r_opt_col_idx < LINE_WIDTH - 1) begin
           r_opt_col_idx <= r_opt_col_idx + 'd1;

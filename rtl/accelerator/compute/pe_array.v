@@ -41,7 +41,7 @@ module pe_array #(
   assign o_ipt_rdy = w_act_out || !r_opt_vld;
   // ====================== always ========================= 
 
-  // initialize weight data
+  // initialize weight statinary buffer
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       for (i = 0; i < PE_NUM; i = i + 1) r_wgt_dat[i] <= 'd0;
@@ -53,23 +53,19 @@ module pe_array #(
     end
   end
 
-  // handshake
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_opt_vld <= 'b0;
     end else begin
-      case ({
-        w_act_in, w_act_out
-      })
-        2'b10, 2'b11: r_opt_vld <= 1'b1;
-
-        2'b01: r_opt_vld <= 1'b0;
-
-        default: ;
-      endcase
+      // 1 cylce delay -> DSP spend 1 clock for computing
+      if (i_ipt_vld) begin
+        r_opt_vld <= 1'b1;
+      end else begin
+        r_opt_vld <= 1'b0;
+      end
     end
   end
-
+  // ====================== module ========================= 
   generate
     for (p = 0; p < PE_NUM; p = p + 1) begin : pe_array
       pe inst_pe (

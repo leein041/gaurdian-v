@@ -1,28 +1,23 @@
 `timescale 1ns / 1ps
 
-module relu #(
+module leaky_relu #(
     parameter BIT = 32
 ) (
     input                   i_clk,
     input                   i_rstn,
-    input                   i_relu_en,
+    input                   i_leaky_relu_en,
     // ipt
     input  signed [BIT-1:0] i_ipt_din,
     input                   i_ipt_vld,
-    output                  o_ipt_rdy,
-    // opt
-    input                   i_opt_rdy,
+    // opt 
     output                  o_opt_vld,
     output        [BIT-1:0] o_opt_dout
 );
   // ====================== reg ============================
   reg                  r_opt_vld;
-  reg signed [BIT : 0] r_opt_dat;
-  // ====================== wire =========================== 
-  wire                 w_act_in = o_ipt_rdy && i_ipt_vld;
-  wire                 w_act_out = i_opt_rdy && o_opt_vld;
-  // ====================== assign =========================  
-  assign o_ipt_rdy = w_act_out || !r_opt_vld;
+  reg signed [BIT-1:0] r_opt_dat;
+  // ====================== wire ===========================   
+  // ====================== assign =========================   
   // ====================== always ========================= 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -31,8 +26,8 @@ module relu #(
     end else begin
       if (i_ipt_vld) begin
         r_opt_vld <= 1'b1;
-        if (i_relu_en && i_ipt_din[BIT-1]) begin
-          r_opt_dat <= 'd0;
+        if (i_leaky_relu_en && i_ipt_din[BIT-1]) begin
+          r_opt_dat <= (i_ipt_din >>> 3) - (i_ipt_din >>> 5); // 0.09375
         end else begin
           r_opt_dat <= i_ipt_din;
         end

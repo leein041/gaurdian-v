@@ -2,7 +2,7 @@
 `include "defines.vh"
 `include "network_config.vh" 
 module stline_global_ctrl #(
-    parameter BITS         = 16,
+    parameter BIT         = 16,
     parameter IMAGE_NUM    = 1,
     parameter INPUT_DEPTH  = 150 * 150 * 3,
     parameter IMAGE_DEPTH  = 150 * 150,
@@ -25,14 +25,14 @@ module stline_global_ctrl #(
     // layer 3
     input                    i_lyr3_wrdn,
     input                    i_lyr3_vld,
-    input  [       BITS-1:0] i_lyr3_din,
+    input  [       BIT-1:0] i_lyr3_din,
     // input mem  
     output                   o_ibuf_re,
     output [ IPT_ADDR-1:0] o_ibuf_raddr,
     // opt mem  
     output                   o_obuf_we,
     output [OPT_ADDR-1:0] o_obuf_addr,
-    output [         BITS:0] o_obuf_dout,
+    output [         BIT:0] o_obuf_dout,
     output                   o_done
 );
   // ====================== parmeter ======================= 
@@ -60,7 +60,7 @@ module stline_global_ctrl #(
   reg                    r_obuf_we;
   reg  [OPT_ADDR-1:0] r_obuf_addr;
   reg  [OPT_ADDR-1:0] r_obuf_wcnt;
-  reg  [         BITS:0] r_obuf_dat;
+  reg  [         BIT:0] r_obuf_dat;
   reg                    r_o_done;
 
   // ====================== assign ========================= 

@@ -21,8 +21,7 @@ module conv_layer (
     input  [    `CLOG2_SAFE(`MAX_TILE_AREA):0] i_opt_num,
     input                                      i_relu_en,
     input  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] i_line_width,
-    input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch,
-    input  [       `CLOG2_SAFE(`MAX_FILTER):0] i_out_ch,
+    input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch, 
     input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
     input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
 );
@@ -36,19 +35,18 @@ module conv_layer (
 
   integer i, j;
   genvar l, c, p;
-  // ====================== wire =========================== 
-  // IO port 
-  wire signed [`IPT_BIT-1:0] w_ipt_dat[0:`MAX_GROUP_FILTER-1];
+  // ====================== wire ===========================  
   // line bufferS    
-  wire w_lbuf_vld;
-  wire [`IPT_BIT* `MAX_GROUP_CHANNEL*LINE_HEIGHT-1:0] w_lbuf_dat_bus;
-  wire [`IPT_BIT*LINE_HEIGHT-1:0] w_lbuf_dat[0:`MAX_GROUP_CHANNEL];
+  wire lbuf_ptch_vld;
+  wire [`IPT_BIT* `MAX_GROUP_CHANNEL*LINE_HEIGHT-1:0] lbuf_ptch_dat;
+  wire lbuf_window_vld;
   // patch
-  wire [`MAX_GROUP_FILTER-1:0] w_ptch_rdy;
-  wire [`MAX_GROUP_FILTER-1:0] w_ptch_vld;
-  wire [`IPT_BIT*`CONV_3X3_AREA-1:0] w_ptch_dat[0:`MAX_GROUP_FILTER-1];
+  wire ptch_lbuf_rdy;
+  wire ptch_pu_vld;
+  wire [`IPT_BIT*`MAX_GROUP_CHANNEL*`CONV_3X3_AREA-1:0] ptch_pu_dat_bus;
+  wire [`IPT_BIT*`CONV_3X3_AREA-1:0] ptch_pu_dat[0:`MAX_GROUP_CHANNEL-1];
   // pu
-  wire [`MAX_GROUP_CHANNEL-1:0] w_pu_rdy[0:`MAX_GROUP_FILTER-1];
+  wire [`MAX_GROUP_CHANNEL-1:0] pu_ptch_rdy[0:`MAX_GROUP_FILTER-1];
   wire [`MAX_GROUP_CHANNEL-1:0] w_pu_vld[0:`MAX_GROUP_FILTER-1];
   wire signed [PU_OPT_BIT-1:0] w_pu_dat[0:`MAX_GROUP_CHANNEL-1][0:`MAX_GROUP_FILTER-1];
   wire [`MAX_GROUP_CHANNEL*PU_OPT_BIT-1:0] w_pu_dat_bus[0:`MAX_GROUP_FILTER-1];
@@ -100,18 +98,16 @@ module conv_layer (
   reg [`CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
   reg r_dn;
 
-  // ====================== hand shake ===================== 
+  // ====================== assign =========================     
 
-  // ====================== assign =========================    
   generate
     for (c = 0; c < `MAX_GROUP_CHANNEL; c = c + 1) begin
-      for (l = 0; l < LINE_HEIGHT; l = l + 1) begin
-        assign w_lbuf_dat[c][`IPT_BIT*l+:`IPT_BIT] = w_lbuf_dat_bus[`IPT_BIT*(c + l*`MAX_GROUP_CHANNEL)+:`IPT_BIT];
+      for (p = 0; p < `CONV_3X3_AREA; p = p + 1) begin
+        assign ptch_pu_dat[c][p*`IPT_BIT+:`IPT_BIT] = 
+                  ptch_pu_dat_bus[c*`IPT_BIT + p*`IPT_BIT*`MAX_GROUP_CHANNEL+:`IPT_BIT];
       end
     end
-  endgenerate
 
-  generate
     for (c = 0; c < `MAX_GROUP_CHANNEL; c = c + 1) begin
       for (p = 0; p < `MAX_GROUP_FILTER; p = p + 1) begin
         assign w_pu_dat_bus[p][c*PU_OPT_BIT+:PU_OPT_BIT] = w_pu_dat[p][c];
@@ -125,7 +121,7 @@ module conv_layer (
 
   assign o_dn = r_dn;
   // ====================== always ========================= 
-  // count internal index
+  // conv layer compute done signal
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_opt_cnt <= 'd0;
@@ -133,7 +129,6 @@ module conv_layer (
     end else begin
       // base
       r_dn <= 'b0;
-
       if (o_opt_vld && i_opt_rdy) begin
         if (r_opt_cnt == i_opt_num - 1) begin
           r_dn      <= 'b1;
@@ -195,41 +190,40 @@ module conv_layer (
       .LINE_HEIGHT(LINE_HEIGHT),
       .LINE_WIDTH (`MAX_PAD_TILE_SIDE)              // padded
   ) inst_line_buffer (
+      .i_clk       (i_clk),
+      .i_rstn      (i_rstn),
+      .i_clr       (i_clr),
+      // ipt
+      .o_ipt_rdy   (o_ipt_rdy),
+      .i_ipt_din   (i_ipt_din),
+      .i_ipt_vld   (i_ipt_vld),
+      // opt
+      .i_opt_rdy   (ptch_lbuf_rdy),
+      .o_opt_vld   (lbuf_ptch_vld),
+      .o_opt_dout  (lbuf_ptch_dat),
+      //
+      .o_window_vld(lbuf_window_vld)
+  );
+  patch #(
+      .WIDTH     (`IPT_BIT * `MAX_GROUP_CHANNEL),
+      .STRIDE    (`CONV_3X3_STRIDE),
+      .PATCH_SIDE(`CONV_3X3_SIDE),
+      .LINE_WIDTH(`MAX_PAD_TILE_SIDE)
+  ) inst_conv_patch_buffer (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
       .i_clr     (i_clr),
       // ipt
-      .o_ipt_rdy (o_ipt_rdy),
-      .i_ipt_din (i_ipt_din),
-      .i_ipt_vld (i_ipt_vld),
+      .i_ipt_vld (lbuf_ptch_vld),
+      .i_ipt_din (lbuf_ptch_dat),
+      .o_ipt_rdy (ptch_lbuf_rdy),
       // opt
-      .i_opt_rdy (w_ptch_rdy[0]),
-      .o_opt_vld (w_lbuf_vld),
-      .o_opt_dout(w_lbuf_dat_bus)
+      .i_opt_rdy (pu_ptch_rdy[0][0]),
+      .o_opt_vld (ptch_pu_vld),
+      .o_opt_dout(ptch_pu_dat_bus),
+      //
+      .i_ptch_vld(lbuf_window_vld)
   );
-  generate
-    for (c = 0; c < `MAX_GROUP_CHANNEL; c = c + 1) begin : LINE_BUFFER_ARRAY
-      patch #(
-          .STRIDE    (`CONV_3X3_STRIDE),
-          .PATCH_SIDE(`CONV_3X3_SIDE),
-          .LINE_WIDTH(`MAX_PAD_TILE_SIDE)
-      ) inst_conv_patch_buffer (
-          .i_clk       (i_clk),
-          .i_rstn      (i_rstn),
-          .i_clr       (i_clr),
-          // ipt
-          .i_ipt_din   (w_lbuf_dat[c]),
-          .i_ipt_vld   (w_lbuf_vld),
-          .o_ipt_rdy   (w_ptch_rdy[c]),
-          // opt
-          .i_opt_rdy   (w_pu_rdy[0][c]),
-          .o_opt_vld   (w_ptch_vld[c]),
-          .o_opt_dout  (w_ptch_dat[c]),
-          //
-          .i_line_width(i_line_width)
-      );
-    end
-  endgenerate
 
   generate
     for (p = 0; p < `MAX_GROUP_FILTER; p = p + 1) begin : pu_array
@@ -243,16 +237,16 @@ module conv_layer (
             .i_clr     (i_clr),
             .i_wgt_vld (r_pu_wvld[c]),
             .i_wgt_din (r_pu_wdat[p]),
-            .o_ipt_rdy (w_pu_rdy[p][c]),
-            .i_ipt_vld (w_ptch_vld[c] && i_ch_mask[c] && i_filt_mask[p]),
-            .i_ipt_din (w_ptch_dat[c]),
+            .o_ipt_rdy (pu_ptch_rdy[p][c]),
+            .i_ipt_vld (ptch_pu_vld && i_ch_mask[c] && i_filt_mask[p]),
+            .i_ipt_din (ptch_pu_dat[c]),
             .i_opt_rdy (w_cat_rdy[p]),
             .o_opt_vld (w_pu_vld[p][c]),
             .o_opt_dout(w_pu_dat[p][c])
         );
       end
 
-      // adder tree
+      // channel adder tree
       adder_tree #(
           .IPT_BIT(PU_OPT_BIT),
           .IPT_NUM(`MAX_GROUP_CHANNEL)

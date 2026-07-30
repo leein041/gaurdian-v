@@ -27,22 +27,22 @@ module pu #(
   integer i, j;
   genvar c, p;
 
-  reg r_ptch_clr;  // clear signal
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) r_ptch_clr <= 1'b0;
-    else r_ptch_clr <= i_clr;
-  end
+  // ====================== reg ============================      
+  reg                             r_ptch_clr;  // clear signal
+  // ====================== wire ===========================
 
   wire                            w_mat_rdy;
   wire                            w_pe_rdy;
   wire                            w_pe_vld;
   wire [           CONV_AREA-1:0] w_pe_vld_bus;
   wire [PE_OPT_BIT*CONV_AREA-1:0] w_pe_dat;
-  // ====================== reg ============================      
-  // ====================== hand shake =====================   
   // ====================== assign =========================  
   assign w_pe_vld_bus = (w_pe_vld) ? {CONV_AREA{1'b1}} : 'd0;
   // ====================== always =========================  
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) r_ptch_clr <= 1'b0;
+    else r_ptch_clr <= i_clr;
+  end
   // ====================== Unpack / Pack ==================  
   // ====================== module =========================  
   pe_array #(

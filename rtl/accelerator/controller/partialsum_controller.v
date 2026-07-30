@@ -322,7 +322,7 @@ module partialsum_controller #(
 
     // ReLU
     relu #(
-        .BITS(`OPT_BIT)
+        .BIT(`OPT_BIT)
     ) inst_relu (
         .i_clk     (i_clk),
         .i_rstn    (i_rstn),

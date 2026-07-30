@@ -72,8 +72,8 @@ module tile_loader #(
   reg  [  `CLOG2_SAFE(PADDED_TILE_SIDE) : 0] r_row_cnt;
   reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_req_len;
   reg                                        r_req;
-  reg  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_raddr;
-  reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_row_base_addr;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_req_addr;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_base_addr;
   // output
   reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_x;
   reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_y;
@@ -107,7 +107,7 @@ module tile_loader #(
   assign o_dn             = r_dn;
   assign o_req_len        = r_req_len;
   assign o_req            = r_req;
-  assign o_req_addr       = r_raddr;
+  assign o_req_addr       = r_req_addr;
   // 
   assign o_we             = r_we;
   assign o_waddr          = r_waddr;
@@ -155,20 +155,20 @@ module tile_loader #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_row_cnt    <= 'd0;
-      r_row_base_addr <= 'd0;
-      r_req_len    <= 0;
-      r_req        <= 0;
-      r_raddr      <= 0;
+      r_row_cnt   <= 'd0;
+      r_base_addr <= 'd0;
+      r_req_len   <= 0;
+      r_req       <= 0;
+      r_req_addr     <= 0;
     end else begin
       case (r_req_cstat)
 
         REQ_IDLE: begin
           if (i_st) begin
             if (i_img_org_y < HALO) begin
-              r_row_base_addr <= i_tile_base_addr;
+              r_base_addr <= i_tile_base_addr;
             end else begin
-              r_row_base_addr <= i_tile_base_addr - i_img_side;
+              r_base_addr <= i_tile_base_addr - i_img_side;
             end
           end
         end
@@ -193,16 +193,16 @@ module tile_loader #(
             end
           end
 
-          // request address
+          // request
           if (w_req_pad_left) begin
-            r_raddr <= r_row_base_addr + i_img_org_x;
+            r_req_addr <= r_base_addr;
           end else begin
-            r_raddr <= r_row_base_addr + i_img_org_x - 'd1;
+            r_req_addr <= r_base_addr - 'd1;
           end
 
-          // update request address 
+          // update next request address 
           if (!w_req_pad_row) begin
-            r_row_base_addr <= r_row_base_addr + i_img_side;
+            r_base_addr <= r_base_addr + i_img_side;
           end
         end
 
