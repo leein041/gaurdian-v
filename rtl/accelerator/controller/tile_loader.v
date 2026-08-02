@@ -19,7 +19,7 @@ module tile_loader #(
     input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_side,
     input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_x,
     input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_y,
-    input  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tile_base_addr,
+    input  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tl_req_addr,
     // RC
     output [        `CLOG2_SAFE(FBUF_DEPTH) : 0] o_req_len,
     output                                       o_req,
@@ -166,9 +166,9 @@ module tile_loader #(
         REQ_IDLE: begin
           if (i_st) begin
             if (i_img_org_y < HALO) begin
-              r_base_addr <= i_tile_base_addr;
+              r_base_addr <= i_tl_req_addr;
             end else begin
-              r_base_addr <= i_tile_base_addr - i_img_side;
+              r_base_addr <= i_tl_req_addr - i_img_side;
             end
           end
         end

@@ -60,6 +60,8 @@ for i,l in enumerate(layers):
         text.append(f"`define L{idx}_IPT_AREA               {ipt_side*ipt_side}")
         text.append(f"`define L{idx}_OPT_SIDE               {ipt_side}")
         text.append(f"`define L{idx}_OPT_AREA               {ipt_side*ipt_side}")
+        text.append(f"`define L{idx}_TILE_IPT_SIDE          {max_tile_side}")
+        text.append(f"`define L{idx}_TILE_IPT_AREA          {max_tile_side*max_tile_side}")
         text.append(f"`define L{idx}_TILE_OPT_SIDE          {max_tile_side}")
         text.append(f"`define L{idx}_TILE_OPT_AREA          {max_tile_side*max_tile_side}")
         text.append(f"`define L{idx}_TILE_NUM               {int((ipt_side*ipt_side)/(max_tile_side*max_tile_side))}")
@@ -82,13 +84,19 @@ for i,l in enumerate(layers):
         text.append(f"`define L{idx}_TR_READ_LEN            {(max_tile_side+2*int(l['pad']))*(max_tile_side+2*int(l['pad']))}")
         text.append(f"`define L{idx}_BL_BANK_DEPTH          {1}")
         text.append(f"`define L{idx}_WL_BANK_DEPTH          {l['kernel'] * l['kernel'] * l['channel']}")
-        text.append(f"`define L{idx}_WL_ADDR_STRIDE         {l['kernel'] * l['kernel'] * l['channel'] * max_group_filter}")
+        text.append(f"`define L{idx}_BL_FILT_GRP_STRIDE     {max_group_filter}")
+        text.append(f"`define L{idx}_BR_FILT_GRP_STRIDE     {1}")
+        text.append(f"`define L{idx}_WL_FILT_GRP_STRIDE     {l['kernel'] * l['kernel'] * l['channel'] * max_group_filter}")
+        text.append(f"`define L{idx}_WR_CH_GRP_STRIDE       {l['kernel'] * l['kernel'] * max_group_channel}")
         text.append(f"`define L{idx}_TL_ROW_STRIDE          {ipt_side * max_tile_side}")
         text.append(f"`define L{idx}_TL_COL_STRIDE          {max_tile_side}")
-        text.append(f"`define L{idx}_TL_CH_STRIDE           {ipt_side * ipt_side}")
+        text.append(f"`define L{idx}_TL_CH_GRP_STRIDE       {ipt_side * ipt_side}")
+        text.append(f"`define L{idx}_TS_ROW_STRIDE          {ipt_side * max_tile_side}")
+        text.append(f"`define L{idx}_TS_COL_STRIDE          {max_tile_side}")
+        text.append(f"`define L{idx}_TS_CH_GRP_STRIDE       {ipt_side * ipt_side}")
         text.append(f"`define L{idx}_OBUF_TILE_ROW_STRIDE   {ipt_side * max_tile_side}")
         text.append(f"`define L{idx}_OBUF_TILE_CH_STRIDE    {ipt_side * ipt_side}")
-        text.append(f"`define L{idx}_PSC_SUM_NUM            {math.ceil(l['channel'] / min(l['channel'],max_group_channel))}")
+        text.append(f"`define L{idx}_PSC_SUM_NUM            { math.ceil(l['channel'] / max_group_channel)}")
     
     else:
 
@@ -173,4 +181,4 @@ text.append("")
 
 text.append("`endif")
 
-open("rtl/accelerator/network_config.vh","w").write("\n".join(text))
+open("rtl/accelerator/config/network_config.vh","w").write("\n".join(text))

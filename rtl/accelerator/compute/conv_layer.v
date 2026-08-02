@@ -14,13 +14,12 @@ module conv_layer (
     input                                      i_ipt_vld,
     input  [  `IPT_BIT*`MAX_GROUP_CHANNEL-1:0] i_ipt_din,
     // opt
+    input  [    `CLOG2_SAFE(`MAX_TILE_AREA):0] i_opt_area,
     input                                      i_opt_rdy,
     output                                     o_opt_vld,
     output [  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
     // temp
-    input  [    `CLOG2_SAFE(`MAX_TILE_AREA):0] i_opt_num,
-    input                                      i_relu_en,
-    input  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] i_line_width,
+    input                                      i_relu_en, 
     input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch, 
     input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
     input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
@@ -130,7 +129,7 @@ module conv_layer (
       // base
       r_dn <= 'b0;
       if (o_opt_vld && i_opt_rdy) begin
-        if (r_opt_cnt == i_opt_num - 1) begin
+        if (r_opt_cnt == i_opt_area - 1) begin
           r_dn      <= 'b1;
           r_opt_cnt <= 'd0;
         end else begin
