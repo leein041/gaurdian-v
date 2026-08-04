@@ -6,25 +6,25 @@ module reader #(
     parameter WIDTH     = 0,
     parameter BUF_DEPTH = 0
 ) (
-    input                          i_clk,
-    input                          i_rstn,
-    input                          i_clr,
-    // GC
-    input                          i_st,
+    input                               i_clk,
+    input                               i_rstn,
+    input                               i_clr,
+    input                               i_st,
+    output                              o_dn,
+    // 
     input  [`CLOG2_SAFE(BUF_DEPTH) : 0] i_read_len,
-    input  [$clog2(BUF_DEPTH)-1:0] i_read_addr,
-    output                         o_dn,
-    // RC
-    output                         o_re,
-    output [$clog2(BUF_DEPTH)-1:0] o_raddr,
-    // ipt 
-    output                         o_ipt_rdy,
-    input                          i_ipt_vld,
-    input  [            WIDTH-1:0] i_ipt_din,
-    // opt
-    input                          i_opt_rdy,
-    output                         o_opt_vld,
-    output [            WIDTH-1:0] o_opt_dout
+    input  [     $clog2(BUF_DEPTH)-1:0] i_read_addr,
+    // Buffer read
+    output                              o_re,
+    output [     $clog2(BUF_DEPTH)-1:0] o_raddr,
+    // Buffer Data
+    output                              o_ipt_rdy,
+    input                               i_ipt_vld,
+    input  [                 WIDTH-1:0] i_ipt_din,
+    // Stream Output
+    input                               i_opt_rdy,
+    output                              o_opt_vld,
+    output [                 WIDTH-1:0] o_opt_dout
 );
   // ====================== parmeter =======================  
   localparam READ_IDLE = 0;

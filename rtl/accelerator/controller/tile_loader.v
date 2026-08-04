@@ -17,8 +17,8 @@ module tile_loader #(
     output                                       o_dn,
     // GC
     input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_side,
-    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_x,
-    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_org_y,
+    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_x,
+    input  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_y,
     input  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tl_req_addr,
     // RC
     output [        `CLOG2_SAFE(FBUF_DEPTH) : 0] o_req_len,
@@ -73,7 +73,7 @@ module tile_loader #(
   reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_req_len;
   reg                                        r_req;
   reg  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_req_addr;
-  reg  [        `CLOG2_SAFE(FBUF_DEPTH) : 0] r_base_addr;
+  reg  [        `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_base_addr;
   // output
   reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_x;
   reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_y;
@@ -85,9 +85,9 @@ module tile_loader #(
   // ====================== assign =========================     
   assign o_ipt_rdy = !w_act_pad;
 
-  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_x = i_img_org_x - HALO;
-  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] nxt_x = i_img_org_x + `MAX_TILE_SIDE;
-  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_y = i_img_org_y + r_row_cnt - HALO;
+  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_x = i_tl_org_x - HALO;
+  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] nxt_x = i_tl_org_x + `MAX_TILE_SIDE;
+  wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_y = i_tl_org_y + r_row_cnt - HALO;
 
   assign w_req_pad_left   = (cur_x < 0);
 
@@ -98,10 +98,10 @@ module tile_loader #(
   assign w_req_pad_right  = (nxt_x >= i_img_side);
   assign w_req_pad_row    = w_req_pad_top || w_req_pad_bottom;
   // out
-  assign w_out_pad_u      = (i_img_org_y + r_out_tile_y < HALO + 0);
-  assign w_out_pad_d      = (i_img_org_y + r_out_tile_y >= HALO + i_img_side);
-  assign w_out_pad_l      = (i_img_org_x + r_out_tile_x < HALO + 0);
-  assign w_out_pad_r      = (i_img_org_x + r_out_tile_x >= HALO + i_img_side);
+  assign w_out_pad_u      = (i_tl_org_y + r_out_tile_y < HALO + 0);
+  assign w_out_pad_d      = (i_tl_org_y + r_out_tile_y >= HALO + i_img_side);
+  assign w_out_pad_l      = (i_tl_org_x + r_out_tile_x < HALO + 0);
+  assign w_out_pad_r      = (i_tl_org_x + r_out_tile_x >= HALO + i_img_side);
   assign w_act_pad        = w_out_pad_u || w_out_pad_d || w_out_pad_l || w_out_pad_r;
   //
   assign o_dn             = r_dn;
@@ -159,13 +159,13 @@ module tile_loader #(
       r_base_addr <= 'd0;
       r_req_len   <= 0;
       r_req       <= 0;
-      r_req_addr     <= 0;
+      r_req_addr  <= 0;
     end else begin
       case (r_req_cstat)
 
         REQ_IDLE: begin
           if (i_st) begin
-            if (i_img_org_y < HALO) begin
+            if (i_tl_org_y < HALO) begin
               r_base_addr <= i_tl_req_addr;
             end else begin
               r_base_addr <= i_tl_req_addr - i_img_side;

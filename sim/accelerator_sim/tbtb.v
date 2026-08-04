@@ -1,6 +1,6 @@
 
 `timescale 1ns / 1ps
-`include "../../rtl/accelerator/config/network_config.vh"
+`include "C:/seop_workspace/seop_verilog/rtl/accelerator/config/network_config.vh"
 module tbtb ();
 
   parameter IMG_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/input.txt";

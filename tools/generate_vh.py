@@ -97,25 +97,7 @@ for i,l in enumerate(layers):
         text.append(f"`define L{idx}_OBUF_TILE_ROW_STRIDE   {ipt_side * max_tile_side}")
         text.append(f"`define L{idx}_OBUF_TILE_CH_STRIDE    {ipt_side * ipt_side}")
         text.append(f"`define L{idx}_PSC_SUM_NUM            { math.ceil(l['channel'] / max_group_channel)}")
-    
-    else:
-
-        text.append(f"`define L{idx}_IPT_SIDE        {ipt_side}")
-        text.append(f"`define L{idx}_IPT_AREA        {ipt_side*ipt_side}")
-        ipt_side//=l["stride"]              
-        text.append(f"`define L{idx}_OPT_SIDE        {ipt_side}")
-        text.append(f"`define L{idx}_OPT_AREA        {ipt_side*ipt_side}")
-        text.append(f"`define L{idx}_TILE_OPT_SIDE   {max_tile_side // l["stride"]}")
-        text.append(f"`define L{idx}_TILE_OPT_AREA   {(max_tile_side // l["stride"])*(max_tile_side // l["stride"])}")
-        text.append(f"`define L{idx}_CHANNEL         {l['channel']}")
-        text.append(f"`define L{idx}_FILTER          {int(0)}")
-        text.append(f"`define L{idx}_KERNEL          {l['kernel']}")
-        text.append(f"`define L{idx}_STRIDE          {l['stride']}") 
-        text.append(f"`define L{idx}_PAD             {int(0)}")
-        text.append(f"`define L{idx}_RELU            {int(0)}") 
-        text.append(f"`define L{idx}_WGT_DEPTH       {int(0)}") 
-        text.append(f"`define L{idx}_BIAS_DEPTH      {int(0)}") 
-
+     
     text.append("")
 
 # create MAX DATA

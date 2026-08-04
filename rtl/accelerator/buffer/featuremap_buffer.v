@@ -6,19 +6,20 @@ module featuremap_buffer #(
     parameter MEM_TYPE      = `BRAM_TYPE,
     parameter IMG_INIT_FILE = ""
 ) (
-    input                              i_clk,
-    input                              i_rstn,
+    input                                i_clk,
+    input                                i_rstn,
     input  [`CLOG2_SAFE(`LAYER_NUM)-1:0] i_lyr_idx,
-    input                              i_switch,
+    input                                i_wr_swap,
+    input                                i_rd_swap,
     //
-    input                              i_re,
-    input  [ `CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
-    output                             o_rvld,
-    output [                WIDTH-1:0] o_rdout,
+    input                                i_re,
+    input  [   `CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
+    output                               o_rvld,
+    output [                  WIDTH-1:0] o_rdout,
     //
-    input                              i_we,
-    input  [ `CLOG2_SAFE(DEPTH)-1 : 0] i_waddr,
-    input  [                WIDTH-1:0] i_wdin
+    input                                i_we,
+    input  [   `CLOG2_SAFE(DEPTH)-1 : 0] i_waddr,
+    input  [                  WIDTH-1:0] i_wdin
 );
   genvar g;
   // ====================== wire =========================== 
@@ -62,16 +63,17 @@ module featuremap_buffer #(
       .DEPTH   (DEPTH),
       .MEM_TYPE(`BRAM_TYPE)
   ) inst_double_buffer (
-      .i_clk   (i_clk),
-      .i_rstn  (i_rstn),
-      .i_switch(i_switch),
-      .i_re    (w_dbuf_re),
-      .i_raddr (i_raddr),
-      .o_rvld  (w_dbuf_rvld),
-      .o_rdout (w_dbuf_rdat),
-      .i_we    (i_we),
-      .i_waddr (i_waddr),
-      .i_wdin  (i_wdin)
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
+      .i_wr_swap(i_wr_swap),
+      .i_rd_swap(i_rd_swap),
+      .i_re     (w_dbuf_re),
+      .i_raddr  (i_raddr),
+      .o_rvld   (w_dbuf_rvld),
+      .o_rdout  (w_dbuf_rdat),
+      .i_we     (i_we),
+      .i_waddr  (i_waddr),
+      .i_wdin   (i_wdin)
   );
   // output buffer (DDR)
   simple_dual_port_ram #(

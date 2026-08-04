@@ -24,6 +24,7 @@ module scheduler #(
     input      [`CLOG2_SAFE(`MAX_IPT_SIDE/`MAX_TILE_SIDE):0] i_tile_num_x,
     input      [`CLOG2_SAFE(`MAX_IPT_SIDE/`MAX_TILE_SIDE):0] i_tile_num_y,
     input      [              `CLOG2_SAFE(`MAX_TILE_AREA):0] i_lyr_opt_area,
+    input      [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] i_img_side,
     // Address Generator Control
     output reg                                               o_nxt_lyr,
     output reg                                               o_nxt_filt_grp,
@@ -48,18 +49,24 @@ module scheduler #(
     input                                                    i_tr_dn,
     input                                                    i_lyr_dn,
     input                                                    i_ts_dn,
+    //
     // Layer Control
     output reg                                               o_lyr_clr,
     output     [              `CLOG2_SAFE(`MAX_TILE_AREA):0] o_lyr_opt_num,
-    // Tile / Layer Metadata
-    output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_img_org_x,
-    output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_img_org_y,
+    // Tile loader Metadata
+    output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_tl_org_x,
+    output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_tl_org_y,
+    // Layer Metadata
     output reg [           `CLOG2_SAFE(`MAX_GROUP_FILTER):0] o_in_ch,
     output reg [                 `CLOG2_SAFE(`MAX_FILTER):0] o_out_ch,
     output reg [                     `MAX_GROUP_CHANNEL-1:0] o_ch_mask,
     output reg [                      `MAX_GROUP_FILTER-1:0] o_filt_mask,
-    // Feature Buffer
-    output reg                                               o_fbuf_switch
+    // Feature Buffer control
+    output reg                                               o_fbuf_wr_swap,
+    output reg                                               o_fbuf_rd_swap,
+    output reg                                               o_tb_wr_swap,
+    output reg                                               o_tb_rd_swap,
+    output reg                                               o_ag_commit_addr
 );
   // ====================== parmeter ======================= 
   localparam IDLE = 1;
@@ -86,17 +93,20 @@ module scheduler #(
   localparam NEXT_CHANNEL_GRP = 17;
   localparam NEXT_LAYER = 18;
 
-  localparam DONE = 19;
+  localparam WAIT_ADDR = 19;
+  localparam COMMIT_ADDR = 20;
 
-  localparam STATE_END = 20;
+  localparam DONE = 21;
+
+  localparam STATE_END = 22;
 
 
   integer                                                    i;
   // ====================== wire ===========================  
   // ====================== reg ============================ 
   reg     [                      `CLOG2_SAFE(STATE_END)-1:0] r_cstat;  // current state
-  reg     [                      `CLOG2_SAFE(STATE_END)-1:0] r_nstat;  // next state     
-  //  channel  
+  reg     [                      `CLOG2_SAFE(STATE_END)-1:0] r_nstat;  // next state    
+  reg     [                      `CLOG2_SAFE(STATE_END)-1:0] r_after_commit;  // next state    
   reg     [                     `CLOG2_SAFE(`MAX_CHANNEL):0] r_ch_idx;
   reg     [`CLOG2_SAFE(`MAX_CHANNEL / `MAX_GROUP_CHANNEL):0] r_ch_grp_idx;
   reg     [                     `CLOG2_SAFE(`MAX_CHANNEL):0] r_ch_left;
@@ -108,7 +118,8 @@ module scheduler #(
   reg     [   `CLOG2_SAFE(`MAX_IPT_AREA / `MAX_TILE_AREA):0] r_tile_idx;
   reg     [   `CLOG2_SAFE(`MAX_IPT_SIDE / `MAX_TILE_SIDE):0] r_tile_cnt_x;
   reg     [   `CLOG2_SAFE(`MAX_IPT_SIDE / `MAX_TILE_SIDE):0] r_tile_cnt_y;
-
+  //
+  reg     [                                             1:0] r_prefetch_dn;
   // ====================== assign =========================  
   assign o_lyr_opt_num = i_lyr_opt_area;
   // ====================== FSM ============================ 
@@ -136,7 +147,15 @@ module scheduler #(
     case (r_cstat)
 
       IDLE: begin
-        if (i_st) r_nstat = START_BL;
+        if (i_st) r_nstat = START_TL;
+      end
+
+      START_TL: begin
+        r_nstat = WAIT_TL;
+      end
+
+      WAIT_TL: begin
+        if (i_tl_dn) r_nstat = START_BL;
       end
 
       START_BL: begin
@@ -168,15 +187,7 @@ module scheduler #(
       end
 
       WAIT_WR: begin
-        if (i_wr_dn) r_nstat = START_TL;
-      end
-
-      START_TL: begin
-        r_nstat = WAIT_TL;
-      end
-
-      WAIT_TL: begin
-        if (i_tl_dn) r_nstat = START_TR;
+        if (i_wr_dn) r_nstat = START_TR;
       end
 
       START_TR: begin
@@ -199,23 +210,35 @@ module scheduler #(
       end
 
       NEXT_FILTER_GRP: begin
-        r_nstat = START_BL;
+        r_after_commit = START_BL;
+        r_nstat        = COMMIT_ADDR;
       end
 
       NEXT_TILE: begin
-        r_nstat = START_WR;
+        r_after_commit = START_WR;
+        r_nstat        = COMMIT_ADDR;
       end
 
       NEXT_CHANNEL_GRP: begin
-        r_nstat = START_WR;
+        r_after_commit = START_WR;
+        r_nstat        = COMMIT_ADDR;
       end
 
       NEXT_LAYER: begin
         if (o_lyr_idx != `LAYER_NUM - 1) begin
-          r_nstat = START_BL;
+          r_after_commit = START_TL;
+          r_nstat        = COMMIT_ADDR;
         end else begin
           r_nstat = DONE;
         end
+      end
+
+      WAIT_ADDR: begin
+        r_nstat = COMMIT_ADDR;
+      end
+
+      COMMIT_ADDR: begin
+        r_nstat = r_after_commit;
       end
 
       DONE: begin
@@ -228,52 +251,73 @@ module scheduler #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      o_dn           <= 'd0;
-      o_fbuf_switch  <= 'b0;
-      o_ctrl_rdy     <= 'b0;
-      o_lyr_clr      <= 'b0;
-      o_lyr_idx      <= 'd0;
-      o_bl_st        <= 'b0;
-      o_br_st        <= 'b0;
-      o_wl_st        <= 'b0;
-      o_wr_st        <= 'b0;
-      o_tl_st        <= 'b0;
-      o_tr_st        <= 'b0;
-      o_psc_st       <= 'b0;
-      o_ts_st        <= 'b0;
+      o_dn             <= 'd0;
+      o_ctrl_rdy       <= 'b0;
+      o_lyr_clr        <= 'b0;
+      o_lyr_idx        <= 'd0;
+      o_bl_st          <= 'b0;
+      o_br_st          <= 'b0;
+      o_wl_st          <= 'b0;
+      o_wr_st          <= 'b0;
+      o_tl_st          <= 'b0;
+      o_tr_st          <= 'b0;
+      o_psc_st         <= 'b0;
+      o_ts_st          <= 'b0;
+      //
+      o_fbuf_wr_swap   <= 'b0;
+      o_fbuf_rd_swap   <= 'b0;
+      o_tb_wr_swap     <= 'b0;
+      o_tb_rd_swap     <= 'b0;
+      o_ag_commit_addr <= 'b0;
       // local ctrl  
-      r_filt_grp_idx <= 'd0;
-      r_filt_idx     <= 'd0;
-      r_ch_grp_idx   <= 'd0;
-      r_ch_idx       <= 'd0;
-      r_tile_idx     <= 'd0;
-      r_tile_cnt_x   <= 'd0;
-      r_tile_cnt_y   <= 'd0;
-      o_img_org_x    <= 'd0;
-      o_img_org_y    <= 'd0;
+      r_filt_grp_idx   <= 'd0;
+      r_filt_idx       <= 'd0;
+      r_ch_grp_idx     <= 'd0;
+      r_ch_idx         <= 'd0;
+      r_tile_idx       <= 'd0;
+      r_tile_cnt_x     <= 'd0;
+      r_tile_cnt_y     <= 'd0;
+      o_tl_org_x       <= 'd0;
+      o_tl_org_y       <= 'd0;
       //    
       //
-      o_nxt_lyr      <= 'b0;
-      o_nxt_filt_grp <= 'b0;
-      o_nxt_tile_col <= 'b0;
-      o_nxt_tile_row <= 'b0;
-      o_nxt_ch_grp   <= 'b0;
+      o_nxt_lyr        <= 'b0;
+      o_nxt_filt_grp   <= 'b0;
+      o_nxt_tile_col   <= 'b0;
+      o_nxt_tile_row   <= 'b0;
+      o_nxt_ch_grp     <= 'b0;
+      //
+      r_prefetch_dn    <= 'd0;
     end else begin
-      o_ctrl_rdy     <= 'b1;  // 일단 항상 받기    
-      o_lyr_clr      <= 'b0;
-      o_nxt_lyr      <= 'b0;
-      o_nxt_filt_grp <= 'b0;
-      o_nxt_tile_col <= 'b0;
-      o_nxt_tile_row <= 'b0;
-      o_nxt_ch_grp   <= 'b0;
+      o_ag_commit_addr <= 'b0;  // TODO
+      o_ctrl_rdy       <= 'b1;  // 일단 항상 받기    
+      o_lyr_clr        <= 'b0;
+      o_nxt_lyr        <= 'b0;
+      o_nxt_filt_grp   <= 'b0;
+      o_nxt_tile_col   <= 'b0;
+      o_nxt_tile_row   <= 'b0;
+      o_nxt_ch_grp     <= 'b0;
       case (r_cstat)
         IDLE: begin
           o_dn <= 'b0;
+          if (i_st) begin
+            o_fbuf_wr_swap <= 'b1;
+          end
+        end
+
+        START_TL: begin
+          o_fbuf_wr_swap <= 'b0;
+          o_tb_wr_swap   <= 'b1;
+          o_tl_st        <= 'b1;
+        end
+
+        WAIT_TL: begin
+          o_tb_wr_swap <= 'b0;
+          o_tl_st      <= 'b0;
         end
 
         START_BL: begin
-          o_fbuf_switch <= 'b0;
-          o_bl_st       <= 'b1;
+          o_bl_st <= 'b1;
         end
 
         WAIT_BL: begin
@@ -304,33 +348,71 @@ module scheduler #(
           o_wr_st <= 'b0;
         end
 
-        START_TL: begin
-          o_tl_st <= 'b1;
-        end
-
-        WAIT_TL: begin
-          o_tl_st <= 'b0;
-        end
-
         START_TR: begin
-          o_tr_st <= 'b1;
+          o_tr_st      <= 'b1;
+          o_tb_rd_swap <= 'b1;
           if (r_ch_grp_idx == 0) o_psc_st <= 'b1;
           if (r_ch_grp_idx == i_ch_grp_num - 1) o_ts_st <= 'b1;
         end
 
         RUN_LAYER: begin
-          o_tr_st  <= 'b0;
-          o_psc_st <= 'b0;
-          o_ts_st  <= 'b0;
+          if (r_prefetch_dn == 0) begin
+            r_prefetch_dn <= 1;
+            if (r_ch_grp_idx != i_ch_grp_num - 1) begin
+              o_nxt_ch_grp <= 'b1;
+            end else if (r_tile_idx != i_tile_num - 1) begin
+              if (r_tile_cnt_x < i_tile_num_x - 1) begin
+                r_tile_cnt_x <= r_tile_cnt_x + 'd1;
+                o_tl_org_x <= o_tl_org_x + i_tile_side;
+                o_nxt_tile_col <= 'b1;
+              end else begin
+                r_tile_cnt_x <= 'd0;
+                o_tl_org_x   <= 0;
+                if (r_tile_cnt_y < i_tile_num_y - 1) begin
+                  r_tile_cnt_y <= r_tile_cnt_y + 'd1;
+                  o_tl_org_y <= o_tl_org_y + i_tile_side;
+                  o_nxt_tile_row <= 'b1;
+                end
+              end
+
+            end else if (r_filt_grp_idx != i_filt_grp_num - 1) begin
+              o_nxt_filt_grp <= 'b1;
+              o_tl_org_x     <= 0;
+              o_tl_org_y     <= 0;
+              r_tile_cnt_x   <= 'd0;
+              r_tile_cnt_y   <= 'd0;
+            end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              o_nxt_lyr    <= 'b1;
+              o_tl_org_x   <= 'd0;
+              o_tl_org_y   <= 'd0;
+              r_tile_cnt_x <= 'd0;
+              r_tile_cnt_y <= 'd0;
+            end
+          end else if (r_prefetch_dn == 1) begin
+            r_prefetch_dn  <= 2;
+            o_nxt_ch_grp   <= 'b0;
+            o_nxt_tile_col <= 'b0;
+            o_nxt_tile_row <= 'b0;
+            o_nxt_filt_grp <= 'b0;
+            o_nxt_lyr      <= 'b0;
+            if(r_ch_grp_idx == i_ch_grp_num - 1 && r_tile_idx == i_tile_num-1 && r_filt_grp_idx == i_filt_grp_num-1 )begin
+            end else begin
+              o_tl_st <= 'b1;
+              o_tb_wr_swap <= 'b1;
+            end
+          end else begin
+            o_tl_st      <= 'b0;
+            o_tb_wr_swap <= 'b0;
+          end
+
+          o_tb_rd_swap <= 'b0;
+          o_tr_st      <= 'b0;
+          o_psc_st     <= 'b0;
+          o_ts_st      <= 'b0;
         end
 
         NEXT_FILTER_GRP: begin
           o_lyr_clr      <= 'b1;
-          o_nxt_filt_grp <= 'b1;
-          o_img_org_x    <= 'd0;
-          o_img_org_y    <= 'd0;
-          r_tile_cnt_x   <= 'd0;
-          r_tile_cnt_y   <= 'd0;
           r_tile_idx     <= 'd0;
           r_ch_grp_idx   <= 'd0;
           r_ch_idx       <= 'd0;
@@ -341,29 +423,13 @@ module scheduler #(
 
         NEXT_TILE: begin
           o_lyr_clr    <= 'b1;
-          // init ch
           r_ch_grp_idx <= 'd0;
           r_ch_idx     <= 'd0;
-          // update tile 
           r_tile_idx   <= r_tile_idx + 'd1;
 
-          if (r_tile_cnt_x < i_tile_num_x - 1) begin
-            o_nxt_tile_col <= 'b1;
-            r_tile_cnt_x   <= r_tile_cnt_x + 'd1;
-            o_img_org_x    <= o_img_org_x + i_tile_side;
-          end else begin
-            r_tile_cnt_x <= 'd0;
-            o_img_org_x  <= 0;
-            if (r_tile_cnt_y < i_tile_num_y - 1) begin
-              o_nxt_tile_row <= 'b1;
-              r_tile_cnt_y   <= r_tile_cnt_y + 'd1;
-              o_img_org_y    <= o_img_org_y + i_tile_side;
-            end
-          end
         end
 
         NEXT_CHANNEL_GRP: begin
-          o_nxt_ch_grp <= 'b1;
           o_lyr_clr    <= 'b1;
           r_ch_grp_idx <= r_ch_grp_idx + 'd1;
           r_ch_idx     <= r_ch_idx + `MAX_GROUP_CHANNEL;
@@ -371,23 +437,29 @@ module scheduler #(
 
         NEXT_LAYER: begin
           if (o_lyr_idx != `LAYER_NUM - 1) begin
-            o_nxt_lyr      <= 'b1;
             o_lyr_idx      <= o_lyr_idx + 'd1;
             o_lyr_clr      <= 'b1;
-            o_fbuf_switch  <= 'b1;
+            o_fbuf_rd_swap <= 'b1;
+            o_fbuf_wr_swap <= 'b1;
             // init filt 
             r_filt_grp_idx <= 'd0;
             r_filt_idx     <= 'd0;
             // init tile
-            o_img_org_x    <= 'd0;
-            o_img_org_y    <= 'd0;
-            r_tile_cnt_x   <= 'd0;
-            r_tile_cnt_y   <= 'd0;
             r_tile_idx     <= 'd0;
             // init ch 
             r_ch_grp_idx   <= 'd0;
             r_ch_idx       <= 'd0;
           end
+        end
+
+        WAIT_ADDR: begin
+        end
+
+        COMMIT_ADDR: begin
+          o_fbuf_rd_swap   <= 'b0;
+          o_fbuf_wr_swap   <= 'b0;
+          r_prefetch_dn    <= 'd0;
+          o_ag_commit_addr <= 'b1;
         end
 
         DONE: begin

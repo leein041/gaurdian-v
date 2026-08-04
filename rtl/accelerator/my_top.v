@@ -82,7 +82,8 @@ module my_top #(
   wire                                                 sched_nxt_tile_col;
   wire                                                 sched_nxt_tile_row;
   wire                                                 sched_nxt_ch_grp;
-  wire                                                 sched_fbuf_switch;
+  wire                                                 sched_fbuf_wr_swap;
+  wire                                                 sched_fbuf_rd_swap;
   wire                                                 sched_bl_st;
   wire                                                 sched_bl_bank_depth;
   wire [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] sched_bl_req_len;
@@ -98,9 +99,12 @@ module my_top #(
   wire [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] sched_wr_read_len;
   wire [              `CLOG2_SAFE(WGT_BANK_DEPTH)-1:0] sched_wr_read_addr;
   wire                                                 sched_tl_st;
-  wire [               `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] sched_tl_img_org_x;
-  wire [               `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] sched_tl_img_org_y;
+  wire [               `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] sched_tl_tl_org_x;
+  wire [               `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] sched_tl_tl_org_y;
   wire [                  `CLOG2_SAFE(FBUF_DEPTH)-1:0] sched_tl_img_base_addr;
+  wire                                                 sched_tb_wr_swap;
+  wire                                                 sched_tb_rd_swap;
+  wire                                                 sched_ag_commit_addr;
   wire                                                 sched_tr_st;
   wire [          `CLOG2_SAFE(`MAX_PAD_TILE_AREA) : 0] sched_tr_read_len;
   wire [          `CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] sched_tr_read_addr;
@@ -313,7 +317,8 @@ module my_top #(
       .i_wdin   (ts_fbuf_wdat),
       //
       .i_lyr_idx(sched_lyr_idx),
-      .i_switch (sched_fbuf_switch)
+      .i_wr_swap(sched_fbuf_wr_swap),
+      .i_rd_swap(sched_fbuf_rd_swap)
   );
   // parital sum buffer
   partialsum_buffer #(
@@ -336,13 +341,7 @@ module my_top #(
       .o_ipt_rdy(psb_psc_rdy),
       .i_opt_rdy(psc_psb_rdy)
   );
-  // ====================== module =========================   
-  //       ____ _       _           _    ____            _             _ _           
-  //      / ___| | ___ | |__   __ _| |  / ___|___  _ __ | |_ _ __ ___ | | | ___ _ __ 
-  //     | |  _| |/ _ \| '_ \ / _` | | | |   / _ \| '_ \| __| '__/ _ \| | |/ _ \ '__|
-  //     | |_| | | (_) | |_) | (_| | | | |__| (_) | | | | |_| | | (_) | | |  __/ |   
-  //      \____|_|\___/|_.__/ \__,_|_|  \____\___/|_| |_|\__|_|  \___/|_|_|\___|_|   
-  //
+  // ====================== module =========================    
   global_ctrl inst_global_ctrl (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
@@ -352,67 +351,67 @@ module my_top #(
       .i_sched_dn(sched_gc_dn)
   );
   scheduler inst_scheduler (
-      .i_clk         (i_clk),
-      .i_rstn        (i_rstn),
-      .i_st          (gc_sched_st),
-      .o_ctrl_rdy    (sched_lyr_rdy),
-      .o_dn          (sched_gc_dn),
+      .i_clk           (i_clk),
+      .i_rstn          (i_rstn),
+      .i_st            (gc_sched_st),
+      .o_ctrl_rdy      (sched_lyr_rdy),
+      .o_dn            (sched_gc_dn),
       //
-      .o_lyr_idx     (sched_lyr_idx),
-      .i_lyr_type    (cfg_lyr_type),
-      .i_filt        (cfg_filt),
-      .i_filt_grp_num(cfg_filt_grp_num),
-      .i_tile_num    (cfg_tile_num),
-      .i_tile_num_x  (cfg_tile_num_x),
-      .i_tile_num_y  (cfg_tile_num_y),
-      .i_ch          (cfg_ch),
-      .i_ch_grp_num  (cfg_ch_grp_num),
-      .i_tile_side   (cfg_tile_side),
-      .i_lyr_opt_area(cfg_lyr_opt_area),
+      .o_lyr_idx       (sched_lyr_idx),
+      .i_lyr_type      (cfg_lyr_type),
+      .i_filt          (cfg_filt),
+      .i_filt_grp_num  (cfg_filt_grp_num),
+      .i_tile_num      (cfg_tile_num),
+      .i_tile_num_x    (cfg_tile_num_x),
+      .i_tile_num_y    (cfg_tile_num_y),
+      .i_ch            (cfg_ch),
+      .i_ch_grp_num    (cfg_ch_grp_num),
+      .i_tile_side     (cfg_tile_side),
+      .i_lyr_opt_area  (cfg_lyr_opt_area),
+      .i_img_side      (cfg_img_side),
       //
-      .o_nxt_lyr     (sched_nxt_lyr),
-      .o_nxt_filt_grp(sched_nxt_filt_grp),
-      .o_nxt_tile_col(sched_nxt_tile_col),
-      .o_nxt_tile_row(sched_nxt_tile_row),
-      .o_nxt_ch_grp  (sched_nxt_ch_grp),
+      .o_nxt_lyr       (sched_nxt_lyr),
+      .o_nxt_filt_grp  (sched_nxt_filt_grp),
+      .o_nxt_tile_col  (sched_nxt_tile_col),
+      .o_nxt_tile_row  (sched_nxt_tile_row),
+      .o_nxt_ch_grp    (sched_nxt_ch_grp),
       // fmap
-      .o_fbuf_switch (sched_fbuf_switch),
-      // bias loader (BL) 
-      .o_bl_st       (sched_bl_st),
-      .i_bl_dn       (bl_sched_dn),
-      // bias reader
-      .o_br_st       (sched_br_st),
-      .i_br_dn       (br_sched_dn),
-      // weight loader (WL)
-      .o_wl_st       (sched_wl_st),
-      .i_wl_dn       (wl_sched_dn),
-      // weight reader
-      .o_wr_st       (sched_wr_st),
-      .i_wr_dn       (wr_sched_dn),
-      // tile loader (TL) 
-      .o_tl_st       (sched_tl_st),
-      .o_img_org_x   (sched_tl_img_org_x),  // origin position
-      .o_img_org_y   (sched_tl_img_org_y),
-      .i_tl_dn       (tl_sched_dn),
-      // tile reader
-      .o_tr_st       (sched_tr_st),
-      .i_tr_dn       (tr_sched_dn),
-      // lyr  
-      .i_lyr_dn      (clyr_sched_dn),
-      .o_lyr_clr     (sched_lyr_clr),
-      .o_lyr_opt_num (sched_lyr_opt_num),
-      // PSC
-      .o_psc_st      (sched_psc_st),
+      //  
+      .o_bl_st         (sched_bl_st),
+      .o_br_st         (sched_br_st),
+      .o_wl_st         (sched_wl_st),
+      .o_wr_st         (sched_wr_st),
+      .o_tl_st         (sched_tl_st),
+      .o_tr_st         (sched_tr_st),
+      .o_psc_st        (sched_psc_st),
+      .o_ts_st         (sched_ts_st),
       //
-      .o_ts_st       (sched_ts_st),
-      .i_ts_dn       (ts_sched_dn),
-      // temp   
-      .o_in_ch       (sched_lyr_in_ch),
+      .i_bl_dn         (bl_sched_dn),
+      .i_br_dn         (br_sched_dn),
+      .i_wl_dn         (wl_sched_dn),
+      .i_wr_dn         (wr_sched_dn),
+      .i_tl_dn         (tl_sched_dn),
+      .i_tr_dn         (tr_sched_dn),
+      .i_lyr_dn        (clyr_sched_dn),
+      .i_ts_dn         (ts_sched_dn),
+      // tile loader (TL) 
+      .o_tl_org_x      (sched_tl_tl_org_x),     // origin position
+      .o_tl_org_y      (sched_tl_tl_org_y),
+      // tile reader
+      // lyr  
+      .o_lyr_clr       (sched_lyr_clr),
+      .o_lyr_opt_num   (sched_lyr_opt_num),
+      // switch
+      .o_fbuf_wr_swap  (sched_fbuf_wr_swap),
+      .o_fbuf_rd_swap  (sched_fbuf_rd_swap),
+      .o_tb_wr_swap    (sched_tb_wr_swap),
+      .o_tb_rd_swap    (sched_tb_rd_swap),
+      .o_ag_commit_addr(sched_ag_commit_addr),
       // group  
-      .o_ch_mask     (sched_lyr_ch_mask),
-      .o_filt_mask   (sched_lyr_filt_mask)
+      .o_in_ch         (sched_lyr_in_ch),
+      .o_ch_mask       (sched_lyr_ch_mask),
+      .o_filt_mask     (sched_lyr_filt_mask)
   );
-
   layer_config inst_layer_config (
       .i_lyr_idx           (sched_lyr_idx),
       //
@@ -455,6 +454,7 @@ module my_top #(
   address_generater inst_address_generater (
       .i_clk               (i_clk),
       .i_rstn              (i_rstn),
+      .i_commit_addr       (sched_ag_commit_addr),
       //
       .i_nxt_lyr           (sched_nxt_lyr),
       .i_nxt_filt_grp      (sched_nxt_filt_grp),
@@ -485,8 +485,7 @@ module my_top #(
   //     |  _ \| |/ _` / __|
   //     | |_) | | (_| \__ \
   //     |____/|_|\__,_|___/
-  //                     
-  // bias read controller (BC)
+  //                      
   read_controller #(
       .WIDTH(`IPT_BIT),
       .DEPTH(`MAX_BIAS_DEPTH)
@@ -507,7 +506,6 @@ module my_top #(
       .o_opt_vld (brc_fifo_vld),
       .o_opt_dout(brc_fifo_dat)
   );
-  //  bias
   fifo_buffer #(
       .WIDTH   (`IPT_BIT),
       .DEPTH   (`MAX_BIAS_DEPTH),
@@ -524,7 +522,6 @@ module my_top #(
       .o_opt_vld (fifo_bl_vld),
       .o_opt_dout(fifo_bl_dat)
   );
-  // bias loader (BL)
   loader #(
       .WIDTH     (`IPT_BIT),
       .IPT_DEPTH (`MAX_BIAS_DEPTH),
@@ -556,8 +553,6 @@ module my_top #(
       .o_waddr     (bl_bb_waddr),
       .o_wdat      (bl_bb_wdat)
   );
-
-  // bias buffer
   bank_buffer #(
       .WIDTH     (`IPT_BIT),
       .BANK_DEPTH(1),
@@ -576,7 +571,6 @@ module my_top #(
       .o_rvld    (bb_br_vld),
       .o_rdout   (bb_br_dat)
   );
-  // bias reader
   reader #(
       .WIDTH    (`IPT_BIT * `MAX_GROUP_FILTER),
       .BUF_DEPTH(`MAX_GROUP_FILTER)
@@ -606,8 +600,7 @@ module my_top #(
   //      \ \ /\ / / _ \ |/ _` | '_ \| __|
   //       \ V  V /  __/ | (_| | | | | |_ 
   //        \_/\_/ \___|_|\__, |_| |_|\__|
-  //                      |___/           
-  // weight read controller (WC)
+  //                      |___/         
   read_controller #(
       .WIDTH(`WGT_BIT),
       .DEPTH(`MAX_WGT_DEPTH)
@@ -628,7 +621,6 @@ module my_top #(
       .o_opt_vld (wrc_fifo_vld),
       .o_opt_dout(wrc_fifo_dat)
   );
-  // weight fifo (FIFO)
   fifo_buffer #(
       .WIDTH   (`WGT_BIT),
       .DEPTH   (`MAX_WGT_DEPTH),
@@ -645,8 +637,6 @@ module my_top #(
       .o_opt_vld (fifo_wl_vld),
       .o_opt_dout(fifo_wl_dat)
   );
-
-  // weight loader (WL)
   loader #(
       .WIDTH     (`WGT_BIT),
       .IPT_DEPTH (`MAX_WGT_DEPTH),
@@ -678,7 +668,6 @@ module my_top #(
       .o_waddr     (wl_wb_waddr),
       .o_wdat      (wl_wb_wdat)
   );
-  // weight buffer
   bank_buffer #(
       .WIDTH     (`WGT_BIT),
       .BANK_DEPTH(WGT_BANK_DEPTH),
@@ -697,7 +686,6 @@ module my_top #(
       .o_rvld    (wb_wr_vld),
       .o_rdout   (wb_wr_dat)
   );
-  // weight reader
   reader #(
       .WIDTH    (`WGT_BIT * `MAX_GROUP_FILTER),
       .BUF_DEPTH(WGT_BANK_DEPTH)
@@ -727,8 +715,7 @@ module my_top #(
   //       | | | | |/ _ \
   //       | | | | |  __/
   //       |_| |_|_|\___|
-  //        
-  // image read controller (RC)
+  //         
   read_controller #(
       .WIDTH(`IPT_BIT * `MAX_GROUP_CHANNEL),
       .DEPTH(FBUF_DEPTH)
@@ -749,8 +736,6 @@ module my_top #(
       .o_opt_vld (trc_fifo_vld),
       .o_opt_dout(trc_fifo_dat)
   );
-
-  // image   (FIFO)
   fifo_buffer #(
       .WIDTH   (`IPT_BIT * `MAX_GROUP_CHANNEL),
       .DEPTH   (`MAX_PAD_TILE_AREA),
@@ -767,8 +752,6 @@ module my_top #(
       .o_opt_vld (fifo_tl_vld),
       .o_opt_dout(fifo_tl_dat)
   );
-
-  // tile loader (TL)
   tile_loader #(
       .TILE_SIDE (`MAX_TILE_SIDE),
       .FBUF_DEPTH(FBUF_DEPTH),
@@ -780,8 +763,8 @@ module my_top #(
       .o_dn         (tl_sched_dn),
       // sched
       .i_img_side   (cfg_img_side),
-      .i_img_org_x  (sched_tl_img_org_x),
-      .i_img_org_y  (sched_tl_img_org_y),
+      .i_tl_org_x   (sched_tl_tl_org_x),
+      .i_tl_org_y   (sched_tl_tl_org_y),
       .i_tl_req_addr(ag_tl_addr),
       // RC
       .o_req_len    (tl_trc_req_len),
@@ -797,26 +780,24 @@ module my_top #(
       .o_waddr      (tl_tb_waddr),
       .o_wdat       (tl_tb_wdat)
   );
-  // tile buffer
-  bank_buffer #(
-      .WIDTH     (`IPT_BIT * `MAX_GROUP_CHANNEL),
-      .BANK_DEPTH(`MAX_PAD_TILE_AREA),
-      .MEM_TYPE  (`BRAM_TYPE),
-      .BANK_NUM  (1)
+  double_buffer #(
+      .WIDTH   (`IPT_BIT * `MAX_GROUP_CHANNEL),
+      .DEPTH   (`MAX_PAD_TILE_AREA),
+      .MEM_TYPE(`BRAM_TYPE)
   ) inst_tile_buffer (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      .i_re      (tr_tb_re),
-      .i_raddr   (tr_tb_raddr),
-      .i_we      (tl_tb_we),
-      .i_bank_idx('d0),          // TODO
-      .i_waddr   (tl_tb_waddr),
-      .i_wdin    (tl_tb_wdat),
-      .i_opt_rdy ('d1),          // TODO
-      .o_rvld    (tb_tr_vld),
-      .o_rdout   (tb_tr_dat)
+      .i_clk    (i_clk),
+      .i_rstn   (i_rstn),
+      .i_wr_swap(sched_tb_wr_swap),
+      .i_rd_swap(sched_tb_rd_swap),
+      //        
+      .i_re     (tr_tb_re),
+      .i_raddr  (tr_tb_raddr),
+      .o_rvld   (tb_tr_vld),
+      .o_rdout  (tb_tr_dat),
+      .i_we     (tl_tb_we),
+      .i_waddr  (tl_tb_waddr),
+      .i_wdin   (tl_tb_wdat)
   );
-  // tile reader
   reader #(
       .WIDTH    (`IPT_BIT * `MAX_GROUP_CHANNEL),
       .BUF_DEPTH(`MAX_PAD_TILE_AREA)
@@ -841,8 +822,6 @@ module my_top #(
       .o_opt_vld  (tr_lyr_vld),
       .o_opt_dout (tr_lyr_dat)
   );
-
-
   //      _____     _____    ____                      _       _   _                    _                          
   //     |___ /_  _|___ /   / ___|___  _ ____   _____ | |_   _| |_(_) ___  _ __   | |    __ _ _   _  ___ _ __ 
   //       |_ \ \/ / |_ \  | |   / _ \| '_ \ \ / / _ \| | | | | __| |/ _ \| '_ \  | |   / _` | | | |/ _ \ '__|

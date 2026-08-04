@@ -14,11 +14,12 @@ module loader #(
     input                          i_clr,
     input                          i_st,
     output                         o_dn,
-    // GC
+    // Config 
+    input  [ $clog2(BANK_DEPTH):0] i_bank_depth,
+    // Request Info
     input  [$clog2(IPT_DEPTH) : 0] i_req_len,
     input  [$clog2(IPT_DEPTH)-1:0] i_req_addr,
-    input  [ $clog2(BANK_DEPTH):0] i_bank_depth,
-    //
+    // Request Reader
     output [  $clog2(IPT_DEPTH):0] o_req_len,
     output                         o_req,
     output [$clog2(IPT_DEPTH)-1:0] o_req_addr,
