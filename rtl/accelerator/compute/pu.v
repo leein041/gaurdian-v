@@ -11,7 +11,10 @@ module pu #(
     input                                      i_clk,
     input                                      i_rstn,
     input                                      i_clr,
-    // wgt 
+    //  
+    input                                      i_ws_swap,
+    input                                      i_req_wgt,
+    // wgt
     input                                      i_wgt_vld,
     input  signed [            `WGT_BIT  -1:0] i_wgt_din,
     // ipt
@@ -26,24 +29,14 @@ module pu #(
   // ====================== parmeter =======================   
   integer i, j;
   genvar c, p;
-
-  // ====================== reg ============================      
-  reg                             r_ptch_clr;  // clear signal
   // ====================== wire ===========================
 
-  wire                            w_mat_rdy;
-  wire                            w_pe_rdy;
+  wire                            w_mat_rdy; 
   wire                            w_pe_vld;
   wire [           CONV_AREA-1:0] w_pe_vld_bus;
   wire [PE_OPT_BIT*CONV_AREA-1:0] w_pe_dat;
   // ====================== assign =========================  
   assign w_pe_vld_bus = (w_pe_vld) ? {CONV_AREA{1'b1}} : 'd0;
-  // ====================== always =========================  
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) r_ptch_clr <= 1'b0;
-    else r_ptch_clr <= i_clr;
-  end
-  // ====================== Unpack / Pack ==================  
   // ====================== module =========================  
   pe_array #(
       .OPT_BIT(PE_OPT_BIT),
@@ -52,6 +45,8 @@ module pu #(
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
       // wgt
+      .i_req_wgt (i_req_wgt),
+      .i_ws_swap (i_ws_swap),
       .i_wgt_din (i_wgt_din),
       .i_wgt_vld (i_wgt_vld),
       // ipt

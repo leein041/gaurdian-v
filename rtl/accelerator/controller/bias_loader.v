@@ -2,7 +2,7 @@
 `include "defines.vh"
 `include "network_config.vh"
 
-module loader #(
+module bias_loader #(
     parameter WIDTH      = 0,
     parameter IPT_DEPTH  = 0,
     parameter BUF_DEPTH  = 0,
@@ -106,7 +106,7 @@ module loader #(
       end
 
       REQ_RUN: begin
-        r_req_nstat = REQ_WAIT;
+        r_req_nstat = REQ_DONE;
       end
 
       REQ_WAIT: begin
@@ -144,6 +144,7 @@ module loader #(
         end
 
         REQ_DONE: begin
+          r_req <= 'b0;
         end
         default: ;
       endcase
@@ -205,14 +206,14 @@ module loader #(
         OUT_RUN: begin
           if (i_ipt_vld) begin  // TOOD : consider o_ipt_rdy
 
-            if (r_wptr < i_bank_depth - 1) begin
-              r_wptr <= r_wptr + 'd1;
+            if (r_bank_ptr < BANK_NUM - 1) begin
+              r_bank_ptr <= r_bank_ptr + 'd1;
             end else begin
-              r_wptr <= 'd0;
-              if (r_bank_ptr < BANK_NUM - 1) begin
-                r_bank_ptr <= r_bank_ptr + 'd1;
+              r_bank_ptr <= 'd0;
+              if (r_wptr < i_bank_depth - 1) begin
+                r_wptr <= r_wptr + 'd1;
               end else begin
-                r_bank_ptr <= 'd0;
+                r_wptr <= 'd0;
               end
             end
             r_bank_idx <= r_bank_ptr;

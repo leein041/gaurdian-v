@@ -27,5 +27,6 @@
 `define REG_TYPE 3
  
 `define CLOG2_SAFE(x) (((x) <= 1) ? 1 : $clog2(x))
+`define MAX(x, y) ((x) < (y) ? (y) : (x))
 
 `endif // DEFINES_VH

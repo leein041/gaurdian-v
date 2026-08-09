@@ -25,7 +25,7 @@ module layer_config #(
     output reg [                `CLOG2_SAFE(`MAX_TILE_SIDE):0] o_tile_side,
     output reg [                `CLOG2_SAFE(`MAX_TILE_AREA):0] o_lyr_opt_area,
     // loader
-    output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_bl_filt_grp_stride,
+    output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_bl_lyr_stride,
     output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_br_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] o_wl_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH)-1:0] o_wr_ch_grp_stride,
@@ -36,23 +36,23 @@ module layer_config #(
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_ts_col_stride,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_ts_ch_grp_stride,
     output reg [               `CLOG2_SAFE(`MAX_BIAS_DEPTH):0] o_bl_req_len,
-    output reg [           `CLOG2_SAFE(`MAX_GROUP_FILTER) : 0] o_br_read_len,
+    output reg [       `CLOG2_SAFE(`MAX_FILTER_GROUP_NUM) : 0] o_br_read_len,
     output reg [                `CLOG2_SAFE(`MAX_WGT_DEPTH):0] o_wl_req_len,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] o_wr_read_len,
     output reg [          `CLOG2_SAFE(`MAX_PAD_TILE_AREA) : 0] o_tr_read_len,
-    output reg                                                 o_bl_bank_depth,
+    output reg [       `CLOG2_SAFE(`MAX_FILTER_GROUP_NUM) : 0] o_bl_bank_depth,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] o_wl_bank_depth
 );
   // ====================== parmeter =======================   
   integer                                                     i;
   // ====================== reg ============================      
-  reg     [                   `CLOG2_SAFE(`MAX_BIAS_DEPTH):0] r_bias_depth;       
-  reg     [                    `CLOG2_SAFE(`MAX_WGT_DEPTH):0] r_wgt_depth;           
+  reg     [                   `CLOG2_SAFE(`MAX_BIAS_DEPTH):0] r_bias_depth;
+  reg     [                    `CLOG2_SAFE(`MAX_WGT_DEPTH):0] r_wgt_depth;
   // partial sum controller (PSC) 
   reg     [`CLOG2_SAFE( `MAX_CHANNEL / `MAX_GROUP_CHANNEL):0] r_psc_sum_cnt;
   // DDR 
-  reg     [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] r_obuf_tile_row_stride; 
-  reg     [                      `CLOG2_SAFE(FBUF_DEPTH) : 0] r_obuf_ch_stride; 
+  reg     [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] r_obuf_tile_row_stride;
+  reg     [                      `CLOG2_SAFE(FBUF_DEPTH) : 0] r_obuf_ch_stride;
   // ====================== always =========================
 
   always @(*) begin
@@ -76,7 +76,7 @@ module layer_config #(
         o_tile_side            = `L0_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L0_TILE_OPT_AREA;
         // address generator
-        o_bl_filt_grp_stride   = `L0_BL_FILT_GRP_STRIDE;
+        o_bl_lyr_stride        = `L0_BL_FILT_GRP_STRIDE;
         o_br_filt_grp_stride   = `L0_BR_FILT_GRP_STRIDE;
         o_wl_filt_grp_stride   = `L0_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L0_WR_CH_GRP_STRIDE;
@@ -122,7 +122,7 @@ module layer_config #(
         o_tile_side            = `L1_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L1_TILE_OPT_AREA;
         // address generator
-        o_bl_filt_grp_stride   = `L1_BL_FILT_GRP_STRIDE;
+        o_bl_lyr_stride        = `L1_BL_FILT_GRP_STRIDE;
         o_br_filt_grp_stride   = `L1_BR_FILT_GRP_STRIDE;
         o_wl_filt_grp_stride   = `L1_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L1_WR_CH_GRP_STRIDE;
@@ -167,7 +167,7 @@ module layer_config #(
         o_tile_side            = `L2_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L2_TILE_OPT_AREA;
         // address generator
-        o_bl_filt_grp_stride   = `L2_BL_FILT_GRP_STRIDE;
+        o_bl_lyr_stride        = `L2_BL_FILT_GRP_STRIDE;
         o_br_filt_grp_stride   = `L2_BR_FILT_GRP_STRIDE;
         o_wl_filt_grp_stride   = `L2_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L2_WR_CH_GRP_STRIDE;
@@ -194,6 +194,6 @@ module layer_config #(
         r_obuf_ch_stride       = `L2_OBUF_TILE_CH_STRIDE;
       end
       default: ;
-    endcase 
+    endcase
   end
 endmodule

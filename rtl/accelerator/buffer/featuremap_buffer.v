@@ -9,8 +9,8 @@ module featuremap_buffer #(
     input                                i_clk,
     input                                i_rstn,
     input  [`CLOG2_SAFE(`LAYER_NUM)-1:0] i_lyr_idx,
-    input                                i_wr_swap,
-    input                                i_rd_swap,
+    input                                i_wr_dn,
+    input                                i_rd_dn,
     //
     input                                i_re,
     input  [   `CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
@@ -65,8 +65,8 @@ module featuremap_buffer #(
   ) inst_double_buffer (
       .i_clk    (i_clk),
       .i_rstn   (i_rstn),
-      .i_wr_swap(i_wr_swap),
-      .i_rd_swap(i_rd_swap),
+      .i_wr_dn(i_wr_dn),
+      .i_rd_dn(i_rd_dn),
       .i_re     (w_dbuf_re),
       .i_raddr  (i_raddr),
       .o_rvld   (w_dbuf_rvld),

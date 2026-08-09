@@ -7,6 +7,9 @@ module pe_array #(
 ) (
     input                                 i_clk,
     input                                 i_rstn,
+    //
+    input                                 i_ws_swap,
+    input                                 i_req_wgt,
     // wgt
     input  signed [         `WGT_BIT-1:0] i_wgt_din,
     input                                 i_wgt_vld,
@@ -22,34 +25,45 @@ module pe_array #(
   // ====================== parmeter ======================= 
   integer i;
   genvar g, p;
-  // ====================== wire =========================== 
-  wire signed [`IPT_BIT-1:0] w_ipt_dat                          [0:PE_NUM-1];
-  wire signed [ OPT_BIT-1:0] w_opt_dat                          [0:PE_NUM-1];
-  wire                       w_act_in = o_ipt_rdy && i_ipt_vld;
-  wire                       w_act_out = i_opt_rdy && o_opt_vld;
-  // ====================== reg ============================
-  // wgt
-  reg signed  [`IPT_BIT-1:0] r_wgt_dat                          [0:PE_NUM-1];
-  // opt
-  reg                        r_opt_vld;
+  // ====================== reg ============================ 
+  reg                                   r_sel;
+  reg                                   r_opt_vld;
+  reg         [`CLOG2_SAFE(PE_NUM)-1:0] r_bank_idx;
+  // ====================== wire ===========================  
+  wire signed [           `IPT_BIT-1:0] w_ipt_dat                          [0:PE_NUM-1];
+  wire signed [            OPT_BIT-1:0] w_opt_dat                          [0:PE_NUM-1];
+  //
+  wire        [    `WGT_BIT*PE_NUM-1:0] w_ws_rdat_bus;
+  wire        [           `WGT_BIT-1:0] w_ws_rdat                          [0:PE_NUM-1];
+  wire                                  w_ws_rvld;
+  wire                                  w_ws_we = i_wgt_vld;
+  //
+  wire                                  w_act_in = o_ipt_rdy && i_ipt_vld;
+  wire                                  w_act_out = i_opt_rdy && o_opt_vld;
   // ====================== assign =========================  
   generate
     for (g = 0; g < PE_NUM; g = g + 1) begin
+      assign w_ws_rdat[g] = w_ws_rdat_bus[g*`WGT_BIT+:`WGT_BIT];
       assign w_ipt_dat[g] = i_ipt_din[g*`IPT_BIT+:`IPT_BIT];
     end
   endgenerate
   assign o_ipt_rdy = w_act_out || !r_opt_vld;
-  // ====================== always ========================= 
-
+  // ====================== always =========================  
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_sel <= 'b0;
+    end else begin
+      if (i_ws_swap) r_sel <= ~r_sel;
+    end
+  end
   // initialize weight statinary buffer
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      for (i = 0; i < PE_NUM; i = i + 1) r_wgt_dat[i] <= 'd0;
+      r_bank_idx <= 'd0;
+    end else if (i_ws_swap) begin
+      r_bank_idx <= 'd0;
     end else if (i_wgt_vld) begin
-      // insert
-      r_wgt_dat[PE_NUM-1] <= i_wgt_din;
-      // shift
-      for (i = 0; i < PE_NUM - 1; i = i + 1) r_wgt_dat[i] <= r_wgt_dat[i+1];
+      r_bank_idx <= r_bank_idx + 'd1;
     end
   end
 
@@ -66,6 +80,25 @@ module pe_array #(
     end
   end
   // ====================== module ========================= 
+  bank_mem #(
+      .WIDTH     (`WGT_BIT),
+      .BANK_DEPTH(2),
+      .MEM_TYPE  (`LUT_TYPE),
+      .BANK_NUM  (PE_NUM)
+  ) inst_wgt_stationary_buf_0 (
+      .i_clk     (i_clk),
+      .i_rstn    (i_rstn),
+      //
+      .i_re      (i_req_wgt),
+      .i_raddr   (!r_sel),
+      .o_rvld    (w_ws_rvld),
+      .o_rdout   (w_ws_rdat_bus),
+      //
+      .i_bank_idx(r_bank_idx),
+      .i_we      (w_ws_we),
+      .i_waddr   (r_sel),
+      .i_wdin    (i_wgt_din)
+  );
   generate
     for (p = 0; p < PE_NUM; p = p + 1) begin : pe_array
       pe inst_pe (
@@ -73,7 +106,7 @@ module pe_array #(
           .i_rstn    (i_rstn),
           .i_pe_en   (w_act_in),
           // wgt  
-          .i_wgt_din (r_wgt_dat[p]),
+          .i_wgt_din (w_ws_rdat[p]),
           // ipt  
           .i_ipt_vld (),
           .i_ipt_din (w_ipt_dat[p]),

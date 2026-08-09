@@ -1,17 +1,16 @@
 `include "defines.vh"
 `include "network_config.vh"
-module double_buffer #(
+module double_buffer_bank #(
     parameter WIDTH    = 0,
     parameter DEPTH    = 0,
-    parameter MEM_TYPE = `BRAM_TYPE
+    parameter MEM_TYPE = `BRAM_TYPE,
+    parameter BANK_NUM = 0
 ) (
     input                             i_clk,
     input                             i_rstn,
-    //
     input                             i_wr_dn,
     input                             i_rd_dn,
-    output                            o_wr_rdy,
-    output                            o_rd_rdy,
+    input                             i_bank_depth,
     //
     input                             i_re,
     input  [`CLOG2_SAFE(DEPTH)-1 : 0] i_raddr,
@@ -29,61 +28,56 @@ module double_buffer #(
   wire             w_buf_sel_vld;
   wire [WIDTH-1:0] w_buf_sel_dat;
   // ====================== reg ============================
-  reg              r_wr_sel;
-  reg              r_rd_sel;
-  reg  [      1:0] r_buf_full;
+  reg              r_sel_wr_buf;
+  reg              r_sel_rd_buf;
   // ====================== assign =========================
-  assign w_buf_sel_vld = (r_rd_sel == 0) ? w_buf_vld[0] : w_buf_vld[1];
-  assign w_buf_sel_dat = (r_rd_sel == 0) ? w_buf_dat[0] : w_buf_dat[1];
-  assign o_wr_rdy = ~r_buf_full[r_wr_sel];
-  assign o_rd_rdy = r_buf_full[r_rd_sel];
+  assign w_buf_sel_vld = (r_sel_rd_buf == 0) ? w_buf_vld[0] : w_buf_vld[1];
+  assign w_buf_sel_dat = (r_sel_rd_buf == 0) ? w_buf_dat[0] : w_buf_dat[1];
   // ====================== always =========================
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_wr_sel   <= 'b0;
-      r_rd_sel   <= 'b0;
-      r_buf_full <= 'd0;
+      r_sel_wr_buf <= 'b0;
+      r_sel_rd_buf <= 'b0;
     end else begin
       if (i_wr_dn) begin
-        r_buf_full[r_wr_sel] <= 'b1;
-        r_wr_sel             <= ~r_wr_sel;
+        r_sel_wr_buf <= !r_sel_wr_buf;
       end
       if (i_rd_dn) begin
-        r_buf_full[r_rd_sel] <= 'b0;
-        r_rd_sel             <= ~r_rd_sel;
+        r_sel_rd_buf <= !r_sel_rd_buf;
       end
     end
   end
   // ====================== module =========================
 
   // double buffer
-  simple_dual_port_ram #(
-      .WIDTH    (WIDTH),
-      .DEPTH    (DEPTH),
-      .MEM_TYPE (MEM_TYPE),
-      .INIT_FILE()
+  bank_buffer #(
+      .WIDTH   (WIDTH),
+      .DEPTH   (DEPTH),
+      .MEM_TYPE(MEM_TYPE),
+      .BANK_NUM(BANK_NUM)
   ) inst_buf_0 (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),
-      .i_re   (i_re && r_rd_sel == 0),
+      .i_re   (i_re && r_sel_rd_buf == 0),
       .i_raddr(i_raddr),
-      .i_we   (i_we && r_wr_sel == 0),
+      .i_we   (i_we && r_sel_wr_buf == 0),
       .i_waddr(i_waddr),
       .i_wdin (i_wdin),
       .o_rvld (w_buf_vld[0]),
       .o_rdout(w_buf_dat[0])
   );
 
-  simple_dual_port_ram #(
+  bank_buffer #(
       .WIDTH   (WIDTH),
       .DEPTH   (DEPTH),
-      .MEM_TYPE(MEM_TYPE)
+      .MEM_TYPE(MEM_TYPE),
+      .BANK_NUM(BANK_NUM)
   ) inst_buf_1 (
       .i_clk  (i_clk),
       .i_rstn (i_rstn),
-      .i_re   (i_re && r_rd_sel == 1),
+      .i_re   (i_re && r_sel_rd_buf == 1),
       .i_raddr(i_raddr),
-      .i_we   (i_we && r_wr_sel == 1),
+      .i_we   (i_we && r_sel_wr_buf == 1),
       .i_waddr(i_waddr),
       .i_wdin (i_wdin),
       .o_rvld (w_buf_vld[1]),

@@ -83,7 +83,7 @@ module tile_loader #(
   reg  [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] r_waddr;
   reg  [  `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] r_wdat;
   // ====================== assign =========================     
-  assign o_ipt_rdy = !w_act_pad;
+  assign o_ipt_rdy = (!w_act_pad) && (r_out_cstat == OUT_RUN);
 
   wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_x = i_tl_org_x - HALO;
   wire signed [`CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] nxt_x = i_tl_org_x + `MAX_TILE_SIDE;
@@ -134,15 +134,9 @@ module tile_loader #(
       end
 
       REQ_ROW: begin
-        r_req_nstat = REQ_WAIT;
+        if (r_row_cnt == PADDED_TILE_SIDE - 1) r_req_nstat = REQ_DONE;
       end
 
-      REQ_WAIT: begin
-        if (i_req_dn) begin
-          if (r_row_cnt < PADDED_TILE_SIDE) r_req_nstat = REQ_ROW;
-          else r_req_nstat = REQ_DONE;
-        end
-      end
 
       REQ_DONE: begin
         r_req_nstat = REQ_IDLE;
@@ -178,7 +172,11 @@ module tile_loader #(
           r_row_cnt <= r_row_cnt + 'd1;
 
           // request
-          r_req     <= 'b1;
+          if (w_req_pad_row) begin
+            r_req <= 'b0;
+          end else begin
+            r_req <= 'b1;
+          end
 
           // length
           if (w_req_pad_row) begin
@@ -206,11 +204,8 @@ module tile_loader #(
           end
         end
 
-        REQ_WAIT: begin
-          r_req <= 0;
-        end
-
         REQ_DONE: begin
+          r_req <= 0;
           r_row_cnt <= 'd0;
 
         end

@@ -7,6 +7,7 @@ module conv_layer (
     input                                      i_clr,
     output                                     o_dn,
     // wgt    
+    input                                      i_ws_swap,
     input                                      i_wgt_vld,
     input  [ `WGT_BIT * `MAX_GROUP_FILTER-1:0] i_wgt_din,
     // ipt 
@@ -19,8 +20,8 @@ module conv_layer (
     output                                     o_opt_vld,
     output [  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
     // temp
-    input                                      i_relu_en, 
-    input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch, 
+    input                                      i_relu_en,
+    input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch,
     input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
     input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
 );
@@ -38,10 +39,11 @@ module conv_layer (
   // line bufferS    
   wire lbuf_ptch_vld;
   wire [`IPT_BIT* `MAX_GROUP_CHANNEL*LINE_HEIGHT-1:0] lbuf_ptch_dat;
-  wire lbuf_window_vld;
+  wire lbuf_ptch_win_vld;
   // patch
   wire ptch_lbuf_rdy;
   wire ptch_pu_vld;
+  wire lbuf_pu_req_wgt;
   wire [`IPT_BIT*`MAX_GROUP_CHANNEL*`CONV_3X3_AREA-1:0] ptch_pu_dat_bus;
   wire [`IPT_BIT*`CONV_3X3_AREA-1:0] ptch_pu_dat[0:`MAX_GROUP_CHANNEL-1];
   // pu
@@ -55,44 +57,15 @@ module conv_layer (
   wire signed [AT_OPT_BIT-1:0] w_cat_dat[0:`MAX_GROUP_FILTER-1];
   wire signed [`PSUM_BIT-1:0] w_ex_cat_dat[0:`MAX_GROUP_FILTER-1];
   wire signed [`PSUM_BIT * `MAX_GROUP_FILTER-1:0] w_ex_cat_dat_bus;
-  // bias 
-  wire signed [AT_OPT_BIT-1:0] w_bias_exdat[0:`MAX_GROUP_FILTER-1];
-
-  // adder
-  wire w_adder_rdy1[0:`MAX_GROUP_FILTER-1];
-  wire w_adder_rdy2[0:`MAX_GROUP_FILTER-1];
-  wire w_adder_vld[0:`MAX_GROUP_FILTER-1];
-  wire signed [AD_OPT_BIT-1:0] w_adder_dat[0:`MAX_GROUP_FILTER-1];
-  // slicer
-  wire w_slicer_rdy[0:`MAX_GROUP_FILTER-1];
-  wire w_slicer_vld[0:`MAX_GROUP_FILTER-1];
-  wire [`OPT_BIT-1:0] w_slicer_dat[0:`MAX_GROUP_FILTER-1];
-  // relu
-  wire w_relu_rdy[0:`MAX_GROUP_FILTER-1];
-  wire w_relu_vld[0:`MAX_GROUP_FILTER-1];
-  wire [`OPT_BIT-1:0] w_relu_dat[0:`MAX_GROUP_FILTER-1];
-  wire [`MAX_GROUP_FILTER*`IPT_BIT-1:0] w_relu_dat_bus;
 
 
   // ====================== reg ============================ 
   // interenal counter 
   reg [`CLOG2_SAFE(`MAX_GROUP_FILTER):0] r_ch_idx;
-  reg [`CLOG2_SAFE(`CONV_3X3_AREA):0] r_pe_idx;
-  // line buffer    
-  reg [`MAX_GROUP_FILTER-1:0] r_lbuf_st;
+  reg [`CLOG2_SAFE(`CONV_3X3_AREA):0] r_pe_idx; 
   // pu
   reg signed [`WGT_BIT-1:0] r_pu_wdat[0:`MAX_GROUP_FILTER-1];
   reg r_pu_wvld[0:`MAX_GROUP_CHANNEL-1];
-  // bias 
-  reg signed [`IPT_BIT-1:0] r_bias_dat[0:`MAX_GROUP_FILTER-1];
-  // adder
-  reg [`MAX_GROUP_FILTER-1:0] r_add_vld;
-  // pipe line 1 : slice
-  reg r_88_vld;
-  reg signed [`IPT_BIT-1:0] r_88_dat[0:`MAX_GROUP_FILTER-1];
-  // pipe line 1 : relu
-  reg r_relu_vld;
-  reg signed [`IPT_BIT-1:0] r_relu_dat[0:`MAX_GROUP_FILTER-1];
   // done
   reg [`CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
   reg r_dn;
@@ -201,7 +174,8 @@ module conv_layer (
       .o_opt_vld   (lbuf_ptch_vld),
       .o_opt_dout  (lbuf_ptch_dat),
       //
-      .o_window_vld(lbuf_window_vld)
+      .o_req_wgt   (lbuf_pu_req_wgt),
+      .o_window_vld(lbuf_ptch_win_vld)
   );
   patch #(
       .WIDTH     (`IPT_BIT * `MAX_GROUP_CHANNEL),
@@ -221,7 +195,7 @@ module conv_layer (
       .o_opt_vld (ptch_pu_vld),
       .o_opt_dout(ptch_pu_dat_bus),
       //
-      .i_ptch_vld(lbuf_window_vld)
+      .i_ptch_vld(lbuf_ptch_win_vld)
   );
 
   generate
@@ -234,6 +208,8 @@ module conv_layer (
             .i_clk     (i_clk),
             .i_rstn    (i_rstn),
             .i_clr     (i_clr),
+            .i_ws_swap (i_ws_swap),
+            .i_req_wgt (ptch_pu_vld), // TEST :
             .i_wgt_vld (r_pu_wvld[c]),
             .i_wgt_din (r_pu_wdat[p]),
             .o_ipt_rdy (pu_ptch_rdy[p][c]),

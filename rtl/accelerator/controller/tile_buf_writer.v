@@ -1,0 +1,184 @@
+
+`include "defines.vh"
+`include "network_config.vh"
+
+module tile_buf_writer #(
+    parameter  TILE_SIDE        = `MAX_TILE_SIDE,
+    parameter  HALO             = 1,
+    // 
+    localparam PADDED_TILE_SIDE = TILE_SIDE + 2
+) (
+    input                                             i_clk,
+    input                                             i_rstn,
+    input                                             i_st,
+    output                                            o_dn,
+    // 
+    output reg                                        o_desc_rdy,
+    input                                             i_desc_vld,
+    input      [3*(`CLOG2_SAFE(`MAX_IPT_SIDE)+1)-1:0] i_desc_din,
+    // ipt (FIFO)
+    output                                            o_ipt_rdy,
+    input                                             i_ipt_vld,
+    input      [   `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] i_ipt_din,
+    // write    
+    input                                             i_buf_wr_rdy,
+    output                                            o_we,
+    output     [ `CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] o_waddr,
+    output     [   `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] o_wdat
+);
+  // ====================== parmeter =======================   
+  localparam IDLE = 0;
+  localparam DESC_CAPTURE = 1;
+  localparam RUN = 2;
+  localparam DONE = 3;
+  localparam END_STATE = 4;
+
+  // ====================== reg ============================ 
+  reg  [         `CLOG2_SAFE(END_STATE)-1:0] r_out_cstat;
+  reg  [         `CLOG2_SAFE(END_STATE)-1:0] r_out_nstat;
+  //
+  reg  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] r_img_side;
+  reg  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] r_tl_org_x;
+  reg  [     `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] r_tl_org_y;
+  //
+  reg                                        r_dn;
+  // output
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_x;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE)-1:0] r_out_tile_y;
+  // 
+  reg                                        r_we;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] r_wptr;
+  reg  [`CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] r_waddr;
+  reg  [  `IPT_BIT * `MAX_GROUP_CHANNEL-1:0] r_wdat;
+  // ====================== wire ===========================     
+  //
+  wire                                       w_out_pad_u;
+  wire                                       w_out_pad_d;
+  wire                                       w_out_pad_l;
+  wire                                       w_out_pad_r;
+  wire                                       w_act_pad;
+  // 
+  wire                                       w_act_in = (i_ipt_vld && o_ipt_rdy);
+  // ====================== assign =========================     
+  assign o_ipt_rdy   = (!w_act_pad) && (r_out_cstat == RUN);
+
+  // out
+  assign w_out_pad_u = (r_tl_org_y + r_out_tile_y < HALO + 0);
+  assign w_out_pad_d = (r_tl_org_y + r_out_tile_y >= HALO + r_img_side);
+  assign w_out_pad_l = (r_tl_org_x + r_out_tile_x < HALO + 0);
+  assign w_out_pad_r = (r_tl_org_x + r_out_tile_x >= HALO + r_img_side);
+  assign w_act_pad   = w_out_pad_u || w_out_pad_d || w_out_pad_l || w_out_pad_r;
+  //
+  assign o_dn        = r_dn;
+  // 
+  assign o_we        = r_we;
+  assign o_waddr     = r_waddr;
+  assign o_wdat      = r_wdat;
+  // ====================== FSM ============================
+  //       ___        _               _     _____ ____  __  __ 
+  //      / _ \ _   _| |_ _ __  _   _| |_  |  ___/ ___||  \/  |
+  //     | | | | | | | __| '_ \| | | | __| | |_  \___ \| |\/| |
+  //     | |_| | |_| | |_| |_) | |_| | |_  |  _|  ___) | |  | |
+  //      \___/ \__,_|\__| .__/ \__,_|\__| |_|   |____/|_|  |_|
+  //                     |_|                                   
+
+  //  initialize and update state register    
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) r_out_cstat <= IDLE;
+    else r_out_cstat <= r_out_nstat;
+
+  end
+  // compute next state 
+  always @(*) begin
+    r_out_nstat = r_out_cstat;
+
+    case (r_out_cstat)
+      IDLE: begin
+        if (i_buf_wr_rdy && i_desc_vld) r_out_nstat = RUN;
+      end
+
+      RUN: begin
+        if (r_wptr == `MAX_PAD_TILE_AREA - 1) begin
+          r_out_nstat = DONE;
+        end
+      end
+
+      DONE: begin
+        r_out_nstat = IDLE;
+      end
+
+      default: ;
+    endcase
+  end
+  // 
+  //  compute RTL operations
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_out_tile_x <= 'd0;
+      r_out_tile_y <= 'd0;
+      //
+      r_we         <= 'b0;
+      r_wptr       <= 'd0;
+      r_waddr      <= 'd0;
+      r_wdat       <= 'd0;
+      r_dn         <= 'b0;
+      //
+      r_img_side   <= 'd0;
+      r_tl_org_x   <= 'd0;
+      r_tl_org_y   <= 'd0;
+      //
+      o_desc_rdy   <= 'd0;
+    end else begin
+      case (r_out_cstat)
+        IDLE: begin
+          r_dn <= 'b0;
+          if (i_buf_wr_rdy && i_desc_vld) begin
+            {r_img_side, r_tl_org_x, r_tl_org_y} <= i_desc_din;
+            o_desc_rdy                           <= 'b1;
+          end
+        end
+
+        RUN: begin
+          o_desc_rdy <= 'b0;
+
+          if (w_act_in || w_act_pad) begin
+
+            // count tile x/y
+            if (r_out_tile_x < PADDED_TILE_SIDE - 1) begin
+              r_out_tile_x <= r_out_tile_x + 'd1;
+            end else begin
+              if (r_out_tile_y < PADDED_TILE_SIDE - 1) begin
+                r_out_tile_x <= 'd0;
+                r_out_tile_y <= r_out_tile_y + 'd1;
+              end
+            end
+
+            // output
+            r_we    <= 'b1;
+            r_wptr  <= r_wptr + 'd1;
+            r_waddr <= r_wptr;
+            if (w_act_pad) begin
+              r_wdat <= 'd0;
+            end else if (i_ipt_vld) begin
+              r_wdat <= i_ipt_din;
+            end
+          end else begin
+            r_we <= 'b0;
+          end
+        end
+        DONE: begin
+          r_dn         <= 'b1;
+          r_we         <= 'b0;
+          r_wptr       <= 'd0;
+          r_out_tile_x <= 'd0;
+          r_out_tile_y <= 'd0;
+        end
+
+        default: ;
+
+      endcase
+    end
+  end
+  // ====================== output =========================  
+
+endmodule

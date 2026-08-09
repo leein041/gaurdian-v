@@ -52,7 +52,7 @@ module partialsum_controller #(
   reg  [          $clog2( STATE_END)-1:0] r_nstat;
   reg                                     r_dn;
   //
-  reg  [          `CLOG2_SAFE(SUM_CNT):0] r_sum_idx;
+  reg  [          `CLOG2_SAFE(SUM_CNT):0] r_sum_cnt;
   reg                                     r_re;
   reg  [ `CLOG2_SAFE(`MAX_TILE_AREA) : 0] r_rptr;
   reg  [ `CLOG2_SAFE(`MAX_TILE_AREA)-1:0] r_raddr;
@@ -61,9 +61,9 @@ module partialsum_controller #(
   reg  [ `CLOG2_SAFE(`MAX_TILE_AREA)-1:0] r_waddr;
   reg  [`PSUM_BIT* `MAX_GROUP_FILTER-1:0] r_wdat;
   // 
-  reg  [ `CLOG2_SAFE(`MAX_TILE_AREA) : 0] r_rcnt;
-  reg  [`PSUM_BIT* `MAX_GROUP_FILTER-1:0] r_rdat;
-  reg                                     r_rvld;
+  reg  [ `CLOG2_SAFE(`MAX_TILE_AREA) : 0] r_pix_cnt;
+  reg  [`PSUM_BIT* `MAX_GROUP_FILTER-1:0] r_odat;
+  reg                                     r_ovld;
   //
   reg  [   `CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
   // ====================== function =======================
@@ -112,22 +112,9 @@ module partialsum_controller #(
       end
 
       SUM: begin
-        if (r_wptr == `MAX_TILE_AREA - 1) begin
-          r_nstat = CHECK_LAST;
-        end
-      end
-
-      CHECK_LAST: begin
-        if (r_sum_idx == i_sum_cnt - 1) begin
-          r_nstat = OUTPUT;
-        end else begin
-          r_nstat = START_SUM;
-        end
-      end
-
-      OUTPUT: begin
-        if (r_rcnt == `MAX_TILE_AREA) begin
-          r_nstat = DONE;
+        if (r_pix_cnt == `MAX_TILE_AREA - 1) begin
+          if (r_sum_cnt == i_sum_cnt) r_nstat = DONE;
+          else r_nstat = START_SUM;
         end
       end
 
@@ -144,13 +131,13 @@ module partialsum_controller #(
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_dn      <= 'd0;
-      r_sum_idx <= 'd0;
+      r_sum_cnt <= 'd0;
       r_re      <= 'b0;
       r_rptr    <= 'd0;
       r_raddr   <= 'd0;
-      r_rcnt    <= 'd0;
-      r_rdat    <= 'd0;
-      r_rvld    <= 'b0;
+      r_pix_cnt <= 'd0;
+      r_odat    <= 'd0;
+      r_ovld    <= 'b0;
       r_we      <= 'b0;
       r_wptr    <= 'd0;
       r_waddr   <= 'd0;
@@ -164,12 +151,26 @@ module partialsum_controller #(
         end
 
         START_SUM: begin
+          r_sum_cnt <= r_sum_cnt + 'd1;
+          r_pix_cnt <= 'd0;
+          r_re      <= 'b0;
+          r_rptr    <= 'd0;
+          r_we      <= 'b0;
+          r_wptr    <= 'd0;
         end
 
         SUM: begin
-          if (r_sum_idx == 0) begin
-
+          if (i_sum_cnt == 1) begin  // bypass
             if (i_ipt_vld) begin
+              r_pix_cnt <= r_pix_cnt + 1;
+              r_ovld <= 'b1;
+              r_odat <= i_ipt_din;
+            end else begin
+              r_ovld <= 'b0;
+            end
+          end else if (r_sum_cnt == 1) begin  // write
+            if (i_ipt_vld) begin
+              r_pix_cnt   <= r_pix_cnt + 1;
               r_we    <= 'b1;
               r_wdat  <= i_ipt_din;
               r_wptr  <= r_wptr + 'd1;
@@ -178,7 +179,7 @@ module partialsum_controller #(
               r_we <= 'b0;
             end
 
-          end else begin
+          end else if (r_sum_cnt == i_sum_cnt) begin  // read
 
             if (i_psb_rdy && (r_rptr < `MAX_TILE_AREA)) begin
               r_re    <= 'b1;
@@ -189,56 +190,44 @@ module partialsum_controller #(
             end
 
             if (i_ipt_vld) begin
-              r_we    <= 'b1;
-              r_wdat  <= w_sum;
-              r_wptr  <= r_wptr + 'd1;
-              r_waddr <= r_wptr;
+              r_pix_cnt <= r_pix_cnt + 1;
+              r_ovld    <= 'b1;
+              r_odat    <= w_sum;
+            end else begin
+              r_ovld <= 'b0;
+            end
+          end else begin  // read + write
+            if (i_psb_rdy && (r_rptr < `MAX_TILE_AREA)) begin
+              r_re    <= 'b1;
+              r_raddr <= r_rptr;
+              r_rptr  <= r_rptr + 'd1;
+            end else begin
+              r_re <= 'b0;
+            end
+
+            if (i_ipt_vld) begin
+              r_pix_cnt <= r_pix_cnt + 1;
+              r_we      <= 'b1;
+              r_wdat    <= w_sum;
+              r_wptr    <= r_wptr + 'd1;
+              r_waddr   <= r_wptr;
             end else begin
               r_we <= 'b0;
             end
-
-          end
-        end
-
-        CHECK_LAST: begin
-          r_we   <= 'b0;
-          r_wptr <= 'd0;
-          r_rptr <= 'd0;
-          if (r_sum_idx < i_sum_cnt - 1) begin
-            r_sum_idx <= r_sum_idx + 'd1;
-          end
-        end
-
-        OUTPUT: begin
-
-          if (r_rptr < `MAX_TILE_AREA) begin
-            r_re    <= 'b1;
-            r_raddr <= r_rptr;
-            r_rptr  <= r_rptr + 'd1;
-          end else begin
-            r_re <= 'b0;
-          end
-
-          if (i_psb_rvld) begin
-            r_rcnt <= r_rcnt + 1;
-            r_rvld <= 'b1;
-            r_rdat <= i_psb_rdin;
-          end else begin
-            r_rvld <= 'b0;
           end
 
         end
 
         DONE: begin
-          r_sum_idx <= 'd0;
           r_dn      <= 'd1;
+          r_sum_cnt <= 'd0;
+          r_pix_cnt <= 'd0;
           r_rptr    <= 'd0;
           r_wptr    <= 'd0;
-          r_rcnt    <= 'd0;
-          r_dn      <= 'd0;
           r_re      <= 'b0;
-          r_opt_cnt <= 'd0;
-          r_rvld    <= 'b0;
+          r_sum_cnt <= 'd0;
+          r_we      <= 'b0;
+          r_ovld    <= 'b0;
         end
 
         default: ;
@@ -248,6 +237,6 @@ module partialsum_controller #(
   // ====================== always =========================  
   // ====================== module ========================= 
   // ====================== output ========================= 
-  assign o_opt_vld  = r_rvld;
-  assign o_opt_dout = r_rdat;
+  assign o_opt_vld  = r_ovld;
+  assign o_opt_dout = r_odat;
 endmodule
