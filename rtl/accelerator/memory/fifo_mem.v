@@ -41,7 +41,7 @@ module fifo_mem #(
   wire                           w_sbuf_vld;
   wire       [       WIDTH -1:0] w_sbuf_dat;
   // ====================== assign =========================  
-  assign o_ipt_rdy = (r_cnt != DEPTH);
+  assign o_ipt_rdy = (r_cnt < DEPTH - 4);
   assign wr_en     = i_ipt_vld && o_ipt_rdy;
   assign rd_en     = (0 < r_cnt) && w_sbuf_rdy;
   // ====================== always ========================= 

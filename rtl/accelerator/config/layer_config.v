@@ -25,7 +25,7 @@ module layer_config #(
     output reg [                `CLOG2_SAFE(`MAX_TILE_SIDE):0] o_tile_side,
     output reg [                `CLOG2_SAFE(`MAX_TILE_AREA):0] o_lyr_opt_area,
     // loader
-    output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_bl_lyr_stride,
+    output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_bl_filt_grp_stride,
     output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_br_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] o_wl_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH)-1:0] o_wr_ch_grp_stride,
@@ -76,8 +76,8 @@ module layer_config #(
         o_tile_side            = `L0_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L0_TILE_OPT_AREA;
         // address generator
-        o_bl_lyr_stride        = `L0_BL_FILT_GRP_STRIDE;
-        o_br_filt_grp_stride   = `L0_BR_FILT_GRP_STRIDE;
+        o_bl_filt_grp_stride   = `L0_BL_STRIDE;
+        o_br_filt_grp_stride   = `L0_BR_STRIDE;
         o_wl_filt_grp_stride   = `L0_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L0_WR_CH_GRP_STRIDE;
         o_tl_col_stride        = `L0_TL_COL_STRIDE;
@@ -122,8 +122,8 @@ module layer_config #(
         o_tile_side            = `L1_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L1_TILE_OPT_AREA;
         // address generator
-        o_bl_lyr_stride        = `L1_BL_FILT_GRP_STRIDE;
-        o_br_filt_grp_stride   = `L1_BR_FILT_GRP_STRIDE;
+        o_bl_filt_grp_stride   = `L1_BL_STRIDE;
+        o_br_filt_grp_stride   = `L1_BR_STRIDE;
         o_wl_filt_grp_stride   = `L1_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L1_WR_CH_GRP_STRIDE;
         o_tl_col_stride        = `L1_TL_COL_STRIDE;
@@ -167,8 +167,8 @@ module layer_config #(
         o_tile_side            = `L2_TILE_IPT_SIDE;
         o_lyr_opt_area         = `L2_TILE_OPT_AREA;
         // address generator
-        o_bl_lyr_stride        = `L2_BL_FILT_GRP_STRIDE;
-        o_br_filt_grp_stride   = `L2_BR_FILT_GRP_STRIDE;
+        o_bl_filt_grp_stride   = `L2_BL_STRIDE;
+        o_br_filt_grp_stride   = `L2_BR_STRIDE;
         o_wl_filt_grp_stride   = `L2_WL_FILT_GRP_STRIDE;
         o_wr_ch_grp_stride     = `L2_WR_CH_GRP_STRIDE;
         o_tl_col_stride        = `L2_TL_COL_STRIDE;

@@ -7,9 +7,11 @@ module conv_layer (
     input                                      i_clr,
     output                                     o_dn,
     // wgt    
-    input                                      i_ws_swap,
+    input                                      i_wr_dn, 
     input                                      i_wgt_vld,
     input  [ `WGT_BIT * `MAX_GROUP_FILTER-1:0] i_wgt_din,
+    output                                     o_ws_wr_rdy,
+    output                                     o_ws_rd_rdy,
     // ipt 
     output                                     o_ipt_rdy,
     input                                      i_ipt_vld,
@@ -35,7 +37,21 @@ module conv_layer (
 
   integer i, j;
   genvar l, c, p;
-  // ====================== wire ===========================  
+
+  // ====================== reg ============================ 
+  reg r_ws_wr_sel;
+  reg r_ws_rd_sel;
+  reg [1:0] r_buf_full;
+  // interenal counter 
+  reg [`CLOG2_SAFE(`MAX_GROUP_FILTER):0] r_ch_idx;
+  reg [`CLOG2_SAFE(`CONV_3X3_AREA):0] r_pe_idx;
+  // pu
+  reg signed [`WGT_BIT-1:0] r_pu_wdat[0:`MAX_GROUP_FILTER-1];
+  reg r_pu_wvld[0:`MAX_GROUP_CHANNEL-1];
+  // done
+  reg [`CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
+  reg r_dn;
+  // ====================== wire ===========================   
   // line bufferS    
   wire lbuf_ptch_vld;
   wire [`IPT_BIT* `MAX_GROUP_CHANNEL*LINE_HEIGHT-1:0] lbuf_ptch_dat;
@@ -58,19 +74,27 @@ module conv_layer (
   wire signed [`PSUM_BIT-1:0] w_ex_cat_dat[0:`MAX_GROUP_FILTER-1];
   wire signed [`PSUM_BIT * `MAX_GROUP_FILTER-1:0] w_ex_cat_dat_bus;
 
+  // ====================== assign =========================       
+  assign o_ws_wr_rdy = ~r_buf_full[r_ws_wr_sel];
+  assign o_ws_rd_rdy = r_buf_full[r_ws_rd_sel];
 
-  // ====================== reg ============================ 
-  // interenal counter 
-  reg [`CLOG2_SAFE(`MAX_GROUP_FILTER):0] r_ch_idx;
-  reg [`CLOG2_SAFE(`CONV_3X3_AREA):0] r_pe_idx; 
-  // pu
-  reg signed [`WGT_BIT-1:0] r_pu_wdat[0:`MAX_GROUP_FILTER-1];
-  reg r_pu_wvld[0:`MAX_GROUP_CHANNEL-1];
-  // done
-  reg [`CLOG2_SAFE(`MAX_TILE_AREA):0] r_opt_cnt;
-  reg r_dn;
+  always @(posedge i_clk or negedge i_rstn) begin
+    if (~i_rstn) begin
+      r_ws_wr_sel <= 'b0;
+      r_ws_rd_sel <= 'b0;
+      r_buf_full  <= 'd0;
+    end else begin
+      if (i_wr_dn) begin
+        r_buf_full[r_ws_wr_sel] <= 'b1;
+        r_ws_wr_sel             <= ~r_ws_wr_sel;
+      end
+      if (o_dn) begin
+        r_buf_full[r_ws_rd_sel] <= 'b0;
+        r_ws_rd_sel             <= ~r_ws_rd_sel;
+      end
+    end
+  end
 
-  // ====================== assign =========================     
 
   generate
     for (c = 0; c < `MAX_GROUP_CHANNEL; c = c + 1) begin
@@ -205,19 +229,20 @@ module conv_layer (
         pu #(
             .CONV_AREA(`CONV_3X3_SIDE * `CONV_3X3_SIDE)
         ) inst_pu (
-            .i_clk     (i_clk),
-            .i_rstn    (i_rstn),
-            .i_clr     (i_clr),
-            .i_ws_swap (i_ws_swap),
-            .i_req_wgt (ptch_pu_vld), // TEST :
-            .i_wgt_vld (r_pu_wvld[c]),
-            .i_wgt_din (r_pu_wdat[p]),
-            .o_ipt_rdy (pu_ptch_rdy[p][c]),
-            .i_ipt_vld (ptch_pu_vld && i_ch_mask[c] && i_filt_mask[p]),
-            .i_ipt_din (ptch_pu_dat[c]),
-            .i_opt_rdy (w_cat_rdy[p]),
-            .o_opt_vld (w_pu_vld[p][c]),
-            .o_opt_dout(w_pu_dat[p][c])
+            .i_clk      (i_clk),
+            .i_rstn     (i_rstn),
+            .i_clr      (i_clr),
+            .i_ws_wr_sel(r_ws_wr_sel),
+            .i_ws_rd_sel(r_ws_rd_sel),
+            .i_req_wgt  (ptch_pu_vld),                                    // TEST :
+            .i_wgt_vld  (r_pu_wvld[c]),
+            .i_wgt_din  (r_pu_wdat[p]),
+            .o_ipt_rdy  (pu_ptch_rdy[p][c]),
+            .i_ipt_vld  (ptch_pu_vld && i_ch_mask[c] && i_filt_mask[p]),
+            .i_ipt_din  (ptch_pu_dat[c]),
+            .i_opt_rdy  (w_cat_rdy[p]),
+            .o_opt_vld  (w_pu_vld[p][c]),
+            .o_opt_dout (w_pu_dat[p][c])
         );
       end
 

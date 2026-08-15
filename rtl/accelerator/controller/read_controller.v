@@ -16,20 +16,20 @@ module read_controller #(
     input      [REQ_LEN_BIT + REQ_ADDR_BIT - 1:0] i_que_din,
     output reg                                    o_que_pop,
     // DDR
-    output                                        o_re,
-    output     [          `CLOG2_SAFE(DEPTH)-1:0] o_raddr,
+    output reg                                    o_re,
+    output reg [          `CLOG2_SAFE(DEPTH)-1:0] o_raddr,
     input                                         i_rvld,
     input      [                       WIDTH-1:0] i_rdin,
     // FIFO 
+    input                                         i_opt_rdy,
     output                                        o_opt_vld,
     output     [                       WIDTH-1:0] o_opt_dout
 );
   // ====================== parmeter =======================    
   localparam IDLE = 0;
-  localparam QUE_POP = 1;
-  localparam READ = 2;
-  localparam DONE = 3;
-  localparam STATE_END = 4;
+  localparam READ = 1;
+  localparam DONE = 2;
+  localparam STATE_END = 3;
   // ====================== wire ==========================  
 
   // ====================== reg ============================  
@@ -37,10 +37,8 @@ module read_controller #(
   reg [`CLOG2_SAFE(STATE_END)-1:0] r_nstat;
   //
   reg [      `CLOG2_SAFE(DEPTH):0] r_req_len;
-  reg                              r_re;
   reg [      `CLOG2_SAFE(DEPTH):0] r_rptr;
   reg [      `CLOG2_SAFE(DEPTH):0] r_rcnt;
-  reg [    `CLOG2_SAFE(DEPTH)-1:0] r_raddr;
   // ====================== assign =========================     
   // ====================== always =========================  
   //  initialize and update state register    
@@ -56,15 +54,11 @@ module read_controller #(
     r_nstat = r_cstat;
     case (r_cstat)
       IDLE: begin
-        if (!i_que_empty) r_nstat = QUE_POP;
-      end
-
-      QUE_POP: begin
-        r_nstat = READ;
+        if (!i_que_empty) r_nstat = READ;
       end
 
       READ: begin
-        if (r_req_len == r_rcnt) begin
+        if ((r_rcnt == r_req_len) && i_opt_rdy) begin
           r_nstat = DONE;
         end
       end
@@ -81,9 +75,9 @@ module read_controller #(
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       o_dn      <= 'b0;
-      r_re      <= 'b0;
+      o_re      <= 'b0;
       r_rptr    <= 'd0;
-      r_raddr   <= 'd0;
+      o_raddr   <= 'd0;
       r_req_len <= 'd0;
       r_rcnt    <= 'd0;
       o_que_pop <= 'b0;
@@ -99,27 +93,20 @@ module read_controller #(
           end
         end
 
-        QUE_POP: begin
-          r_rcnt    <= 'd0;
-          o_que_pop <= 'b0;
-        end
-
         READ: begin
           o_que_pop <= 'b0;
-          if (r_rcnt < r_req_len) begin
+          if (i_opt_rdy && r_rcnt < r_req_len) begin
             r_rcnt  <= r_rcnt + 'd1;
-            r_re    <= 'b1;
+            o_re    <= 'b1;
             r_rptr  <= r_rptr + 'd1;
-            r_raddr <= r_rptr;
-
+            o_raddr <= r_rptr; 
           end else begin
-
-            r_re <= 'b0;
-
+            o_re <= 'b0;
           end
         end
 
         DONE: begin
+          o_re   <= 'b0;
           r_rcnt <= 'd0;
           o_dn   <= 'b1;
         end
@@ -129,9 +116,7 @@ module read_controller #(
       endcase
     end
   end
-  // ====================== output ========================= 
-  assign o_re       = r_re;
-  assign o_raddr    = r_raddr;
+  // ====================== output =========================  
   // bypass
   assign o_opt_vld  = i_rvld;
   assign o_opt_dout = i_rdin;

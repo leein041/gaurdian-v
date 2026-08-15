@@ -11,7 +11,6 @@ module patch #(
     input                                  i_clk,
     input                                  i_rstn,
     input                                  i_clr,
-    output reg                             o_req_wgt,
     // ipt
     input         [WIDTH * PATCH_SIDE-1:0] i_ipt_din,
     input                                  i_ipt_vld,

@@ -7,8 +7,10 @@ module pe_array #(
 ) (
     input                                 i_clk,
     input                                 i_rstn,
-    //
-    input                                 i_ws_swap,
+    input                                 i_clr,
+    // 
+    input                                 i_ws_wr_sel,
+    input                                 i_ws_rd_sel,
     input                                 i_req_wgt,
     // wgt
     input  signed [         `WGT_BIT-1:0] i_wgt_din,
@@ -25,8 +27,7 @@ module pe_array #(
   // ====================== parmeter ======================= 
   integer i;
   genvar g, p;
-  // ====================== reg ============================ 
-  reg                                   r_sel;
+  // ====================== reg ============================  
   reg                                   r_opt_vld;
   reg         [`CLOG2_SAFE(PE_NUM)-1:0] r_bank_idx;
   // ====================== wire ===========================  
@@ -49,21 +50,13 @@ module pe_array #(
   endgenerate
   assign o_ipt_rdy = w_act_out || !r_opt_vld;
   // ====================== always =========================  
-  always @(posedge i_clk or negedge i_rstn) begin
-    if (~i_rstn) begin
-      r_sel <= 'b0;
-    end else begin
-      if (i_ws_swap) r_sel <= ~r_sel;
-    end
-  end
   // initialize weight statinary buffer
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
       r_bank_idx <= 'd0;
-    end else if (i_ws_swap) begin
-      r_bank_idx <= 'd0;
     end else if (i_wgt_vld) begin
-      r_bank_idx <= r_bank_idx + 'd1;
+      if (r_bank_idx == PE_NUM - 1) r_bank_idx <= 'd0;
+      else r_bank_idx <= r_bank_idx + 'd1;
     end
   end
 
@@ -90,13 +83,13 @@ module pe_array #(
       .i_rstn    (i_rstn),
       //
       .i_re      (i_req_wgt),
-      .i_raddr   (!r_sel),
+      .i_raddr   (i_ws_rd_sel),
       .o_rvld    (w_ws_rvld),
       .o_rdout   (w_ws_rdat_bus),
       //
       .i_bank_idx(r_bank_idx),
       .i_we      (w_ws_we),
-      .i_waddr   (r_sel),
+      .i_waddr   (i_ws_wr_sel),
       .i_wdin    (i_wgt_din)
   );
   generate

@@ -36,16 +36,14 @@ module bias_loader #(
 );
   // ====================== parmeter =======================  
   localparam REQ_IDLE = 0;
-  localparam REQ_RUN = 1;
-  localparam REQ_WAIT = 2;
-  localparam REQ_DONE = 3;
-  localparam REQ_STATE_END = 4;
+  localparam REQ_RUN = 1; 
+  localparam REQ_DONE = 2;
+  localparam REQ_STATE_END = 3;
 
   localparam OUT_IDLE = 0;
-  localparam OUT_RUN = 1;
-  localparam OUT_WAIT = 2;
-  localparam OUT_DONE = 3;
-  localparam OUT_STATE_END = 4;
+  localparam OUT_RUN = 1; 
+  localparam OUT_DONE = 2;
+  localparam OUT_STATE_END = 3;
 
   // ====================== wire =========================== 
   // ====================== reg ============================ 
@@ -54,33 +52,13 @@ module bias_loader #(
   reg [$clog2(REQ_STATE_END)-1:0] r_req_nstat;
   reg [$clog2(OUT_STATE_END)-1:0] r_out_cstat;
   reg [$clog2(OUT_STATE_END)-1:0] r_out_nstat;
-  // 
-  reg                             r_dn;
-  reg [    $clog2(IPT_DEPTH) : 0] r_req_len;
-  reg                             r_req;
-  reg [    $clog2(IPT_DEPTH)-1:0] r_raddr;
-  // 
-  reg                             r_we;
-  reg [     $clog2(BANK_NUM) : 0] r_bank_ptr;
-  reg [     $clog2(BANK_NUM) : 0] r_bank_idx;
-  reg [                WIDTH-1:0] r_wdat;
+  //   
+  //  
+  reg [     $clog2(BANK_NUM) : 0] r_bank_ptr; 
   reg [    $clog2(IPT_DEPTH) : 0] r_wcnt;
-  reg [    $clog2(BUF_DEPTH) : 0] r_wptr;
-  reg [    $clog2(BUF_DEPTH)-1:0] r_waddr;
-  // ====================== assign =========================     
-  assign o_dn       = r_dn;
-
-  assign o_ipt_rdy  = 'b1;  // always ready
-
-  assign o_req_len  = r_req_len;
-  assign o_req      = r_req;
-  assign o_req_addr = r_raddr;
-  //
-  assign o_we       = r_we;
-  assign o_bank_idx = r_bank_idx;
-  assign o_waddr    = r_waddr;
-  assign o_wdat     = r_wdat;
-
+  reg [    $clog2(BUF_DEPTH) : 0] r_wptr; 
+  // ====================== assign =========================       
+  assign o_ipt_rdy  = 'b1;  // always ready  
   // ====================== FSM ============================
   //      ____                            _     _____ ____  __  __ 
   //     |  _ \ ___  __ _ _   _  ___  ___| |_  |  ___/ ___||  \/  |
@@ -107,11 +85,7 @@ module bias_loader #(
 
       REQ_RUN: begin
         r_req_nstat = REQ_DONE;
-      end
-
-      REQ_WAIT: begin
-        if (i_req_dn) r_req_nstat = REQ_DONE;
-      end
+      end 
 
       REQ_DONE: begin
         r_req_nstat = REQ_IDLE;
@@ -124,27 +98,22 @@ module bias_loader #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_req <= 'b0;
-      r_req_len <= 'd0;
-      r_raddr <= 'd0;
+      o_req <= 'b0;
+      o_req_len <= 'd0;
+      o_raddr <= 'd0;
     end else begin
       case (r_req_cstat)
         REQ_IDLE: begin
         end
 
         REQ_RUN: begin
-          r_req     <= 'b1;
-          r_req_len <= i_req_len;
-          r_raddr   <= i_req_addr;
+          o_req     <= 'b1;
+          o_req_len <= i_req_len;
+          o_raddr   <= i_req_addr;
         end
-
-        REQ_WAIT: begin
-          r_req <= 'b0;
-
-        end
-
+  
         REQ_DONE: begin
-          r_req <= 'b0;
+          o_req <= 'b0;
         end
         default: ;
       endcase
@@ -173,7 +142,7 @@ module bias_loader #(
       end
 
       OUT_RUN: begin
-        if (r_wcnt == i_req_len) begin
+        if ((r_wcnt == i_req_len) && i_ipt_vld) begin
           r_out_nstat = OUT_DONE;
         end
       end
@@ -189,18 +158,18 @@ module bias_loader #(
   //  compute RTL operations
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_we       <= 'b0;
+      o_we       <= 'b0;
       r_bank_ptr <= 'd0;
-      r_bank_idx <= 'd0;
+      o_bank_idx <= 'd0;
       r_wptr     <= 'd0;
       r_wcnt     <= 'd0;
-      r_waddr    <= 'd0;
-      r_wdat     <= 'd0;
-      r_dn       <= 'b0;
+      o_waddr    <= 'd0;
+      o_wdat     <= 'd0;
+      o_dn       <= 'b0;
     end else begin
       case (r_out_cstat)
         OUT_IDLE: begin
-          r_dn <= 'b0;
+          o_dn <= 'b0;
         end
 
         OUT_RUN: begin
@@ -216,19 +185,19 @@ module bias_loader #(
                 r_wptr <= 'd0;
               end
             end
-            r_bank_idx <= r_bank_ptr;
+            o_bank_idx <= r_bank_ptr;
             r_wcnt     <= r_wcnt + 'd1;
-            r_we       <= 'b1;
-            r_waddr    <= r_wptr;
-            r_wdat     <= i_ipt_din;
+            o_we       <= 'b1;
+            o_waddr    <= r_wptr;
+            o_wdat     <= i_ipt_din;
           end else begin
-            r_we <= 'b0;
+            o_we <= 'b0;
           end
         end
         OUT_DONE: begin
           r_wcnt <= 'd0;
-          r_dn   <= 'b1;
-          r_we   <= 'b0;
+          o_dn   <= 'b1;
+          o_we   <= 'b0;
         end
 
         default: ;

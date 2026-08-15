@@ -4,9 +4,12 @@
 module post_proccessor (
     input                                     i_clk,
     input                                     i_rstn,
+    input                                     i_br_dn,
+    output                                    o_bs_wr_rdy,
+    output                                    o_bs_rd_rdy,
+    input                                     i_ts_dn,
     //
     input                                     i_relu,
-    input                                     i_bias_swap,
     input                                     i_bias_vld,
     input  [ `IPT_BIT* `MAX_GROUP_FILTER-1:0] i_bias_din,
     //
@@ -20,7 +23,9 @@ module post_proccessor (
   integer i;
   genvar p;
   // ====================== reg ============================
-  reg                                           r_sel;
+  reg                                           r_wr_sel;
+  reg                                           r_rd_sel;
+  reg         [                            1:0] r_buf_full;
   reg signed  [                   `IPT_BIT-1:0] r_bias_dat     [0:`MAX_GROUP_FILTER-1] [0:1];
   // ============F========== wire ===========================
   wire signed [                   `IPT_BIT-1:0] w_cur_bias     [0:`MAX_GROUP_FILTER-1];
@@ -37,19 +42,31 @@ module post_proccessor (
   wire        [ `MAX_GROUP_FILTER*`OPT_BIT-1:0] w_relu_dat_bus;
   //
   wire        [`PSUM_BIT*`MAX_GROUP_FILTER-1:0] w_sum;
-  // ====================== assign =========================   
+  // ====================== assign =========================    
+  assign o_bs_wr_rdy = ~r_buf_full[r_wr_sel];
+  assign o_bs_rd_rdy = r_buf_full[r_rd_sel];
+
   generate
     for (p = 0; p < `MAX_GROUP_FILTER; p = p + 1) begin
-      assign w_cur_bias[p] = (r_sel == 0) ? r_bias_dat[p][1] : r_bias_dat[p][0];
+      assign w_cur_bias[p] = (r_rd_sel == 0) ? r_bias_dat[p][0] : r_bias_dat[p][1];
       assign w_relu_dat_bus[p*`OPT_BIT+:`OPT_BIT] = w_relu_dat[p];
     end
   endgenerate
-  // ====================== always =========================  
+  // ====================== always =========================   
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
-      r_sel <= 'b0;
+      r_wr_sel   <= 'b0;
+      r_rd_sel   <= 'b0;
+      r_buf_full <= 'd0;
     end else begin
-      if (i_bias_swap) r_sel <= ~r_sel;
+      if (i_br_dn) begin
+        r_buf_full[r_wr_sel] <= 'b1;
+        r_wr_sel             <= ~r_wr_sel;
+      end
+      if (i_ts_dn) begin
+        r_buf_full[r_rd_sel] <= 'b0;
+        r_rd_sel             <= ~r_rd_sel;
+      end
     end
   end
   // update bias data
@@ -59,7 +76,7 @@ module post_proccessor (
       for (i = 0; i < `MAX_GROUP_FILTER; i = i + 1) r_bias_dat[i][1] <= 'd0;
 
     end else if (i_bias_vld) begin
-      if (r_sel == 0) begin
+      if (r_wr_sel == 0) begin
         for (i = 0; i < `MAX_GROUP_FILTER; i = i + 1) begin
           r_bias_dat[i][0] <= i_bias_din[i*`IPT_BIT+:`IPT_BIT];
         end

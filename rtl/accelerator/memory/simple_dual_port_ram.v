@@ -20,7 +20,18 @@ module simple_dual_port_ram #(
     input  signed [             WIDTH-1:0] i_wdin
 );
   generate
-    if (MEM_TYPE == `LUT_TYPE) begin : LUT_RAM
+    //==========================================================================
+    //  URAM 모드 ( 3 clock )
+    //==========================================================================   
+    reg signed [WIDTH-1:0] r_mem[0:DEPTH-1];
+    if (MEM_TYPE == `REG_TYPE) begin : REG_MEM
+      always @(posedge i_clk) begin
+        if (i_we) r_mem[i_waddr] <= i_wdin;
+      end
+      assign o_rvld  = i_re;
+      assign o_rdout = r_mem[i_raddr];
+
+    end else if (MEM_TYPE == `LUT_TYPE) begin : LUT_RAM
 
       //==========================================================================
       //  LUT RAM (Distributed RAM) 모드 ( 1 clock )

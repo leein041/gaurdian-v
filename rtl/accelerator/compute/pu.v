@@ -12,7 +12,8 @@ module pu #(
     input                                      i_rstn,
     input                                      i_clr,
     //  
-    input                                      i_ws_swap,
+    input                                      i_ws_wr_sel,
+    input                                      i_ws_rd_sel,
     input                                      i_req_wgt,
     // wgt
     input                                      i_wgt_vld,
@@ -31,7 +32,7 @@ module pu #(
   genvar c, p;
   // ====================== wire ===========================
 
-  wire                            w_mat_rdy; 
+  wire                            w_mat_rdy;
   wire                            w_pe_vld;
   wire [           CONV_AREA-1:0] w_pe_vld_bus;
   wire [PE_OPT_BIT*CONV_AREA-1:0] w_pe_dat;
@@ -42,21 +43,23 @@ module pu #(
       .OPT_BIT(PE_OPT_BIT),
       .PE_NUM (CONV_AREA)
   ) inst_pe_array (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
+      .i_clk      (i_clk),
+      .i_rstn     (i_rstn),
+      .i_clr      (i_clr),
       // wgt
-      .i_req_wgt (i_req_wgt),
-      .i_ws_swap (i_ws_swap),
-      .i_wgt_din (i_wgt_din),
-      .i_wgt_vld (i_wgt_vld),
+      .i_req_wgt  (i_req_wgt),
+      .i_ws_wr_sel(i_ws_wr_sel),
+      .i_ws_rd_sel(i_ws_rd_sel),
+      .i_wgt_din  (i_wgt_din),
+      .i_wgt_vld  (i_wgt_vld),
       // ipt
-      .i_ipt_din (i_ipt_din),
-      .i_ipt_vld (i_ipt_vld),
-      .o_ipt_rdy (o_ipt_rdy),
+      .i_ipt_din  (i_ipt_din),
+      .i_ipt_vld  (i_ipt_vld),
+      .o_ipt_rdy  (o_ipt_rdy),
       // opt
-      .i_opt_rdy (w_mat_rdy),
-      .o_opt_vld (w_pe_vld),
-      .o_opt_dout(w_pe_dat)
+      .i_opt_rdy  (w_mat_rdy),
+      .o_opt_vld  (w_pe_vld),
+      .o_opt_dout (w_pe_dat)
   );
   adder_tree #(
       .IPT_BIT(PE_OPT_BIT),

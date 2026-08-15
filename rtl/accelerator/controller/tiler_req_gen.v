@@ -14,17 +14,18 @@ module tile_req_gen #(
     input                                             i_rstn,
     input                                             i_st,
     output reg                                        o_dn,
-    input                                             i_que_full,
-    // GC
+    // 
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_side,
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_x,
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_y,
     input      [         `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tl_req_addr,
-    // RC
+    // 
+    input                                             i_que_full,
     output     [         `CLOG2_SAFE(FBUF_DEPTH) : 0] o_req_len,
     output                                            o_req,
     output     [         `CLOG2_SAFE(FBUF_DEPTH)-1:0] o_req_addr,
     //
+    input                                             o_desc_rdy,
     output reg                                        o_desc_vld,
     output reg [3*(`CLOG2_SAFE(`MAX_IPT_SIDE)+1)-1:0] o_desc_dout     // {side,x,y}
 );
@@ -57,9 +58,7 @@ module tile_req_gen #(
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_x = i_tl_org_x - HALO;
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] nxt_x = i_tl_org_x + `MAX_TILE_SIDE;
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_y = i_tl_org_y + r_row_cnt - HALO;
-
-  assign w_req_pad_left   = (cur_x < 0);
-
+ 
   // req
   assign w_req_pad_top    = (cur_y < 0);
   assign w_req_pad_bottom = (cur_y >= i_img_side);
@@ -92,7 +91,7 @@ module tile_req_gen #(
       end
 
       REQ_ROW: begin
-        if (r_row_cnt == PADDED_TILE_SIDE - 1) r_req_nstat = REQ_DONE;
+        if ((r_row_cnt == PADDED_TILE_SIDE - 1) && !i_que_full) r_req_nstat = REQ_DONE;
       end
 
 
@@ -134,11 +133,11 @@ module tile_req_gen #(
         end
 
         REQ_ROW: begin
+          o_desc_vld <= 'b0;
           if (!i_que_full) begin
-            o_desc_vld <= 'b0;
 
             // count
-            r_row_cnt  <= r_row_cnt + 'd1;
+            r_row_cnt <= r_row_cnt + 'd1;
 
             // request
             if (w_req_pad_row) begin

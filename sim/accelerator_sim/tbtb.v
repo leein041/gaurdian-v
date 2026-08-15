@@ -180,7 +180,7 @@ always @(posedge i_clk) begin
                 $display("========== PASS ==========");
 
             $fclose(log_fp);
-            $finish;
+                $finish;
 
         end
 

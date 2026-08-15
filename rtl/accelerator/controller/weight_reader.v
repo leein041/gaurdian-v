@@ -2,7 +2,7 @@
 `include "defines.vh"
 `include "network_config.vh"
 
-module reader #(
+module weight_reader #(
     parameter WIDTH     = 0,
     parameter BUF_DEPTH = 0
 ) (
@@ -11,10 +11,12 @@ module reader #(
     input                               i_clr,
     input                               i_st,
     output                              o_dn,
+    input                               i_ws_wr_rdy,
     // 
     input  [`CLOG2_SAFE(BUF_DEPTH) : 0] i_read_len,
     input  [     $clog2(BUF_DEPTH)-1:0] i_read_addr,
     // Buffer read
+    input                               i_buf_rd_rdy,
     output                              o_re,
     output [     $clog2(BUF_DEPTH)-1:0] o_raddr,
     // Buffer Data
@@ -28,9 +30,10 @@ module reader #(
 );
   // ====================== parmeter =======================  
   localparam READ_IDLE = 0;
-  localparam READ_RUN = 1;
-  localparam READ_DONE = 2;
-  localparam READ_STATE_END = 1;
+  localparam READ_READY = 1;
+  localparam READ_RUN = 2;
+  localparam READ_DONE = 3;
+  localparam READ_STATE_END = 4;
 
   localparam OUT_IDLE = 0;
   localparam OUT_RUN = 1;
@@ -86,7 +89,11 @@ module reader #(
     r_read_nstat = r_read_cstat;
     case (r_read_cstat)
       READ_IDLE: begin
-        if (i_st) r_read_nstat = READ_RUN;
+        if (i_st) r_read_nstat = READ_READY;
+      end
+
+      READ_READY: begin
+        if (i_buf_rd_rdy && i_ws_wr_rdy) r_read_nstat = READ_RUN;
       end
 
       READ_RUN: begin
@@ -113,6 +120,9 @@ module reader #(
 
         READ_IDLE: begin
           if (i_st) r_base_addr <= i_read_addr;
+        end
+
+        READ_READY: begin
         end
 
         READ_RUN: begin

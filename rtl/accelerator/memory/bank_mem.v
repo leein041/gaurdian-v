@@ -8,13 +8,13 @@ module bank_mem #(
 ) (
     input                                  i_clk,
     input                                  i_rstn,
-    input  [    `CLOG2_SAFE(BANK_NUM)-1:0] i_bank_idx,
     //
     input                                  i_re,
     input  [`CLOG2_SAFE(BANK_DEPTH)-1 : 0] i_raddr,
     output                                 o_rvld,
     output [         WIDTH * BANK_NUM-1:0] o_rdout,
     //
+    input  [    `CLOG2_SAFE(BANK_NUM)-1:0] i_bank_idx,
     input                                  i_we,
     input  [`CLOG2_SAFE(BANK_DEPTH)-1 : 0] i_waddr,
     input  [                    WIDTH-1:0] i_wdin 
