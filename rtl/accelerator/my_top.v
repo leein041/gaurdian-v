@@ -12,7 +12,9 @@ module my_top #(
     parameter L3_WGT_INIT_FILE  = "",
     parameter L3_BIAS_INIT_FILE = "",
     parameter L4_WGT_INIT_FILE  = "",
-    parameter L4_BIAS_INIT_FILE = ""
+    parameter L4_BIAS_INIT_FILE = "",
+    parameter L5_WGT_INIT_FILE  = "",
+    parameter L5_BIAS_INIT_FILE = ""
 ) (
 `ifdef DEBUG
     input                                          i_rdy_test,
@@ -67,7 +69,9 @@ module my_top #(
   wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] cfg_br_filt_grp_stride;
   wire [     `CLOG2_SAFE(`MAX_CHANNEL*`CONV_3X3_AREA) : 0] cfg_wl_filt_grp_stride;
   wire [              `CLOG2_SAFE(MAX_WGT_BANK_DEPTH)-1:0] cfg_wr_ch_grp_stride;
-  wire [                      `CLOG2_SAFE(`DDR_DEPTH) : 0] cfg_tl_base_addr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] cfg_tl_src0_base_addr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] cfg_tl_src1_base_addr;
+  wire [          `CLOG2_SAFE(`MAX_CHANNEL_GROUP_NUM) : 0] cfg_tl_ch_grp_split;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_row_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_col_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_ch_grp_stride;
@@ -86,25 +90,20 @@ module my_top #(
   wire                                                     sched_gc_dn;
   wire                                                     sched_lyr_rdy;
   wire [                 `CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] sched_lyr_idx;
-  //
   wire                                                     sched_bl_nxt_lyr;
   wire                                                     sched_bl_nxt_filt_grp;
-  //
   wire                                                     sched_wl_nxt_lyr;
   wire                                                     sched_wl_nxt_filt_grp;
-  //
   wire                                                     sched_nxt_lyr;
   wire                                                     sched_nxt_filt_grp;
   wire                                                     sched_nxt_tile_col;
   wire                                                     sched_nxt_tile_row;
   wire                                                     sched_nxt_ch_grp;
-  //
   wire                                                     sched_wr_nxt_lyr;
   wire                                                     sched_wr_nxt_filt_grp;
   wire                                                     sched_wr_nxt_tile;
   wire                                                     sched_wr_nxt_tile_row;
   wire                                                     sched_wr_nxt_ch_grp;
-  //
   wire                                                     sched_tr_nxt_lyr;
   wire                                                     sched_tr_nxt_filt_grp;
   wire                                                     sched_tr_nxt_tile_col;
@@ -132,6 +131,7 @@ module my_top #(
   wire                                                     sched_psc_st;
   wire                                                     sched_pp_bias_swap;
   wire                                                     sched_ts_st;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] sched_tl_base_addr;
   //
   wire                                                     ts_fbuf_we;
   wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] ts_fbuf_wdat;
@@ -329,7 +329,8 @@ module my_top #(
       .INIT_FILE1(L1_BIAS_INIT_FILE),
       .INIT_FILE2(L2_BIAS_INIT_FILE),
       .INIT_FILE3(L3_BIAS_INIT_FILE),
-      .INIT_FILE4(L4_BIAS_INIT_FILE)
+      .INIT_FILE4(L4_BIAS_INIT_FILE),
+      .INIT_FILE5(L5_BIAS_INIT_FILE)
   ) isnt_bias_storage (
       .i_clk    (i_clk),
       .i_rstn   (i_rstn),
@@ -353,7 +354,8 @@ module my_top #(
       .INIT_FILE1(L1_WGT_INIT_FILE),
       .INIT_FILE2(L2_WGT_INIT_FILE),
       .INIT_FILE3(L3_WGT_INIT_FILE),
-      .INIT_FILE4(L4_WGT_INIT_FILE)
+      .INIT_FILE4(L4_WGT_INIT_FILE),
+      .INIT_FILE5(L5_WGT_INIT_FILE)
   ) isnt_weight_storage (
       .i_clk    (i_clk),
       .i_rstn   (i_rstn),
@@ -423,82 +425,84 @@ module my_top #(
       .i_sched_dn(sched_gc_dn)
   );
   scheduler inst_scheduler (
-      .i_clk            (i_clk),
-      .i_rstn           (i_rstn),
-      .i_st             (gc_sched_st),
-      .o_ctrl_rdy       (sched_lyr_rdy),
-      .o_dn             (sched_gc_dn),
+      .i_clk              (i_clk),
+      .i_rstn             (i_rstn),
+      .i_st               (gc_sched_st),
+      .o_ctrl_rdy         (sched_lyr_rdy),
+      .o_dn               (sched_gc_dn),
       //
-      .o_lyr_idx        (sched_lyr_idx),
-      .i_filt           (cfg_filt),
-      .i_filt_grp_num   (cfg_filt_grp_num),
-      .i_tile_num       (cfg_tile_num),
-      .i_tile_num_x     (cfg_tile_num_x),
-      .i_tile_num_y     (cfg_tile_num_y),
-      .i_ch             (cfg_ch),
-      .i_ch_grp_num     (cfg_ch_grp_num),
-      .i_tile_ipt_side  (cfg_tile_ipt_side),
+      .o_lyr_idx          (sched_lyr_idx),
+      .i_filt             (cfg_filt),
+      .i_filt_grp_num     (cfg_filt_grp_num),
+      .i_tile_num         (cfg_tile_num),
+      .i_tile_num_x       (cfg_tile_num_x),
+      .i_tile_num_y       (cfg_tile_num_y),
+      .i_ch               (cfg_ch),
+      .i_ch_grp_num       (cfg_ch_grp_num),
+      .i_tile_ipt_side    (cfg_tile_ipt_side),
       //
-      .o_bl_nxt_lyr     (sched_bl_nxt_lyr),
-      .o_bl_nxt_filt_grp(sched_bl_nxt_filt_grp),
+      .o_bl_nxt_lyr       (sched_bl_nxt_lyr),
+      .o_bl_nxt_filt_grp  (sched_bl_nxt_filt_grp),
       // 
-      .o_wl_nxt_lyr     (sched_wl_nxt_lyr),
-      .o_wl_nxt_filt_grp(sched_wl_nxt_filt_grp),
+      .o_wl_nxt_lyr       (sched_wl_nxt_lyr),
+      .o_wl_nxt_filt_grp  (sched_wl_nxt_filt_grp),
       //
-      .o_tl_nxt_lyr     (sched_nxt_lyr),
-      .o_tl_nxt_filt_grp(sched_nxt_filt_grp),
-      .o_tl_nxt_tile_col(sched_nxt_tile_col),
-      .o_tl_nxt_tile_row(sched_nxt_tile_row),
-      .o_tl_nxt_ch_grp  (sched_nxt_ch_grp),
+      .o_tl_nxt_lyr       (sched_nxt_lyr),
+      .o_tl_nxt_filt_grp  (sched_nxt_filt_grp),
+      .o_tl_nxt_tile_col  (sched_nxt_tile_col),
+      .o_tl_nxt_tile_row  (sched_nxt_tile_row),
+      .o_tl_nxt_ch_grp    (sched_nxt_ch_grp),
       //
-      .o_wr_nxt_lyr     (sched_wr_nxt_lyr),
-      .o_wr_nxt_filt_grp(sched_wr_nxt_filt_grp),
-      .o_wr_nxt_tile    (sched_wr_nxt_tile),
-      .o_wr_nxt_ch_grp  (sched_wr_nxt_ch_grp),
+      .o_wr_nxt_lyr       (sched_wr_nxt_lyr),
+      .o_wr_nxt_filt_grp  (sched_wr_nxt_filt_grp),
+      .o_wr_nxt_tile      (sched_wr_nxt_tile),
+      .o_wr_nxt_ch_grp    (sched_wr_nxt_ch_grp),
       //
-      .o_tr_nxt_lyr     (sched_tr_nxt_lyr),
-      .o_tr_nxt_filt_grp(sched_tr_nxt_filt_grp),
-      .o_tr_nxt_tile_col(sched_tr_nxt_tile_col),
-      .o_tr_nxt_tile_row(sched_tr_nxt_tile_row),
-      .o_tr_nxt_ch_grp  (sched_tr_nxt_ch_grp),
+      .o_tr_nxt_lyr       (sched_tr_nxt_lyr),
+      .o_tr_nxt_filt_grp  (sched_tr_nxt_filt_grp),
+      .o_tr_nxt_tile_col  (sched_tr_nxt_tile_col),
+      .o_tr_nxt_tile_row  (sched_tr_nxt_tile_row),
+      .o_tr_nxt_ch_grp    (sched_tr_nxt_ch_grp),
       // fmap 
-      .o_bl_st          (sched_bl_st),
-      .o_br_st          (sched_br_st),
-      .o_wl_st          (sched_wrg_st),
-      .o_wr_st          (sched_wr_st),
-      .o_tl_st          (sched_trg_st),
-      .o_tr_st          (sched_tr_st),
-      .o_psc_st         (sched_psc_st),
-      .o_ts_st          (sched_ts_st),
+      .o_bl_st            (sched_bl_st),
+      .o_br_st            (sched_br_st),
+      .o_wl_st            (sched_wrg_st),
+      .o_wr_st            (sched_wr_st),
+      .o_tl_st            (sched_trg_st),
+      .o_tr_st            (sched_tr_st),
+      .o_psc_st           (sched_psc_st),
+      .o_ts_st            (sched_ts_st),
       //
-      .i_bl_dn          (bl_sched_dn),
-      .i_br_dn          (br_sched_dn),
-      .i_wl_dn          (wrg_sched_dn),
-      .i_wr_dn          (wr_sched_dn),
-      .i_tl_dn          (trg_sched_dn),
-      .i_tr_dn          (tr_dn),
-      .i_lyr_dn         (clyr_sched_dn),
-      .i_psc_dn         (psc_sched_dn),
-      .i_ts_dn          (ts_sched_dn),
+      .i_bl_dn            (bl_sched_dn),
+      .i_br_dn            (br_sched_dn),
+      .i_wl_dn            (wrg_sched_dn),
+      .i_wr_dn            (wr_sched_dn),
+      .i_tl_dn            (trg_sched_dn),
+      .i_tr_dn            (tr_dn),
+      .i_lyr_dn           (clyr_sched_dn),
+      .i_psc_dn           (psc_sched_dn),
+      .i_ts_dn            (ts_sched_dn),
       //
-      .i_bs_rdy         (pp_bs_rd_rdy),
-      .i_ws_rdy         (ws_rd_rdy),
+      .i_bs_rdy           (pp_bs_rd_rdy),
+      .i_ws_rdy           (ws_rd_rdy),
       // tile tl (TL) 
-      .o_tl_org_x       (sched_trg_tl_org_x),     // origin position
-      .o_tl_org_y       (sched_trg_tl_org_y),
+      .i_tl_src0_base_addr(cfg_tl_src0_base_addr),
+      .o_tl_org_x         (sched_trg_tl_org_x),     // origin position
+      .o_tl_org_y         (sched_trg_tl_org_y),
+      .o_tl_base_addr     (sched_tl_base_addr),
       // lyr  
-      .o_lyr_clr        (sched_lyr_clr),
+      .o_lyr_clr          (sched_lyr_clr),
       // switch
-      .o_fbuf_wr_swap   (sched_fbuf_wr_swap),
-      .o_fbuf_rd_swap   (sched_fbuf_rd_swap),
-      .o_wb_rd_swap     (sched_wb_rd_swap),
-      .o_ws_swap        (sched_lyr_ws_swap),
-      .o_bs_swap        (sched_pp_bias_swap),
+      .o_fbuf_wr_swap     (sched_fbuf_wr_swap),
+      .o_fbuf_rd_swap     (sched_fbuf_rd_swap),
+      .o_wb_rd_swap       (sched_wb_rd_swap),
+      .o_ws_swap          (sched_lyr_ws_swap),
+      .o_bs_swap          (sched_pp_bias_swap),
       // group  
-      .o_in_ch          (sched_lyr_in_ch),
-      .o_out_ch         (sched_out_ch),
-      .o_ch_mask        (sched_lyr_ch_mask),
-      .o_filt_mask      (sched_lyr_filt_mask)
+      .o_in_ch            (sched_lyr_in_ch),
+      .o_out_ch           (sched_out_ch),
+      .o_ch_mask          (sched_lyr_ch_mask),
+      .o_filt_mask        (sched_lyr_filt_mask)
   );
   layer_config inst_layer_config (
       .i_lyr_idx           (sched_lyr_idx),
@@ -524,7 +528,9 @@ module my_top #(
       .o_br_filt_grp_stride(cfg_br_filt_grp_stride),
       .o_wl_filt_grp_stride(cfg_wl_filt_grp_stride),
       .o_wr_ch_grp_stride  (cfg_wr_ch_grp_stride),
-      .o_tl_src0_base_addr      (cfg_tl_base_addr),
+      .o_tl_src0_base_addr (cfg_tl_src0_base_addr),
+      .o_tl_src1_base_addr (cfg_tl_src1_base_addr),
+      .o_tl_ch_grp_split   (cfg_tl_ch_grp_split),
       .o_tl_row_stride     (cfg_tl_row_stride),
       .o_tl_col_stride     (cfg_tl_col_stride),
       .o_tl_ch_grp_stride  (cfg_tl_ch_grp_stride),
@@ -561,7 +567,9 @@ module my_top #(
       .i_tl_row_stride     (cfg_tl_row_stride),
       .i_tl_col_stride     (cfg_tl_col_stride),
       .i_tl_ch_grp_stride  (cfg_tl_ch_grp_stride),
-      .i_tl_base_addr      (cfg_tl_base_addr),
+      .i_tl_src0_base_addr (cfg_tl_src0_base_addr),
+      .i_tl_src1_base_addr (cfg_tl_src1_base_addr),
+      .i_tl_ch_grp_split   (cfg_tl_ch_grp_split),
       //
       .o_bl_addr           (ag_brg_addr),
       .o_wl_addr           (ag_wrg_addr),

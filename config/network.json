@@ -62,6 +62,24 @@
             "index": 5,
             "type": "conv",
             "channel": 4,
+            "filter": 8,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": true
+        },
+        {
+            "index": 6,
+            "type": "concat",
+            "layers": [
+                -1,
+                4
+            ]
+        },
+        {
+            "index": 7,
+            "type": "conv",
+            "channel": 12,
             "filter": 1,
             "kernel": 3,
             "stride": 1,

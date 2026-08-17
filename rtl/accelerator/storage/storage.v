@@ -8,19 +8,20 @@ module storage #(
     parameter INIT_FILE1 = "",
     parameter INIT_FILE2 = "",
     parameter INIT_FILE3 = "",
-    parameter INIT_FILE4 = ""
+    parameter INIT_FILE4 = "",
+    parameter INIT_FILE5 = ""
 ) (
-    input                                i_clk,
-    input                                i_rstn,
+    input                                     i_clk,
+    input                                     i_rstn,
     //
-    input                                i_re,
-    input  [     `CLOG2_SAFE(DEPTH)-1:0] i_raddr,
-    output                               o_rvld,
-    output [                  WIDTH-1:0] o_rdout,
+    input                                     i_re,
+    input  [          `CLOG2_SAFE(DEPTH)-1:0] i_raddr,
+    output                                    o_rvld,
+    output [                       WIDTH-1:0] o_rdout,
     //
-    input                                i_we,
-    input  [     `CLOG2_SAFE(DEPTH)-1:0] i_waddr,
-    input  [                  WIDTH-1:0] i_wdin,
+    input                                     i_we,
+    input  [          `CLOG2_SAFE(DEPTH)-1:0] i_waddr,
+    input  [                       WIDTH-1:0] i_wdin,
     //
     input  [`CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] i_lyr_idx
 );
@@ -56,7 +57,8 @@ module storage #(
                                     (g==1) ? INIT_FILE1 :
                                     (g==2) ? INIT_FILE2 : 
                                     (g==3) ? INIT_FILE3 :
-                                    (g==4) ? INIT_FILE4 : "";
+                                    (g==4) ? INIT_FILE4 :
+                                    (g==5) ? INIT_FILE5 : "";
       simple_dual_port_ram #(
           .WIDTH    (WIDTH),
           .DEPTH    (DEPTH),

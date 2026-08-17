@@ -9,11 +9,13 @@ module tbtb ();
   parameter L2_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_weight.txt";
   parameter L3_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer4_weight.txt";
   parameter L4_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer5_weight.txt";
+  parameter L5_WGT_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer7_weight.txt";
   parameter L0_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer0_bias.txt";
   parameter L1_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer1_bias.txt";
   parameter L2_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer2_bias.txt"; 
   parameter L3_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer4_bias.txt"; 
   parameter L4_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer5_bias.txt"; 
+  parameter L5_BIAS_INIT_FILE = "C:/seop_workspace/seop_verilog/sim/accelerator_sim/golden/layer7_bias.txt"; 
   //-------------------------------------------------------------------------------
   // internal signal
   //-------------------------------------------------------------------------------
@@ -53,12 +55,14 @@ module tbtb ();
       .L2_WGT_INIT_FILE (L2_WGT_INIT_FILE),
       .L3_WGT_INIT_FILE (L3_WGT_INIT_FILE),
       .L4_WGT_INIT_FILE (L4_WGT_INIT_FILE),
+      .L5_WGT_INIT_FILE (L5_WGT_INIT_FILE),
       // layer  
       .L0_BIAS_INIT_FILE(L0_BIAS_INIT_FILE),
       .L1_BIAS_INIT_FILE(L1_BIAS_INIT_FILE),
       .L2_BIAS_INIT_FILE(L2_BIAS_INIT_FILE),
       .L3_BIAS_INIT_FILE(L3_BIAS_INIT_FILE),
-      .L4_BIAS_INIT_FILE(L4_BIAS_INIT_FILE)
+      .L4_BIAS_INIT_FILE(L4_BIAS_INIT_FILE),
+      .L5_BIAS_INIT_FILE(L5_BIAS_INIT_FILE)
 `endif
   ) top_inst (
 `ifdef DEBUG
@@ -80,7 +84,7 @@ module tbtb ();
 // Output Buffer Compare
 //-------------------------------------------------------------------------------
 
-localparam OUTPUT_DEPTH = `L3_OPT_AREA;
+localparam OUTPUT_DEPTH = `L5_OPT_AREA;
 
 reg tb_obuf_re;
 reg [`CLOG2_SAFE(`MAX_OPT_AREA)-1:0] tb_obuf_raddr;

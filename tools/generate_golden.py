@@ -273,15 +273,22 @@ def generate_golden():
             elif len(resolved) == 1:
                 # 단일 참조인데 groups가 없으면 그냥 해당 레이어 출력을 그대로 전달
                 x = resolved[0].copy()
-                print("after route(passthrough)", x.shape, "from layer", ref_idxs[0])
-            else:
-                # 참조 레이어가 여러 개면 concat
-                x = concat_channels(resolved)
-                print("after route(concat)", x.shape, "from layers", ref_idxs)
+                print("after route(passthrough)", x.shape, "from layer", ref_idxs[0]) 
 
             # route 결과도 RTL 검증용 골든 파일로 저장
             save_tensor(f"sim/accelerator_sim/golden/layer{layer_idx}_route.txt", x)
 
+        elif layer["type"] == "concat":
+            ref_idxs = layer["layers"]
+            resolved = [all_outputs[resolve_route_index(layer_idx, r)] for r in ref_idxs]
+
+            # 참조 레이어가 여러 개면 concat
+            x = concat_channels(resolved)
+            print("after route(concat)", x.shape, "from layers", ref_idxs)
+
+            # route 결과도 RTL 검증용 골든 파일로 저장
+            save_tensor(f"sim/accelerator_sim/golden/layer{layer_idx}_concat.txt", x)
+                
         all_outputs.append(x)
 
     save_tensor("sim/accelerator_sim/golden/input.txt", inp)

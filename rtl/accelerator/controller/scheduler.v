@@ -64,7 +64,7 @@ module scheduler #(
     input                                                    i_psc_dn,
     input                                                    i_ts_dn,
     // Layer
-    output reg [                `CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] o_lyr_idx,
+    output reg [           `CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] o_lyr_idx,
     output reg                                               o_lyr_clr,
     input                                                    i_bs_rdy,
     output reg                                               o_bs_swap,
@@ -72,8 +72,11 @@ module scheduler #(
     output reg                                               o_ws_swap,
     output reg                                               o_wb_rd_swap,
     // Tile tl Metadata
+    input      [                `CLOG2_SAFE(`DDR_DEPTH) : 0] i_tl_src0_base_addr,
+    input      [              `CLOG2_SAFE(`MAX_CHANNEL) : 0] i_tl_ch_split,
     output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_tl_org_x,
     output reg [               `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_tl_org_y,
+    output     [                `CLOG2_SAFE(`DDR_DEPTH) : 0] o_tl_base_addr,
     // Layer Metadata
     output reg [           `CLOG2_SAFE(`MAX_GROUP_FILTER):0] o_in_ch,
     output reg [                 `CLOG2_SAFE(`MAX_FILTER):0] o_out_ch,
@@ -84,11 +87,11 @@ module scheduler #(
     output reg                                               o_fbuf_rd_swap
 );
   // ====================== parmeter ======================= 
-  localparam IDLE = 1; 
-  localparam RUN_LAYER = 2; 
-  localparam DONE = 3; 
+  localparam IDLE = 1;
+  localparam RUN_LAYER = 2;
+  localparam DONE = 3;
   localparam STATE_END = 4;
- 
+
   integer                                                    i;
   // ====================== reg ============================ 
   reg     [                      `CLOG2_SAFE(STATE_END)-1:0] r_cstat;  // current state
@@ -206,7 +209,7 @@ module scheduler #(
   assign w_tr_tile_last      = (r_tr_tile_idx == i_tile_num - 1);
   assign w_tr_filt_grp_last  = (r_tr_filt_grp_idx == i_filt_grp_num - 1);
   // 
-
+  assign o_tl_base_addr      = i_tl_src0_base_addr;
 
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
