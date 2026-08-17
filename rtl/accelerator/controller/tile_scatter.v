@@ -1,7 +1,7 @@
 `include "defines.vh"
 `include "network_config.vh"
 module tile_scatter #(
-    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA
+    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA * `CONV_LAYER_NUM
 ) (
     input                                        i_clk,
     input                                        i_rstn,
@@ -9,25 +9,27 @@ module tile_scatter #(
     output                                       o_dn,
     //
     input      [   `CLOG2_SAFE(`MAX_IPT_SIDE):0] i_img_side,
-    input      [    `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_base_addr,
+    input      [  `CLOG2_SAFE(`MAX_TILE_SIDE):0] i_tile_opt_side,
+    input      [  `CLOG2_SAFE(`MAX_TILE_AREA):0] i_tile_opt_area,
+    input      [    `CLOG2_SAFE(`DDR_DEPTH)-1:0] i_base_addr,
     //
     input                                        i_vld,
     input      [`OPT_BIT* `MAX_GROUP_FILTER-1:0] i_din,
     // 
     output reg                                   o_obuf_we,
     output reg [`OPT_BIT* `MAX_GROUP_FILTER-1:0] o_obuf_wdout,
-    output reg [    `CLOG2_SAFE(FBUF_DEPTH)-1:0] o_obuf_waddr
+    output reg [    `CLOG2_SAFE(`DDR_DEPTH)-1:0] o_obuf_waddr
 );
   // ====================== parmeter =======================   
   // ====================== reg ============================ 
   reg                               r_busy;
   reg [`CLOG2_SAFE(FBUF_DEPTH)-1:0] r_wcnt;
   //
-  reg [`CLOG2_SAFE(FBUF_DEPTH)-1:0] r_base_addr;
+  reg [`CLOG2_SAFE(`DDR_DEPTH)-1:0] r_base_addr;
   reg [`CLOG2_SAFE(FBUF_DEPTH) : 0] r_col_idx;
   reg [`CLOG2_SAFE(FBUF_DEPTH) : 0] r_row_base_addr;
   // ====================== assign =========================
-  assign o_dn = r_busy && (r_wcnt == `MAX_TILE_AREA - 1);
+  assign o_dn = r_busy && (r_wcnt == i_tile_opt_area - 1);
   // ====================== always =========================
 
   always @(posedge i_clk or negedge i_rstn) begin
@@ -36,7 +38,7 @@ module tile_scatter #(
     end else begin
       if (i_st) begin
         r_busy <= 'b1;
-      end else if (r_wcnt == `MAX_TILE_AREA - 1) begin
+      end else if ((r_wcnt == i_tile_opt_area - 1) && i_vld) begin
         r_busy <= 'b0;
       end
     end
@@ -64,7 +66,7 @@ module tile_scatter #(
         o_obuf_we    <= 'b1;
         o_obuf_wdout <= i_din;
         o_obuf_waddr <= r_base_addr + r_col_idx + r_row_base_addr;
-        if (r_col_idx < `MAX_TILE_SIDE - 1) begin
+        if (r_col_idx < i_tile_opt_side - 1) begin
           r_col_idx <= r_col_idx + 'd1;
         end else begin
           r_row_base_addr <= r_row_base_addr + i_img_side;

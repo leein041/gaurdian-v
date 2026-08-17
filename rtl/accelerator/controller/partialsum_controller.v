@@ -9,8 +9,8 @@ module partialsum_controller #(
     input                                          i_st,
     output reg                                     o_dn,
     // GC
-    input      [           `CLOG2_SAFE(SUM_CNT):0] i_sum_cnt,
-    input                                          i_relu,
+    input      [           `CLOG2_SAFE(SUM_CNT):0] i_sum_cnt, 
+    input      [  `CLOG2_SAFE(`MAX_TILE_AREA) : 0] i_tile_opt_area,
     //
     input                                          i_bias_vld,
     input      [  `IPT_BIT* `MAX_GROUP_FILTER-1:0] i_bias_din,
@@ -91,7 +91,7 @@ module partialsum_controller #(
       end
 
       SUM: begin
-        if (r_pix_cnt == `MAX_TILE_AREA - 1) begin
+        if ((r_pix_cnt == i_tile_opt_area - 1) && i_ipt_vld) begin
           if (r_sum_cnt == i_sum_cnt) r_nstat = DONE;
           else r_nstat = START_SUM;
         end
@@ -159,7 +159,7 @@ module partialsum_controller #(
 
           end else if (r_sum_cnt == i_sum_cnt) begin  // read
 
-            if (i_psb_rdy && (r_rptr < `MAX_TILE_AREA)) begin
+            if (i_psb_rdy && (r_rptr < i_tile_opt_area)) begin
               o_psb_re    <= 'b1;
               o_psb_raddr <= r_rptr;
               r_rptr  <= r_rptr + 'd1;
@@ -175,7 +175,7 @@ module partialsum_controller #(
               o_opt_vld <= 'b0;
             end
           end else begin  // read + write
-            if (i_psb_rdy && (r_rptr < `MAX_TILE_AREA)) begin
+            if (i_psb_rdy && (r_rptr < i_tile_opt_area)) begin
               o_psb_re    <= 'b1;
               o_psb_raddr <= r_rptr;
               r_rptr  <= r_rptr + 'd1;

@@ -18,12 +18,12 @@ module tile_req_gen #(
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_img_side,
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_x,
     input      [      `CLOG2_SAFE(`MAX_IPT_SIDE) : 0] i_tl_org_y,
-    input      [         `CLOG2_SAFE(FBUF_DEPTH)-1:0] i_tl_req_addr,
+    input      [         `CLOG2_SAFE(`DDR_DEPTH)-1:0] i_tl_req_addr,
     // 
     input                                             i_que_full,
     output     [         `CLOG2_SAFE(FBUF_DEPTH) : 0] o_req_len,
     output                                            o_req,
-    output     [         `CLOG2_SAFE(FBUF_DEPTH)-1:0] o_req_addr,
+    output     [         `CLOG2_SAFE(`DDR_DEPTH)-1:0] o_req_addr,
     //
     input                                             o_desc_rdy,
     output reg                                        o_desc_vld,
@@ -50,15 +50,15 @@ module tile_req_gen #(
   reg         [`CLOG2_SAFE(PADDED_TILE_SIDE) : 0] r_row_cnt;
   reg         [      `CLOG2_SAFE(FBUF_DEPTH) : 0] r_req_len;
   reg                                             r_req;
-  reg         [      `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_req_addr;
-  reg         [      `CLOG2_SAFE(FBUF_DEPTH)-1:0] r_base_addr;
+  reg         [      `CLOG2_SAFE(`DDR_DEPTH)-1:0] r_req_addr;
+  reg         [      `CLOG2_SAFE(`DDR_DEPTH)-1:0] r_base_addr;
   //
   // ====================== assign =========================      
 
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_x = i_tl_org_x - HALO;
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] nxt_x = i_tl_org_x + `MAX_TILE_SIDE;
   wire signed [   `CLOG2_SAFE(`MAX_IPT_SIDE)+1:0] cur_y = i_tl_org_y + r_row_cnt - HALO;
- 
+
   // req
   assign w_req_pad_top    = (cur_y < 0);
   assign w_req_pad_bottom = (cur_y >= i_img_side);

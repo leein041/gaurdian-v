@@ -3,9 +3,7 @@
 `include "network_config.vh"
 module patch #(
     parameter  WIDTH      = 0,
-    parameter  STRIDE     = 0,
-    parameter  PATCH_SIDE = 0,
-    parameter  LINE_WIDTH = 0,
+    parameter  PATCH_SIDE = 0,  
     localparam PATCH_AREA = PATCH_SIDE * PATCH_SIDE
 ) (
     input                                  i_clk,

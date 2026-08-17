@@ -12,6 +12,7 @@
  `define POOL_2X2_STRIDE     2
  `define MAX_POOL_SIDE       2 
  // layer 
+ `define DDR_DEPTH           'h1000_0000 
 
 `define LAYER_TYPE_CONV      0
 `define LAYER_TYPE_MAXPOOL   1

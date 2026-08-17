@@ -3,13 +3,17 @@
 `include "network_config.vh"
 module line_buffer #(
     parameter  LINE_BIT    = 16,
-    parameter  LINE_HEIGHT = `CONV_3X3_SIDE,
-    parameter  LINE_WIDTH  = `MAX_PAD_TILE_SIDE,      // padded
+    parameter  LINE_HEIGHT = 0,
+    parameter  LINE_WIDTH  = 0,                       // padded
+    parameter  STRIDE      = 0,
     localparam LINE_AREA   = LINE_WIDTH * LINE_WIDTH
 ) (
     input                                         i_clk,
     input                                         i_rstn,
     input                                         i_clr,
+    // 
+    input         [                          1:0] i_kernel_stride,
+    output                                        o_window_vld,
     // ipt
     input  signed [                 LINE_BIT-1:0] i_ipt_din,
     input                                         i_ipt_vld,
@@ -17,10 +21,7 @@ module line_buffer #(
     // opt
     input                                         i_opt_rdy,
     output                                        o_opt_vld,
-    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout,
-    //
-    output                                        o_req_wgt,
-    output                                        o_window_vld
+    output        [LINE_BIT * LINE_HEIGHT  - 1:0] o_opt_dout
 );
   // ====================== parmeter =======================  
 
@@ -66,17 +67,17 @@ module line_buffer #(
 
   //  
   reg         [     $clog2(LINE_WIDTH)-1:0] r_opt_col_idx;
+  reg         [     $clog2(LINE_WIDTH)-1:0] r_opt_row_idx;
   reg         [    $clog2(LINE_HEIGHT)-1:0] r_ptch_row_idx;
   reg         [   LINE_BIT*LINE_HEIGHT-1:0] r_opt_dat;
   reg         [            LINE_HEIGHT-1:0] r_opt_vld;
   // ====================== hand shake ===================== 
   assign o_ipt_rdy = 'b1;  // TODO
-  assign o_window_vld = (2 <= r_opt_col_idx);
-  assign o_req_wgt = o_window_vld;
+  assign o_window_vld = (i_kernel_stride == 1) ? (2 <= r_opt_col_idx) :
+                        (i_kernel_stride == 2) ? ((2 <= r_opt_col_idx) && r_opt_col_idx[0] == 0 && r_opt_row_idx[0] == 0) : 'd0;
 
   assign w_act_in = (o_ipt_rdy && i_ipt_vld);
-  assign w_act_out = 'b1;  // TODO
-  // ====================== assign =========================   
+  assign w_act_out = 'b1;  // TODO  
   // ====================== always =========================    
   always @(posedge i_clk or negedge i_rstn) begin
     if (~i_rstn) begin
@@ -94,11 +95,13 @@ module line_buffer #(
       r_lbuf_rcnt    <= 2 * LINE_WIDTH;
       r_ptch_row_idx <= 'd0;
       r_opt_col_idx  <= 'd0;
+      r_opt_row_idx  <= 'd0;
     end else if (i_clr) begin
       r_lbuf_wcnt    <= 'd0;
       r_lbuf_rcnt    <= 2 * LINE_WIDTH;
       r_lbuf_row_idx <= 'd0;
       r_ptch_row_idx <= 'd0;
+      r_opt_row_idx  <= 'd2;
     end else begin
 
       // act in
@@ -152,6 +155,8 @@ module line_buffer #(
           r_opt_col_idx <= r_opt_col_idx + 'd1;
         end else begin
           r_opt_col_idx <= 'd0;
+
+          r_opt_row_idx <= r_opt_row_idx + 'd1;
           // circulate patch row index ( 012 -> 120 -> 201 -> 012 -> ..)
           if (r_ptch_row_idx < LINE_HEIGHT - 1) r_ptch_row_idx <= r_ptch_row_idx + 'd1;
           else r_ptch_row_idx <= 'd0;

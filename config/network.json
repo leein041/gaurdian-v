@@ -4,35 +4,62 @@
         "wgt": 16,
         "opt": 16
     },
-
     "input": {
         "channel": 1,
-        "side": 16
+        "side": 32
     },
-
     "layers": [
-
         {
+            "index": 0,
             "type": "conv",
             "channel": 1,
             "filter": 8,
             "kernel": 3,
-            "stride": 1,
+            "stride": 2,
             "pad": true,
             "relu": true
         },
-
         {
+            "index": 1,
             "type": "conv",
             "channel": 8,
+            "filter": 4,
+            "kernel": 3,
+            "stride": 2,
+            "pad": true,
+            "relu": true
+        },
+        {
+            "index": 2,
+            "type": "conv",
+            "channel": 4,
             "filter": 4,
             "kernel": 3,
             "stride": 1,
             "pad": true,
             "relu": true
         },
-
         {
+            "index": 3,
+            "type": "route",
+            "layers": [
+                -1
+            ],
+            "groups": 2,
+            "group_id": 0
+        },
+        {
+            "index": 4,
+            "type": "conv",
+            "channel": 2,
+            "filter": 4,
+            "kernel": 3,
+            "stride": 1,
+            "pad": true,
+            "relu": true
+        },
+        {
+            "index": 5,
             "type": "conv",
             "channel": 4,
             "filter": 1,
@@ -41,6 +68,5 @@
             "pad": true,
             "relu": false
         }
-
     ]
 }

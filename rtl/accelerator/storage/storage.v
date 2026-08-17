@@ -6,7 +6,9 @@ module storage #(
 
     parameter INIT_FILE0 = "",
     parameter INIT_FILE1 = "",
-    parameter INIT_FILE2 = ""
+    parameter INIT_FILE2 = "",
+    parameter INIT_FILE3 = "",
+    parameter INIT_FILE4 = ""
 ) (
     input                                i_clk,
     input                                i_rstn,
@@ -20,7 +22,7 @@ module storage #(
     input  [     `CLOG2_SAFE(DEPTH)-1:0] i_waddr,
     input  [                  WIDTH-1:0] i_wdin,
     //
-    input  [`CLOG2_SAFE(`LAYER_NUM)-1:0] i_lyr_idx
+    input  [`CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] i_lyr_idx
 );
   genvar g;
   integer             i;
@@ -30,8 +32,8 @@ module storage #(
   reg                 r_rvld;
   reg     [WIDTH-1:0] r_rdat;
   // ====================== wire =========================== 
-  wire                w_storage_vld[0:`LAYER_NUM-1];
-  wire    [WIDTH-1:0] w_storage_dat[0:`LAYER_NUM-1];
+  wire                w_storage_vld[0:`CONV_LAYER_NUM-1];
+  wire    [WIDTH-1:0] w_storage_dat[0:`CONV_LAYER_NUM-1];
   // ====================== assign =========================   
   always @(posedge i_clk or negedge i_rstn) begin
     if (!i_rstn) begin
@@ -39,7 +41,7 @@ module storage #(
       r_rdat <= 0;
     end else begin
       r_rvld <= 0;
-      for (i = 0; i < `LAYER_NUM; i = i + 1) begin
+      for (i = 0; i < `CONV_LAYER_NUM; i = i + 1) begin
         if (i_lyr_idx == i) begin
           r_rvld <= w_storage_vld[i];
           r_rdat <= w_storage_dat[i];
@@ -49,11 +51,12 @@ module storage #(
   end
   // ====================== module ========================= 
   generate
-    for (g = 0; g < `LAYER_NUM; g = g + 1) begin : SOTRAGES
-      localparam TEMP_INIT =
-                                    (g==0) ? INIT_FILE0 :
+    for (g = 0; g < `CONV_LAYER_NUM; g = g + 1) begin : SOTRAGES
+      localparam TEMP_INIT =        (g==0) ? INIT_FILE0 :
                                     (g==1) ? INIT_FILE1 :
-                                    (g==2) ? INIT_FILE2 : "";
+                                    (g==2) ? INIT_FILE2 : 
+                                    (g==3) ? INIT_FILE3 :
+                                    (g==4) ? INIT_FILE4 : "";
       simple_dual_port_ram #(
           .WIDTH    (WIDTH),
           .DEPTH    (DEPTH),

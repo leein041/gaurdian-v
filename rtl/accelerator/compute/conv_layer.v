@@ -7,7 +7,7 @@ module conv_layer (
     input                                      i_clr,
     output                                     o_dn,
     // wgt    
-    input                                      i_wr_dn, 
+    input                                      i_wr_dn,
     input                                      i_wgt_vld,
     input  [ `WGT_BIT * `MAX_GROUP_FILTER-1:0] i_wgt_din,
     output                                     o_ws_wr_rdy,
@@ -22,7 +22,7 @@ module conv_layer (
     output                                     o_opt_vld,
     output [  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
     // temp
-    input                                      i_relu_en,
+    input  [                              1:0] i_kernel_stride, 
     input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch,
     input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
     input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
@@ -59,7 +59,6 @@ module conv_layer (
   // patch
   wire ptch_lbuf_rdy;
   wire ptch_pu_vld;
-  wire lbuf_pu_req_wgt;
   wire [`IPT_BIT*`MAX_GROUP_CHANNEL*`CONV_3X3_AREA-1:0] ptch_pu_dat_bus;
   wire [`IPT_BIT*`CONV_3X3_AREA-1:0] ptch_pu_dat[0:`MAX_GROUP_CHANNEL-1];
   // pu
@@ -184,32 +183,33 @@ module conv_layer (
   line_buffer #(
       .LINE_BIT   (`IPT_BIT * `MAX_GROUP_CHANNEL),
       .LINE_HEIGHT(LINE_HEIGHT),
-      .LINE_WIDTH (`MAX_PAD_TILE_SIDE)              // padded
+      .LINE_WIDTH (`MAX_PAD_TILE_SIDE),
+      .STRIDE     (`CONV_3X3_STRIDE)
   ) inst_line_buffer (
-      .i_clk       (i_clk),
-      .i_rstn      (i_rstn),
-      .i_clr       (i_clr),
-      // ipt
-      .o_ipt_rdy   (o_ipt_rdy),
-      .i_ipt_din   (i_ipt_din),
-      .i_ipt_vld   (i_ipt_vld),
-      // opt
-      .i_opt_rdy   (ptch_lbuf_rdy),
-      .o_opt_vld   (lbuf_ptch_vld),
-      .o_opt_dout  (lbuf_ptch_dat),
+      .i_clk          (i_clk),
+      .i_rstn         (i_rstn),
+      .i_clr          (i_clr),
       //
-      .o_req_wgt   (lbuf_pu_req_wgt),
-      .o_window_vld(lbuf_ptch_win_vld)
+      .i_kernel_stride(i_kernel_stride),
+      .o_window_vld   (lbuf_ptch_win_vld),
+      // ipt
+      .o_ipt_rdy      (o_ipt_rdy),
+      .i_ipt_din      (i_ipt_din),
+      .i_ipt_vld      (i_ipt_vld),
+      // opt
+      .i_opt_rdy      (ptch_lbuf_rdy),
+      .o_opt_vld      (lbuf_ptch_vld),
+      .o_opt_dout     (lbuf_ptch_dat)
   );
   patch #(
       .WIDTH     (`IPT_BIT * `MAX_GROUP_CHANNEL),
-      .STRIDE    (`CONV_3X3_STRIDE),
-      .PATCH_SIDE(`CONV_3X3_SIDE),
-      .LINE_WIDTH(`MAX_PAD_TILE_SIDE)
+      .PATCH_SIDE(`CONV_3X3_SIDE)
   ) inst_conv_patch_buffer (
       .i_clk     (i_clk),
       .i_rstn    (i_rstn),
       .i_clr     (i_clr),
+      //
+      .i_ptch_vld(lbuf_ptch_win_vld),
       // ipt
       .i_ipt_vld (lbuf_ptch_vld),
       .i_ipt_din (lbuf_ptch_dat),
@@ -217,9 +217,7 @@ module conv_layer (
       // opt
       .i_opt_rdy (pu_ptch_rdy[0][0]),
       .o_opt_vld (ptch_pu_vld),
-      .o_opt_dout(ptch_pu_dat_bus),
-      //
-      .i_ptch_vld(lbuf_ptch_win_vld)
+      .o_opt_dout(ptch_pu_dat_bus)
   );
 
   generate

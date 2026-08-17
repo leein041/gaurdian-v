@@ -3,14 +3,14 @@
 `include "defines.vh"
 `include "network_config.vh"
 module layer_config #(
-    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA,
+    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA * `CONV_LAYER_NUM,
     localparam WGT_BANK_DEPTH = `MAX_CHANNEL * `CONV_3X3_AREA
 ) (
-    input      [                 `CLOG2_SAFE( `LAYER_NUM)-1:0] i_lyr_idx,
-    // scheduler
-    output reg [             `CLOG2_SAFE(`MAX_LAYER_TYPE)-1:0] o_lyr_type,
+    input      [            `CLOG2_SAFE( `CONV_LAYER_NUM)-1:0] i_lyr_idx,
+    // scheduler 
     output reg                                                 o_pad,
     output reg                                                 o_relu,
+    output reg [                                          1:0] o_kernel_stride,
     output reg [                   `CLOG2_SAFE(`MAX_FILTER):0] o_filt,
     output reg [ `CLOG2_SAFE(`MAX_FILTER/`MAX_GROUP_FILTER):0] o_filt_grp_num,
     output reg [                 `CLOG2_SAFE(`MAX_TILE_NUM):0] o_tile_num,
@@ -18,20 +18,24 @@ module layer_config #(
     output reg [`CLOG2_SAFE(`MAX_IPT_SIDE / `MAX_TILE_SIDE):0] o_tile_num_y,
     output reg [                  `CLOG2_SAFE(`MAX_CHANNEL):0] o_ch,
     output reg [        `CLOG2_SAFE(`MAX_CHANNEL_GROUP_NUM):0] o_ch_grp_num,
+    //
     output reg [                 `CLOG2_SAFE(`MAX_IPT_SIDE):0] o_img_side,
-    output reg [                 `CLOG2_SAFE(`MAX_IPT_AREA):0] o_img_area,
     output reg [                 `CLOG2_SAFE(`MAX_OPT_SIDE):0] o_opt_side,
     output reg [                 `CLOG2_SAFE(`MAX_OPT_AREA):0] o_opt_area,
-    output reg [                `CLOG2_SAFE(`MAX_TILE_SIDE):0] o_tile_side,
-    output reg [                `CLOG2_SAFE(`MAX_TILE_AREA):0] o_lyr_opt_area,
+    output reg [                `CLOG2_SAFE(`MAX_TILE_SIDE):0] o_tile_ipt_side,
+    output reg [                `CLOG2_SAFE(`MAX_TILE_SIDE):0] o_tile_opt_side,
+    output reg [                `CLOG2_SAFE(`MAX_TILE_AREA):0] o_tile_opt_area,
     // loader
     output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_bl_filt_grp_stride,
     output reg [             `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] o_br_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH) : 0] o_wl_filt_grp_stride,
     output reg [              `CLOG2_SAFE(WGT_BANK_DEPTH)-1:0] o_wr_ch_grp_stride,
+    output reg [                  `CLOG2_SAFE(`DDR_DEPTH) : 0] o_tl_src0_base_addr,
+    output reg [                  `CLOG2_SAFE(`DDR_DEPTH) : 0] o_tl_src1_base_addr,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_tl_row_stride,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_tl_col_stride,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_tl_ch_grp_stride,
+    output reg [                  `CLOG2_SAFE(`DDR_DEPTH) : 0] o_ts_base_addr,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_ts_row_stride,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_ts_col_stride,
     output reg [               `CLOG2_SAFE(`MAX_IPT_AREA) : 0] o_ts_ch_grp_stride,
@@ -58,10 +62,11 @@ module layer_config #(
   always @(*) begin
     case (i_lyr_idx)
       0: begin
-        // scheduler
-        o_lyr_type             = `L0_TYPE;
+        o_tl_src0_base_addr    = 'h00_0000;
+        o_ts_base_addr         = 'h00_0000;
         o_pad                  = `L0_PAD;
         o_relu                 = `L0_RELU;
+        o_kernel_stride        = `L0_KERNEL_STRIDE;
         o_filt                 = `L0_FILTER;
         o_filt_grp_num         = `L0_FILTER_GROUP_NUM;
         o_tile_num             = `L0_TILE_NUM;
@@ -70,11 +75,11 @@ module layer_config #(
         o_ch                   = `L0_CHANNEL;
         o_ch_grp_num           = `L0_CHANNEL_GROUP_NUM;
         o_img_side             = `L0_IPT_SIDE;
-        o_img_area             = `L0_IPT_AREA;
         o_opt_side             = `L0_OPT_SIDE;
         o_opt_area             = `L0_OPT_AREA;
-        o_tile_side            = `L0_TILE_IPT_SIDE;
-        o_lyr_opt_area         = `L0_TILE_OPT_AREA;
+        o_tile_ipt_side        = `L0_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L0_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L0_TILE_OPT_AREA;
         // address generator
         o_bl_filt_grp_stride   = `L0_BL_STRIDE;
         o_br_filt_grp_stride   = `L0_BR_STRIDE;
@@ -104,10 +109,11 @@ module layer_config #(
       end
       // Layer 2
       1: begin
-        // scheduler
-        o_lyr_type             = `L1_TYPE;
+        o_tl_src0_base_addr    = 'h00_0000;
+        o_ts_base_addr         = 'h10_0000;
         o_pad                  = `L1_PAD;
         o_relu                 = `L1_RELU;
+        o_kernel_stride        = `L1_KERNEL_STRIDE;
         o_filt                 = `L1_FILTER;
         o_filt_grp_num         = `L1_FILTER_GROUP_NUM;
         o_tile_num             = `L1_TILE_NUM;
@@ -116,11 +122,11 @@ module layer_config #(
         o_ch                   = `L1_CHANNEL;
         o_ch_grp_num           = `L1_CHANNEL_GROUP_NUM;
         o_img_side             = `L1_IPT_SIDE;
-        o_img_area             = `L1_IPT_AREA;
         o_opt_side             = `L1_OPT_SIDE;
         o_opt_area             = `L1_OPT_AREA;
-        o_tile_side            = `L1_TILE_IPT_SIDE;
-        o_lyr_opt_area         = `L1_TILE_OPT_AREA;
+        o_tile_ipt_side        = `L1_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L1_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L1_TILE_OPT_AREA;
         // address generator
         o_bl_filt_grp_stride   = `L1_BL_STRIDE;
         o_br_filt_grp_stride   = `L1_BR_STRIDE;
@@ -149,10 +155,11 @@ module layer_config #(
         r_obuf_ch_stride       = `L1_OBUF_TILE_CH_STRIDE;
       end
       2: begin
-        // scheduler
-        o_lyr_type             = `L2_TYPE;
+        o_tl_src0_base_addr    = 'h10_0000;
+        o_ts_base_addr         = 'h20_0000;
         o_pad                  = `L2_PAD;
         o_relu                 = `L2_RELU;
+        o_kernel_stride        = `L2_KERNEL_STRIDE;
         o_filt                 = `L2_FILTER;
         o_filt_grp_num         = `L2_FILTER_GROUP_NUM;
         o_tile_num             = `L2_TILE_NUM;
@@ -161,12 +168,11 @@ module layer_config #(
         o_ch                   = `L2_CHANNEL;
         o_ch_grp_num           = `L2_CHANNEL_GROUP_NUM;
         o_img_side             = `L2_IPT_SIDE;
-        o_img_area             = `L2_IPT_AREA;
         o_opt_side             = `L2_OPT_SIDE;
         o_opt_area             = `L2_OPT_AREA;
-        o_tile_side            = `L2_TILE_IPT_SIDE;
-        o_lyr_opt_area         = `L2_TILE_OPT_AREA;
-        // address generator
+        o_tile_ipt_side        = `L2_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L2_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L2_TILE_OPT_AREA;
         o_bl_filt_grp_stride   = `L2_BL_STRIDE;
         o_br_filt_grp_stride   = `L2_BR_STRIDE;
         o_wl_filt_grp_stride   = `L2_WL_FILT_GRP_STRIDE;
@@ -178,20 +184,144 @@ module layer_config #(
         o_ts_row_stride        = `L2_TS_ROW_STRIDE;
         o_ts_ch_grp_stride     = `L2_TS_CH_GRP_STRIDE;
         o_bl_req_len           = `L2_BL_REQ_LEN;
-        o_br_read_len          = `L2_BR_READ_LEN;  // TODO
+        o_br_read_len          = `L2_BR_READ_LEN;
         o_wl_req_len           = `L2_WL_REQ_LEN;
         o_wr_read_len          = `L2_WR_READ_LEN;
         o_tr_read_len          = `L2_TR_READ_LEN;
-        // loader
         r_wgt_depth            = `L2_WGT_DEPTH;
         r_bias_depth           = `L2_BIAS_DEPTH;
         o_bl_bank_depth        = `L2_BL_BANK_DEPTH;
         o_wl_bank_depth        = `L2_WL_BANK_DEPTH;
-        // psc
         r_psc_sum_cnt          = `L2_PSC_SUM_NUM;
-        // ??
         r_obuf_tile_row_stride = `L2_OBUF_TILE_ROW_STRIDE;
         r_obuf_ch_stride       = `L2_OBUF_TILE_CH_STRIDE;
+      end
+      // PCB Stage 1
+      3: begin
+        o_tl_src0_base_addr    = 'h20_0000;
+        o_ts_base_addr         = 'h30_0000;
+        o_pad                  = `L3_PAD;
+        o_relu                 = `L3_RELU;
+        o_kernel_stride        = `L3_KERNEL_STRIDE;
+        o_filt                 = `L3_FILTER;
+        o_filt_grp_num         = `L3_FILTER_GROUP_NUM;
+        o_tile_num             = `L3_TILE_NUM;
+        o_tile_num_x           = `L3_TILE_NUM_X;
+        o_tile_num_y           = `L3_TILE_NUM_Y;
+        o_ch                   = `L3_CHANNEL;
+        o_ch_grp_num           = `L3_CHANNEL_GROUP_NUM;
+        o_img_side             = `L3_IPT_SIDE;
+        o_opt_side             = `L3_OPT_SIDE;
+        o_opt_area             = `L3_OPT_AREA;
+        o_tile_ipt_side        = `L3_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L3_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L3_TILE_OPT_AREA;
+        o_bl_filt_grp_stride   = `L3_BL_STRIDE;
+        o_br_filt_grp_stride   = `L3_BR_STRIDE;
+        o_wl_filt_grp_stride   = `L3_WL_FILT_GRP_STRIDE;
+        o_wr_ch_grp_stride     = `L3_WR_CH_GRP_STRIDE;
+        o_tl_col_stride        = `L3_TL_COL_STRIDE;
+        o_tl_row_stride        = `L3_TL_ROW_STRIDE;
+        o_tl_ch_grp_stride     = `L3_TL_CH_GRP_STRIDE;
+        o_ts_col_stride        = `L3_TS_COL_STRIDE;
+        o_ts_row_stride        = `L3_TS_ROW_STRIDE;
+        o_ts_ch_grp_stride     = `L3_TS_CH_GRP_STRIDE;
+        o_bl_req_len           = `L3_BL_REQ_LEN;
+        o_br_read_len          = `L3_BR_READ_LEN;
+        o_wl_req_len           = `L3_WL_REQ_LEN;
+        o_wr_read_len          = `L3_WR_READ_LEN;
+        o_tr_read_len          = `L3_TR_READ_LEN;
+        r_wgt_depth            = `L3_WGT_DEPTH;
+        r_bias_depth           = `L3_BIAS_DEPTH;
+        o_bl_bank_depth        = `L3_BL_BANK_DEPTH;
+        o_wl_bank_depth        = `L3_WL_BANK_DEPTH;
+        r_psc_sum_cnt          = `L3_PSC_SUM_NUM;
+        r_obuf_tile_row_stride = `L3_OBUF_TILE_ROW_STRIDE;
+        r_obuf_ch_stride       = `L3_OBUF_TILE_CH_STRIDE;
+      end
+      4: begin
+        o_tl_src0_base_addr    = 'h30_0000;
+        o_ts_base_addr         = 'h40_0000;
+        o_pad                  = `L4_PAD;
+        o_relu                 = `L4_RELU;
+        o_kernel_stride        = `L4_KERNEL_STRIDE;
+        o_filt                 = `L4_FILTER;
+        o_filt_grp_num         = `L4_FILTER_GROUP_NUM;
+        o_tile_num             = `L4_TILE_NUM;
+        o_tile_num_x           = `L4_TILE_NUM_X;
+        o_tile_num_y           = `L4_TILE_NUM_Y;
+        o_ch                   = `L4_CHANNEL;
+        o_ch_grp_num           = `L4_CHANNEL_GROUP_NUM;
+        o_img_side             = `L4_IPT_SIDE;
+        o_opt_side             = `L4_OPT_SIDE;
+        o_opt_area             = `L4_OPT_AREA;
+        o_tile_ipt_side        = `L4_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L4_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L4_TILE_OPT_AREA;
+        o_bl_filt_grp_stride   = `L4_BL_STRIDE;
+        o_br_filt_grp_stride   = `L4_BR_STRIDE;
+        o_wl_filt_grp_stride   = `L4_WL_FILT_GRP_STRIDE;
+        o_wr_ch_grp_stride     = `L4_WR_CH_GRP_STRIDE;
+        o_tl_col_stride        = `L4_TL_COL_STRIDE;
+        o_tl_row_stride        = `L4_TL_ROW_STRIDE;
+        o_tl_ch_grp_stride     = `L4_TL_CH_GRP_STRIDE;
+        o_ts_col_stride        = `L4_TS_COL_STRIDE;
+        o_ts_row_stride        = `L4_TS_ROW_STRIDE;
+        o_ts_ch_grp_stride     = `L4_TS_CH_GRP_STRIDE;
+        o_bl_req_len           = `L4_BL_REQ_LEN;
+        o_br_read_len          = `L4_BR_READ_LEN;
+        o_wl_req_len           = `L4_WL_REQ_LEN;
+        o_wr_read_len          = `L4_WR_READ_LEN;
+        o_tr_read_len          = `L4_TR_READ_LEN;
+        r_wgt_depth            = `L4_WGT_DEPTH;
+        r_bias_depth           = `L4_BIAS_DEPTH;
+        o_bl_bank_depth        = `L4_BL_BANK_DEPTH;
+        o_wl_bank_depth        = `L4_WL_BANK_DEPTH;
+        r_psc_sum_cnt          = `L4_PSC_SUM_NUM;
+        r_obuf_tile_row_stride = `L4_OBUF_TILE_ROW_STRIDE;
+        r_obuf_ch_stride       = `L4_OBUF_TILE_CH_STRIDE;
+      end 
+      4: begin
+        o_tl_src0_base_addr    = 'h30_0000;
+        o_ts_base_addr         = 'h40_0000;
+        o_pad                  = `L4_PAD;
+        o_relu                 = `L4_RELU;
+        o_kernel_stride        = `L4_KERNEL_STRIDE;
+        o_filt                 = `L4_FILTER;
+        o_filt_grp_num         = `L4_FILTER_GROUP_NUM;
+        o_tile_num             = `L4_TILE_NUM;
+        o_tile_num_x           = `L4_TILE_NUM_X;
+        o_tile_num_y           = `L4_TILE_NUM_Y;
+        o_ch                   = `L4_CHANNEL;
+        o_ch_grp_num           = `L4_CHANNEL_GROUP_NUM;
+        o_img_side             = `L4_IPT_SIDE;
+        o_opt_side             = `L4_OPT_SIDE;
+        o_opt_area             = `L4_OPT_AREA;
+        o_tile_ipt_side        = `L4_TILE_IPT_SIDE;
+        o_tile_opt_side        = `L4_TILE_OPT_SIDE;
+        o_tile_opt_area        = `L4_TILE_OPT_AREA;
+        o_bl_filt_grp_stride   = `L4_BL_STRIDE;
+        o_br_filt_grp_stride   = `L4_BR_STRIDE;
+        o_wl_filt_grp_stride   = `L4_WL_FILT_GRP_STRIDE;
+        o_wr_ch_grp_stride     = `L4_WR_CH_GRP_STRIDE;
+        o_tl_col_stride        = `L4_TL_COL_STRIDE;
+        o_tl_row_stride        = `L4_TL_ROW_STRIDE;
+        o_tl_ch_grp_stride     = `L4_TL_CH_GRP_STRIDE;
+        o_ts_col_stride        = `L4_TS_COL_STRIDE;
+        o_ts_row_stride        = `L4_TS_ROW_STRIDE;
+        o_ts_ch_grp_stride     = `L4_TS_CH_GRP_STRIDE;
+        o_bl_req_len           = `L4_BL_REQ_LEN;
+        o_br_read_len          = `L4_BR_READ_LEN;
+        o_wl_req_len           = `L4_WL_REQ_LEN;
+        o_wr_read_len          = `L4_WR_READ_LEN;
+        o_tr_read_len          = `L4_TR_READ_LEN;
+        r_wgt_depth            = `L4_WGT_DEPTH;
+        r_bias_depth           = `L4_BIAS_DEPTH;
+        o_bl_bank_depth        = `L4_BL_BANK_DEPTH;
+        o_wl_bank_depth        = `L4_WL_BANK_DEPTH;
+        r_psc_sum_cnt          = `L4_PSC_SUM_NUM;
+        r_obuf_tile_row_stride = `L4_OBUF_TILE_ROW_STRIDE;
+        r_obuf_ch_stride       = `L4_OBUF_TILE_CH_STRIDE;
       end
       default: ;
     endcase

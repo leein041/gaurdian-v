@@ -3,7 +3,7 @@
 `include "defines.vh"
 `include "network_config.vh"
 module scheduler #(
-    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA,
+    localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA * `CONV_LAYER_NUM,
     localparam WGT_BANK_DEPTH = `MAX_CHANNEL * `CONV_3X3_AREA
 ) (
     // System 
@@ -12,13 +12,12 @@ module scheduler #(
     input                                                    i_st,
     output reg                                               o_dn,
     output reg                                               o_ctrl_rdy,
-    // Layer Config 
-    input      [           `CLOG2_SAFE(`MAX_LAYER_TYPE)-1:0] i_lyr_type,
+    // Layer Config  
     input      [                 `CLOG2_SAFE(`MAX_FILTER):0] i_filt,
     input      [       `CLOG2_SAFE(`MAX_FILTER_GROUP_NUM):0] i_filt_grp_num,
     input      [                `CLOG2_SAFE(`MAX_CHANNEL):0] i_ch,
     input      [      `CLOG2_SAFE(`MAX_CHANNEL_GROUP_NUM):0] i_ch_grp_num,
-    input      [              `CLOG2_SAFE(`MAX_TILE_SIDE):0] i_tile_side,
+    input      [              `CLOG2_SAFE(`MAX_TILE_SIDE):0] i_tile_ipt_side,
     input      [               `CLOG2_SAFE(`MAX_TILE_NUM):0] i_tile_num,
     input      [`CLOG2_SAFE(`MAX_IPT_SIDE/`MAX_TILE_SIDE):0] i_tile_num_x,
     input      [`CLOG2_SAFE(`MAX_IPT_SIDE/`MAX_TILE_SIDE):0] i_tile_num_y,
@@ -65,7 +64,7 @@ module scheduler #(
     input                                                    i_psc_dn,
     input                                                    i_ts_dn,
     // Layer
-    output reg [                `CLOG2_SAFE(`LAYER_NUM)-1:0] o_lyr_idx,
+    output reg [                `CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] o_lyr_idx,
     output reg                                               o_lyr_clr,
     input                                                    i_bs_rdy,
     output reg                                               o_bs_swap,
@@ -433,7 +432,7 @@ module scheduler #(
                 //  
                 r_bl_filt_grp_idx <= r_bl_filt_grp_idx + 'd1;
                 r_bl_filt_idx     <= r_bl_filt_idx + `MAX_GROUP_FILTER;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_bl_stage        <= 'd5;
                 //
                 o_bl_nxt_lyr      <= 'b1;
@@ -485,7 +484,7 @@ module scheduler #(
                 //  
                 r_wl_filt_grp_idx <= r_wl_filt_grp_idx + 'd1;
                 r_wl_filt_idx     <= r_wl_filt_idx + `MAX_GROUP_FILTER;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_wl_stage        <= 'd5;
                 //  
                 o_wl_nxt_lyr      <= 'b1;
@@ -542,14 +541,14 @@ module scheduler #(
                 if (r_tl_tile_cnt_x < i_tile_num_x - 1) begin
                   o_tl_nxt_tile_col <= 'b1;
                   r_tl_tile_cnt_x   <= r_tl_tile_cnt_x + 'd1;
-                  o_tl_org_x        <= o_tl_org_x + i_tile_side;
+                  o_tl_org_x        <= o_tl_org_x + i_tile_ipt_side;
                 end else begin
                   r_tl_tile_cnt_x <= 'd0;
                   o_tl_org_x <= 0;
                   if (r_tl_tile_cnt_y < i_tile_num_y - 1) begin
                     o_tl_nxt_tile_row <= 'b1;
                     r_tl_tile_cnt_y   <= r_tl_tile_cnt_y + 'd1;
-                    o_tl_org_y        <= o_tl_org_y + i_tile_side;
+                    o_tl_org_y        <= o_tl_org_y + i_tile_ipt_side;
                   end
                 end
                 // 
@@ -570,7 +569,7 @@ module scheduler #(
                 r_tl_tile_idx     <= 'd0;
                 r_tl_filt_grp_idx <= r_tl_filt_grp_idx + 'd1;
                 r_tl_filt_idx     <= r_tl_filt_idx + `MAX_GROUP_FILTER;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_tl_stage        <= 'd5;
                 //
                 o_tl_nxt_lyr      <= 'b1;
@@ -627,7 +626,7 @@ module scheduler #(
                 //  
                 r_br_filt_grp_idx <= r_br_filt_grp_idx + 1;
                 r_br_filt_idx     <= r_br_filt_idx + `MAX_GROUP_FILTER;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_br_stage        <= 5;
                 // 
                 r_br_filt_grp_idx <= 'd0;
@@ -699,7 +698,7 @@ module scheduler #(
                 r_wr_filt_idx     <= r_wr_filt_idx + `MAX_GROUP_FILTER;
                 //
                 o_wb_rd_swap      <= 'b1;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_wr_stage        <= 5;
                 //
                 o_wr_nxt_lyr      <= 'b1;
@@ -804,7 +803,7 @@ module scheduler #(
                 //
                 o_bs_swap         <= 'b1;
                 o_ws_swap         <= 'b1;
-              end else if (o_lyr_idx != `LAYER_NUM - 1) begin
+              end else if (o_lyr_idx != `CONV_LAYER_NUM - 1) begin
                 r_tr_stage        <= 'd5;
                 o_tr_nxt_lyr      <= 'b1;
                 //

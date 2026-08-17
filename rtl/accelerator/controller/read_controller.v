@@ -17,7 +17,7 @@ module read_controller #(
     output reg                                    o_que_pop,
     // DDR
     output reg                                    o_re,
-    output reg [          `CLOG2_SAFE(DEPTH)-1:0] o_raddr,
+    output reg [                REQ_ADDR_BIT-1:0] o_raddr,
     input                                         i_rvld,
     input      [                       WIDTH-1:0] i_rdin,
     // FIFO 
@@ -36,8 +36,8 @@ module read_controller #(
   reg [`CLOG2_SAFE(STATE_END)-1:0] r_cstat;
   reg [`CLOG2_SAFE(STATE_END)-1:0] r_nstat;
   //
-  reg [      `CLOG2_SAFE(DEPTH):0] r_req_len;
-  reg [      `CLOG2_SAFE(DEPTH):0] r_rptr;
+  reg [           REQ_LEN_BIT-1:0] r_req_len;
+  reg [          REQ_ADDR_BIT-1:0] r_rptr;
   reg [      `CLOG2_SAFE(DEPTH):0] r_rcnt;
   // ====================== assign =========================     
   // ====================== always =========================  
@@ -99,7 +99,7 @@ module read_controller #(
             r_rcnt  <= r_rcnt + 'd1;
             o_re    <= 'b1;
             r_rptr  <= r_rptr + 'd1;
-            o_raddr <= r_rptr; 
+            o_raddr <= r_rptr;
           end else begin
             o_re <= 'b0;
           end

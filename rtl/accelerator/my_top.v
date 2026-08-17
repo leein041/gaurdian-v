@@ -8,18 +8,22 @@ module my_top #(
     parameter L1_WGT_INIT_FILE  = "",
     parameter L1_BIAS_INIT_FILE = "",
     parameter L2_WGT_INIT_FILE  = "",
-    parameter L2_BIAS_INIT_FILE = ""
+    parameter L2_BIAS_INIT_FILE = "",
+    parameter L3_WGT_INIT_FILE  = "",
+    parameter L3_BIAS_INIT_FILE = "",
+    parameter L4_WGT_INIT_FILE  = "",
+    parameter L4_BIAS_INIT_FILE = ""
 ) (
 `ifdef DEBUG
-    input                                     i_rdy_test,
-    output        [`CLOG2_SAFE(`LAYER_NUM):0] o_lyr_num,
-    output                                    o_lyr_vld,
-    output signed [             `IPT_BIT-1:0] o_lyr_dat,
+    input                                          i_rdy_test,
+    output        [`CLOG2_SAFE(`CONV_LAYER_NUM):0] o_lyr_num,
+    output                                         o_lyr_vld,
+    output signed [                  `IPT_BIT-1:0] o_lyr_dat,
 `endif
-    input                                     i_clk,
-    input                                     i_rstn,
-    input                                     i_start,
-    output                                    o_dn
+    input                                          i_clk,
+    input                                          i_rstn,
+    input                                          i_start,
+    output                                         o_dn
 );
   // ====================== parmeter =======================  
   genvar g, f;
@@ -27,7 +31,7 @@ module my_top #(
 
   localparam MAX_WGT_BANK_DEPTH = `MAX_CHANNEL * `CONV_3X3_AREA;
   localparam MAX_WGT_BANK_NUM = `MAX_GROUP_FILTER;
-  localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA;
+  localparam FBUF_DEPTH = `MAX_FILTER_GROUP_NUM * `MAX_IPT_AREA * `CONV_LAYER_NUM;
   localparam WGT_DESC_BIT = `CLOG2_SAFE(MAX_WGT_BANK_DEPTH) + `CLOG2_SAFE(MAX_WGT_BANK_NUM) + 2;
   localparam BIAS_DESC_BIT =
   `CLOG2_SAFE(`MAX_FILTER_GROUP_NUM)
@@ -41,11 +45,11 @@ module my_top #(
   wire [                `OPT_BIT * `MAX_GROUP_FILTER -1:0] fbuf_trc_dat;
   // global controller 
   wire                                                     gc_sched_st;
-  //
-  wire [                 `CLOG2_SAFE(`MAX_LAYER_TYPE)-1:0] cfg_lyr_type;
+  // 
   wire                                                     cfg_pad;
   wire                                                     cfg_relu;
   wire [                       `CLOG2_SAFE(`MAX_FILTER):0] cfg_filt;
+  wire [                                              1:0] cfg_kernel_stride;
   wire [     `CLOG2_SAFE(`MAX_FILTER/`MAX_GROUP_FILTER):0] cfg_filt_grp_num;
   wire [                     `CLOG2_SAFE(`MAX_TILE_NUM):0] cfg_tile_num;
   wire [    `CLOG2_SAFE(`MAX_IPT_SIDE / `MAX_TILE_SIDE):0] cfg_tile_num_x;
@@ -53,19 +57,21 @@ module my_top #(
   wire [                      `CLOG2_SAFE(`MAX_CHANNEL):0] cfg_ch;
   wire [            `CLOG2_SAFE(`MAX_CHANNEL_GROUP_NUM):0] cfg_ch_grp_num;
   wire [                     `CLOG2_SAFE(`MAX_IPT_SIDE):0] cfg_img_side;
-  wire [                     `CLOG2_SAFE(`MAX_IPT_AREA):0] cfg_img_area;
   wire [                     `CLOG2_SAFE(`MAX_OPT_SIDE):0] cfg_opt_side;
   wire [                     `CLOG2_SAFE(`MAX_OPT_AREA):0] cfg_opt_area;
-  wire [                    `CLOG2_SAFE(`MAX_TILE_SIDE):0] cfg_tile_side;
-  wire [                    `CLOG2_SAFE(`MAX_TILE_AREA):0] cfg_lyr_opt_area;
+  wire [                    `CLOG2_SAFE(`MAX_TILE_SIDE):0] cfg_tile_ipt_side;
+  wire [                    `CLOG2_SAFE(`MAX_TILE_SIDE):0] cfg_tile_opt_side;
+  wire [                    `CLOG2_SAFE(`MAX_TILE_AREA):0] cfg_tile_opt_area;
 
   wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] cfg_bl_filt_grp_stride;
   wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH) : 0] cfg_br_filt_grp_stride;
   wire [     `CLOG2_SAFE(`MAX_CHANNEL*`CONV_3X3_AREA) : 0] cfg_wl_filt_grp_stride;
   wire [              `CLOG2_SAFE(MAX_WGT_BANK_DEPTH)-1:0] cfg_wr_ch_grp_stride;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH) : 0] cfg_tl_base_addr;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_row_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_col_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_tl_ch_grp_stride;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH) : 0] cfg_ts_base_addr;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_ts_row_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_ts_col_stride;
   wire [                   `CLOG2_SAFE(`MAX_IPT_AREA) : 0] cfg_ts_ch_grp_stride;
@@ -79,7 +85,7 @@ module my_top #(
   // scheduler (sched)  
   wire                                                     sched_gc_dn;
   wire                                                     sched_lyr_rdy;
-  wire [                      `CLOG2_SAFE(`LAYER_NUM)-1:0] sched_lyr_idx;
+  wire [                 `CLOG2_SAFE(`CONV_LAYER_NUM)-1:0] sched_lyr_idx;
   //
   wire                                                     sched_bl_nxt_lyr;
   wire                                                     sched_bl_nxt_filt_grp;
@@ -129,15 +135,15 @@ module my_top #(
   //
   wire                                                     ts_fbuf_we;
   wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] ts_fbuf_wdat;
-  wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] ts_fbuf_waddr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] ts_fbuf_waddr;
   // 
   wire [                 `CLOG2_SAFE(`MAX_BIAS_DEPTH)-1:0] ag_brg_addr;
   wire [           `CLOG2_SAFE(`MAX_FILTER_GROUP_NUM)-1:0] ag_br_addr;
   wire [                  `CLOG2_SAFE(`MAX_WGT_DEPTH)-1:0] ag_wrg_addr;
   wire [              `CLOG2_SAFE(MAX_WGT_BANK_DEPTH)-1:0] ag_wr_addr;
-  wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] ag_trg_req_addr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] ag_trg_req_addr;
   wire [              `CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] ag_tr_addr;
-  wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] ag_ts_addr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] ag_ts_addr;
   // bias mem (DDR)
   wire                                                     storage_brc_vld;
   wire [                                     `IPT_BIT-1:0] storage_brc_dat;
@@ -245,11 +251,11 @@ module my_top #(
   // tile request que
   wire                                                     tq_trg_que_full;
   wire                                                     tq_trc_que_empty;
-  wire [`CLOG2_SAFE(FBUF_DEPTH)+`CLOG2_SAFE(FBUF_DEPTH):0] tq_trc_que_dat;
+  wire [`CLOG2_SAFE(FBUF_DEPTH)+`CLOG2_SAFE(`DDR_DEPTH):0] tq_trc_que_dat;
   // tile read controller (TRC) 
   wire                                                     trc_tq_que_pop;
   wire                                                     trc_fbuf_re;
-  wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] trc_fbuf_raddr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] trc_fbuf_raddr;
   wire                                                     trc_tf_vld;
   wire [                  `IPT_BIT*`MAX_GROUP_CHANNEL-1:0] trc_tf_dat;
   // tile pixel FIFO
@@ -266,7 +272,7 @@ module my_top #(
   wire                                                     trg_sched_dn;
   wire [                      `CLOG2_SAFE(FBUF_DEPTH) : 0] trg_trc_req_len;
   wire                                                     trg_trc_req;
-  wire [                      `CLOG2_SAFE(FBUF_DEPTH)-1:0] trg_trc_req_addr;
+  wire [                      `CLOG2_SAFE(`DDR_DEPTH)-1:0] trg_trc_req_addr;
   wire                                                     tw_tpf_rdy;
   wire                                                     tw_tb_we;
   wire [              `CLOG2_SAFE(`MAX_PAD_TILE_AREA)-1:0] tw_tb_waddr;
@@ -304,6 +310,9 @@ module my_top #(
   wire                                                     pp_bs_rd_rdy;
   wire                                                     pp_ts_vld;
   wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] pp_ts_dat;
+  //  
+  wire                                                     pool_ts_vld;
+  wire [                  `OPT_BIT* `MAX_GROUP_FILTER-1:0] pool_ts_dat;
   //
   wire                                                     ts_sched_dn;
   // 
@@ -318,7 +327,9 @@ module my_top #(
       .DEPTH     (`MAX_BIAS_DEPTH),
       .INIT_FILE0(L0_BIAS_INIT_FILE),
       .INIT_FILE1(L1_BIAS_INIT_FILE),
-      .INIT_FILE2(L2_BIAS_INIT_FILE)
+      .INIT_FILE2(L2_BIAS_INIT_FILE),
+      .INIT_FILE3(L3_BIAS_INIT_FILE),
+      .INIT_FILE4(L4_BIAS_INIT_FILE)
   ) isnt_bias_storage (
       .i_clk    (i_clk),
       .i_rstn   (i_rstn),
@@ -340,7 +351,9 @@ module my_top #(
       .DEPTH     (`MAX_WGT_DEPTH),
       .INIT_FILE0(L0_WGT_INIT_FILE),
       .INIT_FILE1(L1_WGT_INIT_FILE),
-      .INIT_FILE2(L2_WGT_INIT_FILE)
+      .INIT_FILE2(L2_WGT_INIT_FILE),
+      .INIT_FILE3(L3_WGT_INIT_FILE),
+      .INIT_FILE4(L4_WGT_INIT_FILE)
   ) isnt_weight_storage (
       .i_clk    (i_clk),
       .i_rstn   (i_rstn),
@@ -359,7 +372,7 @@ module my_top #(
   // feature map buffer
   featuremap_buffer #(
       .WIDTH        (`OPT_BIT * `MAX_GROUP_FILTER),
-      .DEPTH        (FBUF_DEPTH),
+      .DEPTH        (`DDR_DEPTH),
       .MEM_TYPE     (`BRAM_TYPE),
       .IMG_INIT_FILE(IMG_INIT_FILE)
   ) inst_fbuf (
@@ -417,7 +430,6 @@ module my_top #(
       .o_dn             (sched_gc_dn),
       //
       .o_lyr_idx        (sched_lyr_idx),
-      .i_lyr_type       (cfg_lyr_type),
       .i_filt           (cfg_filt),
       .i_filt_grp_num   (cfg_filt_grp_num),
       .i_tile_num       (cfg_tile_num),
@@ -425,7 +437,7 @@ module my_top #(
       .i_tile_num_y     (cfg_tile_num_y),
       .i_ch             (cfg_ch),
       .i_ch_grp_num     (cfg_ch_grp_num),
-      .i_tile_side      (cfg_tile_side),
+      .i_tile_ipt_side  (cfg_tile_ipt_side),
       //
       .o_bl_nxt_lyr     (sched_bl_nxt_lyr),
       .o_bl_nxt_filt_grp(sched_bl_nxt_filt_grp),
@@ -490,11 +502,11 @@ module my_top #(
   );
   layer_config inst_layer_config (
       .i_lyr_idx           (sched_lyr_idx),
-      //
-      .o_lyr_type          (cfg_lyr_type),
+      // 
       .o_pad               (cfg_pad),
       .o_relu              (cfg_relu),
       .o_filt              (cfg_filt),
+      .o_kernel_stride     (cfg_kernel_stride),
       .o_filt_grp_num      (cfg_filt_grp_num),
       .o_tile_num          (cfg_tile_num),
       .o_tile_num_x        (cfg_tile_num_x),
@@ -502,19 +514,21 @@ module my_top #(
       .o_ch                (cfg_ch),
       .o_ch_grp_num        (cfg_ch_grp_num),
       .o_img_side          (cfg_img_side),
-      .o_img_area          (cfg_img_area),
       .o_opt_side          (cfg_opt_side),
       .o_opt_area          (cfg_opt_area),
-      .o_tile_side         (cfg_tile_side),
-      .o_lyr_opt_area      (cfg_lyr_opt_area),
+      .o_tile_ipt_side     (cfg_tile_ipt_side),
+      .o_tile_opt_side     (cfg_tile_opt_side),
+      .o_tile_opt_area     (cfg_tile_opt_area),
       //
       .o_bl_filt_grp_stride(cfg_bl_filt_grp_stride),
       .o_br_filt_grp_stride(cfg_br_filt_grp_stride),
       .o_wl_filt_grp_stride(cfg_wl_filt_grp_stride),
       .o_wr_ch_grp_stride  (cfg_wr_ch_grp_stride),
+      .o_tl_src0_base_addr      (cfg_tl_base_addr),
       .o_tl_row_stride     (cfg_tl_row_stride),
       .o_tl_col_stride     (cfg_tl_col_stride),
       .o_tl_ch_grp_stride  (cfg_tl_ch_grp_stride),
+      .o_ts_base_addr      (cfg_ts_base_addr),
       .o_ts_col_stride     (cfg_ts_col_stride),
       .o_ts_row_stride     (cfg_ts_row_stride),
       .o_ts_ch_grp_stride  (cfg_ts_ch_grp_stride),
@@ -547,6 +561,7 @@ module my_top #(
       .i_tl_row_stride     (cfg_tl_row_stride),
       .i_tl_col_stride     (cfg_tl_col_stride),
       .i_tl_ch_grp_stride  (cfg_tl_ch_grp_stride),
+      .i_tl_base_addr      (cfg_tl_base_addr),
       //
       .o_bl_addr           (ag_brg_addr),
       .o_wl_addr           (ag_wrg_addr),
@@ -574,6 +589,7 @@ module my_top #(
       .i_nxt_tile_col    (sched_tr_nxt_tile_col),
       .i_nxt_tile_row    (sched_tr_nxt_tile_row),
       .i_nxt_ch_grp      (sched_tr_nxt_ch_grp),
+      .i_ts_base_addr    (cfg_ts_base_addr),
       .i_ts_row_stride   (cfg_ts_row_stride),
       .i_ts_col_stride   (cfg_ts_col_stride),
       .i_ts_ch_grp_stride(cfg_ts_ch_grp_stride),
@@ -962,7 +978,7 @@ module my_top #(
   );
   queue #(
       // len + addr
-      .WIDTH(`CLOG2_SAFE(FBUF_DEPTH) + 1 + `CLOG2_SAFE(FBUF_DEPTH)),
+      .WIDTH(`CLOG2_SAFE(FBUF_DEPTH) + 1 + `CLOG2_SAFE(`DDR_DEPTH)),
       .DEPTH(`MAX_TILE_SIDE + 2)
   ) inst_tl_queue (
       .i_clk     (i_clk),
@@ -981,7 +997,7 @@ module my_top #(
       .WIDTH       (`IPT_BIT * `MAX_GROUP_CHANNEL),
       .DEPTH       (FBUF_DEPTH),
       .REQ_LEN_BIT (`CLOG2_SAFE(FBUF_DEPTH) + 1),
-      .REQ_ADDR_BIT(`CLOG2_SAFE(FBUF_DEPTH))
+      .REQ_ADDR_BIT(`CLOG2_SAFE(`DDR_DEPTH))
   ) inst_img_rd_ctrl (
       .i_clk      (i_clk),
       .i_rstn     (i_rstn),
@@ -1107,52 +1123,31 @@ module my_top #(
   //     |____/_/\_\____/   \____\___/|_| |_|\_/ \___/|_|\__,_|\__|_|\___/|_| |_| |_____\__,_|\__, |\___|_|   
   //                                                                                          |___/           
   conv_layer inst_conv_layer (
-      .i_clk      (i_clk),
-      .i_rstn     (i_rstn),
-      .i_clr      (sched_lyr_clr),
-      .o_dn       (clyr_sched_dn),
+      .i_clk          (i_clk),
+      .i_rstn         (i_rstn),
+      .i_clr          (sched_lyr_clr),
+      .o_dn           (clyr_sched_dn),
       // wgt 
-      .i_wr_dn    (wr_sched_dn),
-      .i_wgt_vld  (wr_lyr_vld),
-      .i_wgt_din  (wr_lyr_dat),
-      .o_ws_wr_rdy(ws_wr_rdy),
-      .o_ws_rd_rdy(ws_rd_rdy),
+      .i_wr_dn        (wr_sched_dn),
+      .i_wgt_vld      (wr_lyr_vld),
+      .i_wgt_din      (wr_lyr_dat),
+      .o_ws_wr_rdy    (ws_wr_rdy),
+      .o_ws_rd_rdy    (ws_rd_rdy),
       // ipt 
-      .o_ipt_rdy  (),
-      .i_ipt_vld  (tr_lyr_vld),
-      .i_ipt_din  (tr_lyr_dat),
+      .o_ipt_rdy      (),
+      .i_ipt_vld      (tr_lyr_vld),
+      .i_ipt_din      (tr_lyr_dat),
       // opt  
-      .i_opt_rdy  (sched_lyr_rdy),
-      .o_opt_vld  (clyr_psc_vld),
-      .o_opt_dout (clyr_psc_dat),
+      .i_opt_rdy      (sched_lyr_rdy),
+      .o_opt_vld      (clyr_psc_vld),
+      .o_opt_dout     (clyr_psc_dat),
       // temp
-      .i_opt_area (cfg_lyr_opt_area),
-      .i_relu_en  (),
-      .i_in_ch    (sched_lyr_in_ch),
-      .i_ch_mask  (sched_lyr_ch_mask),
-      .i_filt_mask(sched_lyr_filt_mask)
+      .i_kernel_stride(cfg_kernel_stride),
+      .i_opt_area     (cfg_tile_opt_area),
+      .i_in_ch        (sched_lyr_in_ch),
+      .i_ch_mask      (sched_lyr_ch_mask),
+      .i_filt_mask    (sched_lyr_filt_mask)
   );
-  //      __  __              ____             _   _                          
-  //     |  \/  | __ ___  __ |  _ \ ___   ___ | | | |    __ _ _   _  ___ _ __ 
-  //     | |\/| |/ _` \ \/ / | |_) / _ \ / _ \| | | |   / _` | | | |/ _ \ '__|
-  //     | |  | | (_| |>  <  |  __/ (_) | (_) | | | |__| (_| | |_| |  __/ |   
-  //     |_|  |_|\__,_/_/\_\ |_|   \___/ \___/|_| |_____\__,_|\__, |\___|_|   
-  //                                                          |___/           
-  //   pool_layer inst_pool_layer (
-  //       .i_clk     (i_clk),
-  //       .i_rstn    (i_rstn),
-  //       // ipt
-  //       .o_ipt_rdy (plyr_rdy),
-  //       .i_ipt_vld (),
-  //       .i_ipt_din (),
-  //       // opt
-  //       .i_opt_rdy (sched_lyr_rdy),
-  //       .o_opt_vld (plyr_vld),
-  //       .o_opt_dout(plyr_dat),
-  //       //    
-  //       .i_img_side(sched_lyr_line_width),
-  //       .i_lbuf_st ((sched_lyr_clr & {`MAX_GROUP_FILTER{w_lyr_type == `LAYER_TYPE_MAXPOOL}}))
-  //   );
   //      ____            _   _       _   ____                  
   //     |  _ \ __ _ _ __| |_(_) __ _| | / ___| _   _ _ __ ___  
   //     | |_) / _` | '__| __| |/ _` | | \___ \| | | | '_ ` _ \ 
@@ -1160,33 +1155,34 @@ module my_top #(
   //     |_|   \__,_|_|   \__|_|\__,_|_| |____/ \__,_|_| |_| |_|
   //                                                            
   partialsum_controller inst_partialsum_controller (
-      .i_clk      (i_clk),
-      .i_rstn     (i_rstn),
-      .i_st       (sched_psc_st),
-      .o_dn       (psc_sched_dn),
-      .i_sum_cnt  (cfg_ch_grp_num),
-      .i_relu     (cfg_relu),
+      .i_clk          (i_clk),
+      .i_rstn         (i_rstn),
+      .i_st           (sched_psc_st),
+      .o_dn           (psc_sched_dn),
       //
-      .i_bias_vld (br_pp_vld),
-      .i_bias_din (br_pp_dat),
+      .i_sum_cnt      (cfg_ch_grp_num),
+      .i_tile_opt_area(cfg_tile_opt_area),
       //
-      .i_psb_rdy  (psb_psc_rdy),
-      .o_psb_re   (psc_psb_re),
-      .o_psb_raddr(psc_psb_raddr),
-      .i_psb_rvld (psb_psc_vld),
-      .i_psb_rdin (psb_psc_dat),
-      .o_psb_we   (psc_psb_we),
-      .o_psb_waddr(psc_psb_waddr),
-      .o_psb_wdout(psc_psb_wdat),
-      .o_psc_rdy  (psc_psb_rdy),
+      .i_bias_vld     (br_pp_vld),
+      .i_bias_din     (br_pp_dat),
       //
-      .i_ipt_din  (clyr_psc_dat),
-      .i_ipt_vld  (clyr_psc_vld),
-      .o_ipt_rdy  (),
+      .i_psb_rdy      (psb_psc_rdy),
+      .o_psb_re       (psc_psb_re),
+      .o_psb_raddr    (psc_psb_raddr),
+      .i_psb_rvld     (psb_psc_vld),
+      .i_psb_rdin     (psb_psc_dat),
+      .o_psb_we       (psc_psb_we),
+      .o_psb_waddr    (psc_psb_waddr),
+      .o_psb_wdout    (psc_psb_wdat),
+      .o_psc_rdy      (psc_psb_rdy),
       //
-      .i_opt_rdy  ('b1),
-      .o_opt_vld  (psc_pp_vld),
-      .o_opt_dout (psc_pp_dat)
+      .i_ipt_din      (clyr_psc_dat),
+      .i_ipt_vld      (clyr_psc_vld),
+      .o_ipt_rdy      (),
+      //
+      .i_opt_rdy      ('b1),
+      .o_opt_vld      (psc_pp_vld),
+      .o_opt_dout     (psc_pp_dat)
   );
   post_proccessor inst_post_proccessor (
       .i_clk      (i_clk),
@@ -1206,20 +1202,36 @@ module my_top #(
       .o_opt_vld  (pp_ts_vld),
       .o_opt_dout (pp_ts_dat)
   );
-  tile_scatter inst_tile_scatter (
+  pool_layer inst_pool_layer (
       .i_clk       (i_clk),
       .i_rstn      (i_rstn),
-      .i_st        (sched_ts_st),
-      .o_dn        (ts_sched_dn),
+      .i_clr       (sched_lyr_clr),
+      .i_maxpool_en('b0),            // TODO   
       //
-      .i_img_side  (cfg_img_side),
-      .i_base_addr (ag_ts_addr),
+      .o_ipt_rdy   (),
+      .i_ipt_vld   (pp_ts_vld),
+      .i_ipt_din   (pp_ts_dat),
       //
-      .i_vld       (pp_ts_vld),
-      .i_din       (pp_ts_dat),
+      .i_opt_rdy   ('b1),
+      .o_opt_vld   (pool_ts_vld),
+      .o_opt_dout  (pool_ts_dat)
+  );
+  tile_scatter inst_tile_scatter (
+      .i_clk          (i_clk),
+      .i_rstn         (i_rstn),
+      .i_st           (sched_ts_st),
+      .o_dn           (ts_sched_dn),
       //
-      .o_obuf_we   (ts_fbuf_we),
-      .o_obuf_wdout(ts_fbuf_wdat),
-      .o_obuf_waddr(ts_fbuf_waddr)
+      .i_img_side     (cfg_opt_side),
+      .i_tile_opt_side(cfg_tile_opt_side),
+      .i_tile_opt_area(cfg_tile_opt_area),
+      .i_base_addr    (ag_ts_addr),
+      //
+      .i_vld          (pool_ts_vld),
+      .i_din          (pool_ts_dat),
+      //
+      .o_obuf_we      (ts_fbuf_we),
+      .o_obuf_wdout   (ts_fbuf_wdat),
+      .o_obuf_waddr   (ts_fbuf_waddr)
   );
 endmodule

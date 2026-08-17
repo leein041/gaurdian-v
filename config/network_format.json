@@ -11,6 +11,11 @@
         },
 
         {
+            "type": "route",
+            "groups": 2,  
+        },
+
+        {
             "type": "maxpool",
             "channel": 4,
             "kernel": 2,
