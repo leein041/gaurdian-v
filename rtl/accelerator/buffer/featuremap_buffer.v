@@ -55,7 +55,7 @@ module featuremap_buffer #(
       .i_waddr(),
       .i_wdin (),
       .o_rvld(w_ibuf_rvld),
-      .o_rdout(w_ibuf_rdat)
+      .o_rdout(w_ibuf_rdat[`IPT_BIT-1:0])
   );
   // DDR
   simple_dual_port_ram #(

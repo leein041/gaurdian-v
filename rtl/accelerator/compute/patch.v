@@ -3,12 +3,15 @@
 `include "network_config.vh"
 module patch #(
     parameter  WIDTH      = 0,
-    parameter  PATCH_SIDE = 0,  
+    parameter  PATCH_SIDE = 0,
     localparam PATCH_AREA = PATCH_SIDE * PATCH_SIDE
 ) (
     input                                  i_clk,
     input                                  i_rstn,
     input                                  i_clr,
+    //
+    input         [                   1:0] i_kernel_side,
+    input         [                   3:0] i_kernel_area,
     // ipt
     input         [WIDTH * PATCH_SIDE-1:0] i_ipt_din,
     input                                  i_ipt_vld,
@@ -39,14 +42,18 @@ module patch #(
       r_opt_vld <= 'b0;
     end else begin
       r_opt_vld <= i_ipt_vld & i_ptch_vld;
-      for (i = 0; i < PATCH_SIDE; i = i + 1) begin
-        for (j = 0; j < PATCH_SIDE - 1; j = j + 1) begin
-          r_opt_dat[i][j] <= r_opt_dat[i][j+1];
+      if (i_kernel_area == `CONV_3X3_AREA) begin
+        for (i = 0; i < PATCH_SIDE; i = i + 1) begin
+          for (j = 0; j < PATCH_SIDE - 1; j = j + 1) begin
+            r_opt_dat[i][j] <= r_opt_dat[i][j+1];
+          end
         end
-      end
 
-      for (i = 0; i < PATCH_SIDE; i = i + 1) begin
-        r_opt_dat[i][PATCH_SIDE-1] <= i_ipt_din[i*WIDTH+:WIDTH];
+        for (i = 0; i < PATCH_SIDE; i = i + 1) begin
+          r_opt_dat[i][PATCH_SIDE-1] <= i_ipt_din[i*WIDTH+:WIDTH];
+        end
+      end else if (i_kernel_area == 1) begin
+        r_opt_dat[0][0] <= i_ipt_din[WIDTH-1:0];
       end
     end
   end

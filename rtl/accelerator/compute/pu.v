@@ -18,6 +18,7 @@ module pu #(
     // wgt
     input                                      i_wgt_vld,
     input  signed [            `WGT_BIT  -1:0] i_wgt_din,
+    input         [                       3:0] i_kernel_area,
     // ipt
     output                                     o_ipt_rdy,
     input                                      i_ipt_vld,
@@ -34,32 +35,42 @@ module pu #(
 
   wire                            w_mat_rdy;
   wire                            w_pe_vld;
-  wire [           CONV_AREA-1:0] w_pe_vld_bus;
+  reg  [           CONV_AREA-1:0] w_pe_vld_bus;
   wire [PE_OPT_BIT*CONV_AREA-1:0] w_pe_dat;
   // ====================== assign =========================  
-  assign w_pe_vld_bus = (w_pe_vld) ? {CONV_AREA{1'b1}} : 'd0;
+  always @(*) begin
+    w_pe_vld_bus = 'd0;
+    if (w_pe_vld) begin
+      if (i_kernel_area == 1) begin
+        w_pe_vld_bus = {1'b1};
+      end else if (i_kernel_area == `CONV_3X3_AREA) begin
+        w_pe_vld_bus = {CONV_AREA{1'b1}};
+      end
+    end
+  end
   // ====================== module =========================  
   pe_array #(
       .OPT_BIT(PE_OPT_BIT),
       .PE_NUM (CONV_AREA)
   ) inst_pe_array (
-      .i_clk      (i_clk),
-      .i_rstn     (i_rstn),
-      .i_clr      (i_clr),
+      .i_clk        (i_clk),
+      .i_rstn       (i_rstn),
+      .i_clr        (i_clr),
       // wgt
-      .i_req_wgt  (i_req_wgt),
-      .i_ws_wr_sel(i_ws_wr_sel),
-      .i_ws_rd_sel(i_ws_rd_sel),
-      .i_wgt_din  (i_wgt_din),
-      .i_wgt_vld  (i_wgt_vld),
+      .i_req_wgt    (i_req_wgt),
+      .i_ws_wr_sel  (i_ws_wr_sel),
+      .i_ws_rd_sel  (i_ws_rd_sel),
+      .i_kernel_area(i_kernel_area),
+      .i_wgt_din    (i_wgt_din),
+      .i_wgt_vld    (i_wgt_vld),
       // ipt
-      .i_ipt_din  (i_ipt_din),
-      .i_ipt_vld  (i_ipt_vld),
-      .o_ipt_rdy  (o_ipt_rdy),
+      .i_ipt_din    (i_ipt_din),
+      .i_ipt_vld    (i_ipt_vld),
+      .o_ipt_rdy    (o_ipt_rdy),
       // opt
-      .i_opt_rdy  (w_mat_rdy),
-      .o_opt_vld  (w_pe_vld),
-      .o_opt_dout (w_pe_dat)
+      .i_opt_rdy    (w_mat_rdy),
+      .o_opt_vld    (w_pe_vld),
+      .o_opt_dout   (w_pe_dat)
   );
   adder_tree #(
       .IPT_BIT(PE_OPT_BIT),

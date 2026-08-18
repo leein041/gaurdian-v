@@ -42,14 +42,15 @@ module loader_addr_gen #(
   reg     [         `CLOG2_SAFE(`MAX_IPT_AREA) : 0] r_tl_row_offset;
   reg     [         `CLOG2_SAFE(`MAX_IPT_AREA) : 0] r_tl_col_offset;
   reg     [            `CLOG2_SAFE(FBUF_DEPTH) : 0] r_tl_ch_offset;
-  //
   reg     [`CLOG2_SAFE(`MAX_CHANNEL_GROUP_NUM) : 0] r_tl_ch_grp_idx;
   // ====================== wire =========================== 
   wire                                              w_lyr_vld;
   wire    [         `OPT_BIT*`MAX_GROUP_FILTER-1:0] w_lyr_dat;
   wire    [            `CLOG2_SAFE(`DDR_DEPTH)-1:0] w_tl_base_addr;
   // ====================== assign =========================     
+  // concat
   assign w_tl_base_addr = (r_tl_ch_grp_idx < i_tl_ch_grp_split) ? i_tl_src0_base_addr :i_tl_src1_base_addr;
+  // ====================== always =========================
   always @(*) begin
     o_bl_addr = r_bl_offset;
     o_wl_addr = r_wl_offset;

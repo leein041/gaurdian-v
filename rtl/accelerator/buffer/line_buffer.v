@@ -12,8 +12,11 @@ module line_buffer #(
     input                                         i_rstn,
     input                                         i_clr,
     // 
+    input         [    `CLOG2_SAFE(LINE_WIDTH):0] i_line_width,
+    input         [                          1:0] i_kernel_side,
+    input         [                          3:0] i_kernel_area,
     input         [                          1:0] i_kernel_stride,
-    output                                        o_window_vld,
+    output reg                                    o_window_vld,
     // ipt
     input  signed [                 LINE_BIT-1:0] i_ipt_din,
     input                                         i_ipt_vld,
@@ -73,10 +76,8 @@ module line_buffer #(
   reg         [            LINE_HEIGHT-1:0] r_opt_vld;
   // ====================== hand shake ===================== 
   assign o_ipt_rdy = 'b1;  // TODO
-  assign o_window_vld = (i_kernel_stride == 1) ? (2 <= r_opt_col_idx) :
-                        (i_kernel_stride == 2) ? ((2 <= r_opt_col_idx) && r_opt_col_idx[0] == 0 && r_opt_row_idx[0] == 0) : 'd0;
 
-  assign w_act_in = (o_ipt_rdy && i_ipt_vld);
+  assign w_act_in  = (o_ipt_rdy && i_ipt_vld);
   assign w_act_out = 'b1;  // TODO  
   // ====================== always =========================    
   always @(posedge i_clk or negedge i_rstn) begin
@@ -92,13 +93,13 @@ module line_buffer #(
       r_lbuf_wcnt    <= 'd0;
       r_lbuf_re      <= 'd0;
       r_lbuf_raddr   <= 'd0;
-      r_lbuf_rcnt    <= 2 * LINE_WIDTH;
+      r_lbuf_rcnt    <= i_line_width << 1;
       r_ptch_row_idx <= 'd0;
       r_opt_col_idx  <= 'd0;
       r_opt_row_idx  <= 'd0;
     end else if (i_clr) begin
       r_lbuf_wcnt    <= 'd0;
-      r_lbuf_rcnt    <= 2 * LINE_WIDTH;
+      r_lbuf_rcnt    <= i_line_width << 1;
       r_lbuf_row_idx <= 'd0;
       r_ptch_row_idx <= 'd0;
       r_opt_row_idx  <= 'd2;
@@ -113,11 +114,11 @@ module line_buffer #(
         r_lbuf_wcnt  <= r_lbuf_wcnt + 'd1;
 
         // update write col position
-        if (r_lbuf_col < LINE_WIDTH - 1) r_lbuf_col <= r_lbuf_col + 1'b1;
+        if (r_lbuf_col < i_line_width - 1) r_lbuf_col <= r_lbuf_col + 1'b1;
         else begin
           r_lbuf_col <= 'd0;
           // update write row position
-          if (r_wpos_row < LINE_WIDTH - 1) begin
+          if (r_wpos_row < i_line_width - 1) begin
             r_wpos_row <= r_wpos_row + 1'b1;
           end else begin
             r_wpos_row <= 'd0;
@@ -141,7 +142,7 @@ module line_buffer #(
           r_lbuf_rcnt  <= r_lbuf_rcnt + 'd1;
 
           // update read col position
-          if (r_lbuf_rptr < LINE_WIDTH - 1) begin
+          if (r_lbuf_rptr < i_line_width - 1) begin
             r_lbuf_rptr <= r_lbuf_rptr + 1'b1;
           end else begin
             r_lbuf_rptr <= 'd0;
@@ -151,7 +152,7 @@ module line_buffer #(
 
       // lbuf -> output
       if (w_lbuf_rvld) begin
-        if (r_opt_col_idx < LINE_WIDTH - 1) begin
+        if (r_opt_col_idx < i_line_width - 1) begin
           r_opt_col_idx <= r_opt_col_idx + 'd1;
         end else begin
           r_opt_col_idx <= 'd0;
@@ -184,6 +185,21 @@ module line_buffer #(
       end
     endcase
   end
+  always @(*) begin
+    o_window_vld = 'b0;
+    if (i_kernel_area == `CONV_3X3_AREA) begin
+      if (i_kernel_stride == 1) begin
+        if (2 <= r_opt_col_idx) o_window_vld = 'b1;
+      end else if (i_kernel_stride == 2) begin
+        if ((2 <= r_opt_col_idx) && r_opt_col_idx[0] == 0 && r_opt_row_idx[0] == 0)
+          o_window_vld = 'b1;
+      end
+    end else if (i_kernel_area == 1) begin
+      if (i_kernel_stride == 1) begin
+        o_window_vld = i_ipt_vld;
+      end
+    end
+  end
   // ====================== module =========================  
   bank_buffer #(
       .WIDTH     (LINE_BIT),
@@ -206,6 +222,7 @@ module line_buffer #(
   );
 
   // ====================== output =========================  
-  assign o_opt_dout = r_opt_dat;
-  assign o_opt_vld  = w_lbuf_rvld;  // 동시 작업이므로 LUT 최소화
+  assign o_opt_dout = (i_kernel_side == 3) ? r_opt_dat : (i_kernel_side == 1) ? i_ipt_din : 'd0;
+  assign o_opt_vld  = (i_kernel_side == 3) ? w_lbuf_rvld : (i_kernel_side == 1) ? i_ipt_vld : 'd0;
+  ;
 endmodule

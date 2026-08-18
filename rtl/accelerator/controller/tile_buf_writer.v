@@ -12,10 +12,15 @@ module tile_buf_writer #(
     input                                             i_rstn,
     input                                             i_st,
     output reg                                        o_dn,
+    //
+    input                                             i_pad,
+    input      [       `CLOG2_SAFE(`MAX_TILE_AREA):0] i_tile_ipt_area,
+    input      [   `CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] i_pad_tile_side,
+    input      [   `CLOG2_SAFE(`MAX_PAD_TILE_AREA):0] i_pad_tile_area,
     // 
     output reg                                        o_desc_rdy,
     input                                             i_desc_vld,
-    input      [3*(`CLOG2_SAFE(`MAX_IPT_SIDE)+1)-1:0] i_desc_din,    // side, x , y
+    input      [3*(`CLOG2_SAFE(`MAX_IPT_SIDE)+1)-1:0] i_desc_din,       // side, x , y
     // ipt (FIFO)
     output                                            o_ipt_rdy,
     input                                             i_ipt_vld,
@@ -51,15 +56,17 @@ module tile_buf_writer #(
   wire                                       w_out_pad_r;
   wire                                       w_act_pad;
   wire                                       w_act_in = (i_ipt_vld && o_ipt_rdy);
+  wire [  `CLOG2_SAFE(`MAX_PAD_TILE_AREA):0] w_opt_area;
   // ====================== assign =========================     
   assign o_ipt_rdy   = i_buf_wr_rdy && (!w_act_pad) && (r_out_cstat == RUN);
+  assign w_opt_area  = (i_pad) ? i_pad_tile_area : i_tile_ipt_area;
 
   // out
   assign w_out_pad_u = (r_tl_org_y + r_out_tile_y < HALO + 0);
   assign w_out_pad_d = (r_tl_org_y + r_out_tile_y >= HALO + r_img_side);
   assign w_out_pad_l = (r_tl_org_x + r_out_tile_x < HALO + 0);
   assign w_out_pad_r = (r_tl_org_x + r_out_tile_x >= HALO + r_img_side);
-  assign w_act_pad   = w_out_pad_u || w_out_pad_d || w_out_pad_l || w_out_pad_r;
+  assign w_act_pad   = i_pad && (w_out_pad_u || w_out_pad_d || w_out_pad_l || w_out_pad_r);
   // ====================== FSM ============================ 
   //  initialize and update state register    
   always @(posedge i_clk or negedge i_rstn) begin
@@ -77,7 +84,7 @@ module tile_buf_writer #(
       end
 
       RUN: begin
-        if ((r_wptr == `MAX_PAD_TILE_AREA - 1) && i_buf_wr_rdy && (w_act_in || w_act_pad)) begin
+        if ((r_wptr == w_opt_area - 1) && i_buf_wr_rdy && (w_act_in || w_act_pad)) begin
           r_out_nstat = DONE;
         end
       end
@@ -118,6 +125,17 @@ module tile_buf_writer #(
 
           if (i_buf_wr_rdy && (w_act_in || w_act_pad)) begin
 
+            // output
+            o_we    <= 'b1;
+            r_wptr  <= r_wptr + 'd1;
+            o_waddr <= r_wptr;
+
+            if (w_act_pad) begin
+              o_wdat <= 'd0;
+            end else if (i_ipt_vld) begin
+              o_wdat <= i_ipt_din;
+            end
+
             // count tile x/y
             if (r_out_tile_x < PADDED_TILE_SIDE - 1) begin
               r_out_tile_x <= r_out_tile_x + 'd1;
@@ -126,16 +144,6 @@ module tile_buf_writer #(
                 r_out_tile_x <= 'd0;
                 r_out_tile_y <= r_out_tile_y + 'd1;
               end
-            end
-
-            // output
-            o_we    <= 'b1;
-            r_wptr  <= r_wptr + 'd1;
-            o_waddr <= r_wptr;
-            if (w_act_pad) begin
-              o_wdat <= 'd0;
-            end else if (i_ipt_vld) begin
-              o_wdat <= i_ipt_din;
             end
           end else begin
             o_we <= 'b0;

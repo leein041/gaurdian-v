@@ -755,7 +755,7 @@ module scheduler #(
             end
 
             3: begin
-              if (!r_lyr_busy && ((!w_tr_ch_grp_last) || (!r_ts_busy))) begin
+              if (!r_tr_busy && !r_lyr_busy && ((!w_tr_ch_grp_last) || (!r_ts_busy))) begin
                 r_tr_stage <= 4;
               end
             end

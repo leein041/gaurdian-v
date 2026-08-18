@@ -29,7 +29,7 @@ def emit(lines, name, value):
     """`define NAME VALUE` 한 줄을 정렬해서 추가한다."""
     lines.append(f"`define {name.ljust(NAME_COL_WIDTH)} {value}")
 
-
+    
 # ----------------------------------------------------------------------
 # 레이어별 define 생성
 # ----------------------------------------------------------------------
@@ -51,6 +51,8 @@ def emit_conv_layer(lines, idx, layer, ipt_side, ipt_channel):
     emit(lines, f"L{idx}_OPT_AREA",             opt_side ** 2)
     emit(lines, f"L{idx}_TILE_IPT_SIDE",        tile_ipt_side)
     emit(lines, f"L{idx}_TILE_IPT_AREA",        tile_ipt_side ** 2)
+    emit(lines, f"L{idx}_PAD_TILE_SIDE",        tile_ipt_side+pad_len*2)
+    emit(lines, f"L{idx}_PAD_TILE_AREA",        (tile_ipt_side+pad_len*2) ** 2)
     emit(lines, f"L{idx}_TILE_OPT_SIDE",        tile_opt_side)
     emit(lines, f"L{idx}_TILE_OPT_AREA",        tile_opt_side ** 2)
     emit(lines, f"L{idx}_TILE_NUM",             (ipt_side ** 2) // (tile_ipt_side ** 2))

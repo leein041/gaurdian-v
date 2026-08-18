@@ -22,7 +22,10 @@ module conv_layer (
     output                                     o_opt_vld,
     output [  `PSUM_BIT*`MAX_GROUP_FILTER-1:0] o_opt_dout,
     // temp
-    input  [                              1:0] i_kernel_stride, 
+    input  [`CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] i_line_width,
+    input  [                              1:0] i_kernel_side,
+    input  [                              3:0] i_kernel_area,
+    input  [                              1:0] i_kernel_stride,
     input  [`CLOG2_SAFE(`MAX_GROUP_CHANNEL):0] i_in_ch,
     input  [           `MAX_GROUP_CHANNEL-1:0] i_ch_mask,
     input  [            `MAX_GROUP_FILTER-1:0] i_filt_mask
@@ -140,7 +143,7 @@ module conv_layer (
       r_pe_idx <= 'd0;
       r_ch_idx <= 'd0;
     end else if (i_wgt_vld) begin
-      if (r_pe_idx < `CONV_3X3_AREA - 1) begin
+      if (r_pe_idx < i_kernel_area - 1) begin
         r_pe_idx <= r_pe_idx + 'd1;
       end else begin
         r_pe_idx <= 'd0;
@@ -190,6 +193,11 @@ module conv_layer (
       .i_rstn         (i_rstn),
       .i_clr          (i_clr),
       //
+      .i_line_width   (i_line_width),
+      //
+      .i_kernel_side  (i_kernel_side),
+      .i_kernel_area  (i_kernel_area),
+      //
       .i_kernel_stride(i_kernel_stride),
       .o_window_vld   (lbuf_ptch_win_vld),
       // ipt
@@ -205,19 +213,22 @@ module conv_layer (
       .WIDTH     (`IPT_BIT * `MAX_GROUP_CHANNEL),
       .PATCH_SIDE(`CONV_3X3_SIDE)
   ) inst_conv_patch_buffer (
-      .i_clk     (i_clk),
-      .i_rstn    (i_rstn),
-      .i_clr     (i_clr),
+      .i_clk        (i_clk),
+      .i_rstn       (i_rstn),
+      .i_clr        (i_clr),
       //
-      .i_ptch_vld(lbuf_ptch_win_vld),
+      .i_kernel_side(i_kernel_side),
+      .i_kernel_area(i_kernel_area),
+      //
+      .i_ptch_vld   (lbuf_ptch_win_vld),
       // ipt
-      .i_ipt_vld (lbuf_ptch_vld),
-      .i_ipt_din (lbuf_ptch_dat),
-      .o_ipt_rdy (ptch_lbuf_rdy),
+      .i_ipt_vld    (lbuf_ptch_vld),
+      .i_ipt_din    (lbuf_ptch_dat),
+      .o_ipt_rdy    (ptch_lbuf_rdy),
       // opt
-      .i_opt_rdy (pu_ptch_rdy[0][0]),
-      .o_opt_vld (ptch_pu_vld),
-      .o_opt_dout(ptch_pu_dat_bus)
+      .i_opt_rdy    (pu_ptch_rdy[0][0]),
+      .o_opt_vld    (ptch_pu_vld),
+      .o_opt_dout   (ptch_pu_dat_bus)
   );
 
   generate
@@ -227,20 +238,25 @@ module conv_layer (
         pu #(
             .CONV_AREA(`CONV_3X3_SIDE * `CONV_3X3_SIDE)
         ) inst_pu (
-            .i_clk      (i_clk),
-            .i_rstn     (i_rstn),
-            .i_clr      (i_clr),
-            .i_ws_wr_sel(r_ws_wr_sel),
-            .i_ws_rd_sel(r_ws_rd_sel),
-            .i_req_wgt  (ptch_pu_vld),                                    // TEST :
-            .i_wgt_vld  (r_pu_wvld[c]),
-            .i_wgt_din  (r_pu_wdat[p]),
-            .o_ipt_rdy  (pu_ptch_rdy[p][c]),
-            .i_ipt_vld  (ptch_pu_vld && i_ch_mask[c] && i_filt_mask[p]),
-            .i_ipt_din  (ptch_pu_dat[c]),
-            .i_opt_rdy  (w_cat_rdy[p]),
-            .o_opt_vld  (w_pu_vld[p][c]),
-            .o_opt_dout (w_pu_dat[p][c])
+            .i_clk        (i_clk),
+            .i_rstn       (i_rstn),
+            .i_clr        (i_clr),
+            .i_ws_wr_sel  (r_ws_wr_sel),
+            .i_ws_rd_sel  (r_ws_rd_sel),
+            //
+            .i_kernel_area(i_kernel_area),
+            //
+            .i_req_wgt    (ptch_pu_vld),                                    // TEST :
+            .i_wgt_vld    (r_pu_wvld[c]),
+            .i_wgt_din    (r_pu_wdat[p]),
+            //
+            .o_ipt_rdy    (pu_ptch_rdy[p][c]),
+            .i_ipt_vld    (ptch_pu_vld && i_ch_mask[c] && i_filt_mask[p]),
+            .i_ipt_din    (ptch_pu_dat[c]),
+            //
+            .i_opt_rdy    (w_cat_rdy[p]),
+            .o_opt_vld    (w_pu_vld[p][c]),
+            .o_opt_dout   (w_pu_dat[p][c])
         );
       end
 
@@ -251,9 +267,11 @@ module conv_layer (
       ) inst_ch_at (
           .i_clk     (i_clk),
           .i_rstn    (i_rstn),
+          //
           .o_ipt_rdy (w_cat_rdy[p]),
           .i_ipt_vld (w_pu_vld[p]),
           .i_ipt_din (w_pu_dat_bus[p]),
+          //
           .i_opt_rdy (i_opt_rdy),
           .o_opt_vld (w_cat_vld[p]),
           .o_opt_dout(w_cat_dat[p])

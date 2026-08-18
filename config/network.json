@@ -81,9 +81,9 @@
             "type": "conv",
             "channel": 12,
             "filter": 1,
-            "kernel": 3,
+            "kernel": 1,
             "stride": 1,
-            "pad": true,
+            "pad": false,
             "relu": false
         }
     ]

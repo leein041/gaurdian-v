@@ -51,6 +51,8 @@ module my_top #(
   wire                                                     cfg_pad;
   wire                                                     cfg_relu;
   wire [                       `CLOG2_SAFE(`MAX_FILTER):0] cfg_filt;
+  wire [                                              1:0] cfg_kernel_side;
+  wire [                                              3:0] cfg_kernel_area;
   wire [                                              1:0] cfg_kernel_stride;
   wire [     `CLOG2_SAFE(`MAX_FILTER/`MAX_GROUP_FILTER):0] cfg_filt_grp_num;
   wire [                     `CLOG2_SAFE(`MAX_TILE_NUM):0] cfg_tile_num;
@@ -62,6 +64,9 @@ module my_top #(
   wire [                     `CLOG2_SAFE(`MAX_OPT_SIDE):0] cfg_opt_side;
   wire [                     `CLOG2_SAFE(`MAX_OPT_AREA):0] cfg_opt_area;
   wire [                    `CLOG2_SAFE(`MAX_TILE_SIDE):0] cfg_tile_ipt_side;
+  wire [                    `CLOG2_SAFE(`MAX_TILE_AREA):0] cfg_tile_ipt_area;
+  wire [                `CLOG2_SAFE(`MAX_PAD_TILE_SIDE):0] cfg_pad_tile_side;
+  wire [                `CLOG2_SAFE(`MAX_PAD_TILE_AREA):0] cfg_pad_tile_area;
   wire [                    `CLOG2_SAFE(`MAX_TILE_SIDE):0] cfg_tile_opt_side;
   wire [                    `CLOG2_SAFE(`MAX_TILE_AREA):0] cfg_tile_opt_area;
 
@@ -510,6 +515,8 @@ module my_top #(
       .o_pad               (cfg_pad),
       .o_relu              (cfg_relu),
       .o_filt              (cfg_filt),
+      .o_kernel_side       (cfg_kernel_side),
+      .o_kernel_area       (cfg_kernel_area),
       .o_kernel_stride     (cfg_kernel_stride),
       .o_filt_grp_num      (cfg_filt_grp_num),
       .o_tile_num          (cfg_tile_num),
@@ -521,6 +528,9 @@ module my_top #(
       .o_opt_side          (cfg_opt_side),
       .o_opt_area          (cfg_opt_area),
       .o_tile_ipt_side     (cfg_tile_ipt_side),
+      .o_tile_ipt_area     (cfg_tile_ipt_area),
+      .o_pad_tile_side     (cfg_pad_tile_side),
+      .o_pad_tile_area     (cfg_pad_tile_area),
       .o_tile_opt_side     (cfg_tile_opt_side),
       .o_tile_opt_area     (cfg_tile_opt_area),
       //
@@ -1006,7 +1016,7 @@ module my_top #(
       .DEPTH       (FBUF_DEPTH),
       .REQ_LEN_BIT (`CLOG2_SAFE(FBUF_DEPTH) + 1),
       .REQ_ADDR_BIT(`CLOG2_SAFE(`DDR_DEPTH))
-  ) inst_img_rd_ctrl (
+  ) inst_tile_rd_ctrl (
       .i_clk      (i_clk),
       .i_rstn     (i_rstn),
       // TL
@@ -1059,23 +1069,28 @@ module my_top #(
       .TILE_SIDE(`MAX_TILE_SIDE),
       .HALO     (1)
   ) inst_tile_buf_writer (
-      .i_clk       (i_clk),
-      .i_rstn      (i_rstn),
-      .i_st        (),
-      .o_dn        (tw_tb_wr_dn),
+      .i_clk          (i_clk),
+      .i_rstn         (i_rstn),
+      .i_st           (),
+      .o_dn           (tw_tb_wr_dn),
       //
-      .o_desc_rdy  (tw_tdf_rdy),
-      .i_desc_vld  (tdf_tw_vld),
-      .i_desc_din  (tdf_tw_dat),
+      .i_pad          (cfg_pad),
+      .i_tile_ipt_area(cfg_tile_ipt_area),
+      .i_pad_tile_side(cfg_pad_tile_side),
+      .i_pad_tile_area(cfg_pad_tile_area),
       //
-      .o_ipt_rdy   (tw_tpf_rdy),
-      .i_ipt_vld   (tpf_tw_vld),
-      .i_ipt_din   (tpf_tw_dat),
+      .o_desc_rdy     (tw_tdf_rdy),
+      .i_desc_vld     (tdf_tw_vld),
+      .i_desc_din     (tdf_tw_dat),
       //
-      .i_buf_wr_rdy(tb_tw_wr_rdy),
-      .o_we        (tw_tb_we),
-      .o_waddr     (tw_tb_waddr),
-      .o_wdat      (tw_tb_wdat)
+      .o_ipt_rdy      (tw_tpf_rdy),
+      .i_ipt_vld      (tpf_tw_vld),
+      .i_ipt_din      (tpf_tw_dat),
+      //
+      .i_buf_wr_rdy   (tb_tw_wr_rdy),
+      .o_we           (tw_tb_we),
+      .o_waddr        (tw_tb_waddr),
+      .o_wdat         (tw_tb_wdat)
   );
   double_buffer #(
       .WIDTH   (`IPT_BIT * `MAX_GROUP_CHANNEL),
@@ -1124,12 +1139,16 @@ module my_top #(
       .o_opt_vld   (tr_lyr_vld),
       .o_opt_dout  (tr_lyr_dat)
   );
-  //      _____     _____    ____                      _       _   _                    _                          
-  //     |___ /_  _|___ /   / ___|___  _ ____   _____ | |_   _| |_(_) ___  _ __   | |    __ _ _   _  ___ _ __ 
-  //       |_ \ \/ / |_ \  | |   / _ \| '_ \ \ / / _ \| | | | | __| |/ _ \| '_ \  | |   / _` | | | |/ _ \ '__|
-  //      ___) >  < ___) | | |__| (_) | | | \ V / (_) | | |_| | |_| | (_) | | | | | |__| (_| | |_| |  __/ |   
-  //     |____/_/\_\____/   \____\___/|_| |_|\_/ \___/|_|\__,_|\__|_|\___/|_| |_| |_____\__,_|\__, |\___|_|   
-  //                                                                                          |___/           
+  //     ____                      _       _   _               _                          
+  //    / ___|___  _ ____   _____ | |_   _| |_(_) ___  _ __   | |    __ _ _   _  ___ _ __ 
+  //   | |   / _ \| '_ \ \ / / _ \| | | | | __| |/ _ \| '_ \  | |   / _` | | | |/ _ \ '__|
+  //   | |__| (_) | | | \ V / (_) | | |_| | |_| | (_) | | | | | |__| (_| | |_| |  __/ |   
+  //    \____\___/|_| |_|\_/ \___/|_|\__,_|\__|_|\___/|_| |_| |_____\__,_|\__, |\___|_|   
+  //                                                                      |___/          
+
+  wire [
+  `CLOG2_SAFE(`MAX_PAD_TILE_SIDE)
+  :0] w_line_width = (cfg_pad) ? cfg_pad_tile_side : cfg_tile_ipt_side;
   conv_layer inst_conv_layer (
       .i_clk          (i_clk),
       .i_rstn         (i_rstn),
@@ -1150,6 +1169,9 @@ module my_top #(
       .o_opt_vld      (clyr_psc_vld),
       .o_opt_dout     (clyr_psc_dat),
       // temp
+      .i_line_width   (w_line_width),
+      .i_kernel_side  (cfg_kernel_side),
+      .i_kernel_area  (cfg_kernel_area),
       .i_kernel_stride(cfg_kernel_stride),
       .i_opt_area     (cfg_tile_opt_area),
       .i_in_ch        (sched_lyr_in_ch),

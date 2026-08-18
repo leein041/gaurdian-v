@@ -41,13 +41,16 @@ def saturate_int16(x):
 
 def conv2d(inp, w, b, stride=1, pad=None):
     """
-    3x3 컨볼루션 연산 (Q8.8 고정소수점, RTL 동작과 동일한 방식으로 소프트웨어 계산)
+    KxK 컨볼루션 연산 (Q8.8 고정소수점, RTL 동작과 동일한 방식으로 소프트웨어 계산)
+    w의 shape에서 커널 크기(Kh, Kw)를 그대로 가져와 계산하므로 3x3뿐 아니라
+    1x1(pointwise convolution) 등 임의의 정사각 커널 크기를 그대로 지원한다.
 
     inp    : (Cin, H, W)          입력 특징맵 (Q8.8, int16)
     w      : (Cout, Cin, Kh, Kw)  가중치 (Q8.8, int16)
     b      : (Cout,)              bias (Q8.8, int16)
     stride : 컨볼루션 stride (1 또는 2 지원)
-    pad    : 패딩 크기. None이면 커널 크기로부터 자동 계산 (3x3 kernel -> pad=1, "same" 기준)
+    pad    : 패딩 크기. None이면 커널 크기로부터 자동 계산
+             (3x3 kernel -> pad=1, 1x1 kernel -> pad=0, "same" 기준)
 
     반환값 : (Cout, Hout, Wout) 출력 특징맵 (Q8.8, int16, saturate 적용됨)
     """
@@ -55,7 +58,7 @@ def conv2d(inp, w, b, stride=1, pad=None):
     cout, _, kh, kw = w.shape
 
     if pad is None:
-        pad = kh // 2  # 3x3 커널 기준 pad=1 (stride=1일 때 입출력 크기가 같아지는 "same" 패딩)
+        pad = kh // 2  # 커널 크기 기준 자동 pad (3x3->1, 1x1->0). stride=1이면 "same" 패딩이 됨
 
     # 출력 크기 공식: (입력크기 + 2*pad - 커널크기) / stride + 1
     out_h = (h + 2 * pad - kh) // stride + 1
@@ -223,12 +226,15 @@ def generate_golden():
 
         if layer["type"] == "conv":
 
+            # config에 size가 없으면 기본값 3 (3x3). 1을 주면 1x1(pointwise) conv가 됨
+            ksize =layer["kernel"]   
+            
             w = random_weight(
                 (
                     layer["filter"],
                     layer["channel"],
-                    3,
-                    3,
+                    ksize,
+                    ksize,
                 )
             )
             b = random_bias(layer["filter"])
@@ -237,8 +243,9 @@ def generate_golden():
             bias.append(b)
 
             # config에 stride가 없으면 기본값 1, pad 옵션이 없으면 기본적으로 패딩 적용(True)
+            # 1x1 conv는 pad를 True로 둬도 ksize//2 == 0 이라 자동으로 패딩이 없어짐
             stride = layer.get("stride", 1)
-            pad = (3 // 2) if layer.get("pad", True) else 0
+            pad = (ksize // 2) if layer.get("pad", True) else 0
 
             x = conv2d(x, w, b, stride=stride, pad=pad)
             print("after conv", x.shape)
@@ -279,16 +286,18 @@ def generate_golden():
             save_tensor(f"sim/accelerator_sim/golden/layer{layer_idx}_route.txt", x)
 
         elif layer["type"] == "concat":
-            ref_idxs = layer["layers"]
-            resolved = [all_outputs[resolve_route_index(layer_idx, r)] for r in ref_idxs]
+        
+                # layers: 참조할 레이어 인덱스 리스트 (darknet 컨벤션, resolve_route_index 참고)
+                ref_idxs = layer["layers"]
+                resolved = [all_outputs[resolve_route_index(layer_idx, r)] for r in ref_idxs]
+         
+                # 참조 레이어가 여러 개면 concat
+                x = concat_channels(resolved)
+                print("after route(concat)", x.shape, "from layers", ref_idxs)
+        
+                # concat 결과도 RTL 검증용 골든 파일로 저장
+                save_tensor(f"sim/accelerator_sim/golden/layer{layer_idx}_concat.txt", x)
 
-            # 참조 레이어가 여러 개면 concat
-            x = concat_channels(resolved)
-            print("after route(concat)", x.shape, "from layers", ref_idxs)
-
-            # route 결과도 RTL 검증용 골든 파일로 저장
-            save_tensor(f"sim/accelerator_sim/golden/layer{layer_idx}_concat.txt", x)
-                
         all_outputs.append(x)
 
     save_tensor("sim/accelerator_sim/golden/input.txt", inp)
